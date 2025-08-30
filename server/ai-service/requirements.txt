@@ -1,0 +1,70 @@
+# FastAPI et serveur ASGI
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+gunicorn==21.2.0
+
+# Validation et sérialisation
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Base de données et cache
+sqlalchemy==1.4.53
+aiomysql==0.2.0
+redis==5.0.1
+databases[mysql]==0.8.0
+
+# Machine Learning et IA
+openai==1.3.7
+transformers==4.36.0
+torch==2.1.1
+scikit-learn==1.3.2
+numpy==1.24.4
+pandas==2.1.4
+
+# Traitement d'images
+Pillow==10.1.0
+opencv-python-headless==4.8.1.78
+
+# Traitement du texte
+nltk==3.8.1
+spacy==3.7.2
+textblob==0.17.1
+
+# Traitement audio
+librosa==0.10.1
+soundfile==0.12.1
+
+# HTTP et API
+httpx==0.25.2
+aiofiles==23.2.1
+python-multipart==0.0.6
+
+# Authentification et sécurité
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6
+
+# Monitoring et logging
+prometheus-client==0.19.0
+structlog==23.2.0
+
+# Utilitaires
+python-dotenv==1.0.0
+asyncio==3.4.3
+datetime==5.3
+uuid==1.30
+typing-extensions==4.8.0
+
+# Tests
+pytest==7.4.3
+pytest-asyncio==0.21.1
+httpx==0.25.2
+
+# Formatage et qualité de code
+black==23.11.0
+flake8==6.1.0
+isort==5.12.0
+
+# Documentation
+mkdocs==1.5.3
+mkdocs-material==9.4.8

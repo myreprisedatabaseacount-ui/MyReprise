@@ -1,0 +1,176 @@
+version: '3.8'
+
+services:
+  # NGINX - Reverse Proxy & Load Balancer
+  nginx:
+    image: nginx:alpine
+    container_name: myreprise_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/sites-available:/etc/nginx/sites-available
+      - ./nginx/ssl:/etc/nginx/ssl
+      - ./nginx/logs:/var/log/nginx
+    depends_on:
+      - nodejs-app
+      - payment-service
+      - ai-service
+    networks:
+      - myreprise-network
+    restart: unless-stopped
+
+  # Service Principal Node.js - Logique Métier
+  nodejs-app:
+    build: ./nodejs-service
+    container_name: myreprise_nodejs_1
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - PAYMENT_SERVICE_URL=http://payment-service:8080
+      - AI_SERVICE_URL=http://ai-service:8000
+    volumes:
+      - ./nodejs-service:/app
+      - /app/node_modules
+    networks:
+      - myreprise-network
+    restart: unless-stopped
+    depends_on:
+      - redis
+      - mysql
+
+  # Service Node.js Instance 2 (pour load balancing)
+  nodejs-app-2:
+    build: ./nodejs-service
+    container_name: myreprise_nodejs_2
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - PAYMENT_SERVICE_URL=http://payment-service:8080
+      - AI_SERVICE_URL=http://ai-service:8000
+    volumes:
+      - ./nodejs-service:/app
+      - /app/node_modules
+    networks:
+      - myreprise-network
+    restart: unless-stopped
+    depends_on:
+      - redis
+      - mysql
+
+  # Service de Paiement Spring Boot Java 17
+  payment-service:
+    build: ./payment-service
+    container_name: myreprise_payment
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/myreprise_payments
+      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - PAYPAL_CLIENT_ID=${PAYPAL_CLIENT_ID}
+      - PAYPAL_CLIENT_SECRET=${PAYPAL_CLIENT_SECRET}
+    networks:
+      - myreprise-network
+    restart: unless-stopped
+    depends_on:
+      - mysql
+
+  # Service IA FastAPI
+  ai-service:
+    build: ./ai-service
+    container_name: myreprise_ai
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - HUGGINGFACE_API_KEY=${HUGGINGFACE_API_KEY}
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./ai-service:/app
+      - ai-models:/app/models
+    networks:
+      - myreprise-network
+    restart: unless-stopped
+    depends_on:
+      - redis
+
+  # Base de données MySQL
+  mysql:
+    image: mysql:8.0
+    container_name: myreprise_mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - MYSQL_DATABASE=myreprise
+      - MYSQL_USER=${DB_USERNAME}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "${DB_PORT}:${DB_PORT}"
+    networks:
+      - myreprise-network
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
+
+  # Redis pour cache et sessions
+  redis:
+    image: redis:7-alpine
+    container_name: myreprise_redis
+    ports:
+      - "${REDIS_PORT}:${REDIS_PORT}"
+    volumes:
+      - redis_data:/data
+    networks:
+      - myreprise-network
+    restart: unless-stopped
+
+  # Monitoring avec Prometheus (optionnel)
+  prometheus:
+    image: prom/prometheus
+    container_name: myreprise_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - myreprise-network
+    restart: unless-stopped
+
+  # Grafana pour visualisation (optionnel)
+  grafana:
+    image: grafana/grafana
+    container_name: myreprise_grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - myreprise-network
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  redis_data:
+  ai-models:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  myreprise-network:
+    driver: bridge
