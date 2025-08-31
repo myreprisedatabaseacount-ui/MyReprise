@@ -1,0 +1,21 @@
+{
+  "Index": {
+    "title": "مرحباً بك في موقعي",
+    "description": "تطبيق ويب حديث مطور باستخدام Next.js، يتضمن نظام ترجمة شامل لتجربة مستخدم مثلى.",
+    "welcome": "ابدأ الآن"
+  },
+  "HomePage": {
+    "title": "مرحبا بالعالم!",
+    "about": "ألو مكتبة",
+    "niveauxScolaires": {
+      "title": "المستوى",
+      "highlight": "الدراسي",
+      "subtitle": ""
+    },
+    "schoolsSection": {
+      "title": "مدارس",
+      "highlight": "الشريكة",
+      "subtitle": ""
+    }
+  }
+}

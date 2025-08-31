@@ -1,0 +1,21 @@
+{
+  "Index": {
+    "title": "Welcome to My Website",
+    "description": "A modern web application built with Next.js, featuring a comprehensive translation system for an optimal user experience.",
+    "welcome": "Get Started"
+  },
+  "login": {
+    "title": "Login",
+    "subtitle": "Sign in to your account",
+    "email": "Email",
+    "emailPlaceholder": "Enter your email",
+    "password": "Password",
+    "passwordPlaceholder": "Enter your password",
+    "forgotPassword": "Forgot password?",
+    "button": "Sign in",
+    "or": "or",
+    "googleLogin": "Continue with Google",
+    "noAccount": "Don't have an account?",
+    "createAccount": "Create account"
+  }
+}

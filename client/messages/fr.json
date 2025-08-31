@@ -1,0 +1,21 @@
+{
+  "Index": {
+    "title": "Bienvenue sur Mon Site",
+    "description": "Une application web moderne développée avec Next.js, intégrant un système de traduction complet pour une expérience utilisateur optimale.",
+    "welcome": "Commencer"
+  },
+  "HomePage": {
+    "title": "Bonjour le monde!",
+    "about": "Allo Maktaba",
+    "niveauxScolaires": {
+      "title": "",
+      "highlight": "Niveaux",
+      "subtitle": "scolaires"
+    },
+    "schoolsSection": {
+      "title": "",
+      "highlight": "écoles",
+      "subtitle": "partenaires"
+    }
+  }
+}

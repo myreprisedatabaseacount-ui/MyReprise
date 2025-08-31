@@ -1,0 +1,524 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+  --primary: 221.2 83.2% 53.3%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222.2 84% 4.9%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 210 40% 96%;
+  --accent-foreground: 222.2 84% 4.9%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 221.2 83.2% 53.3%;
+  --radius: 0.5rem;
+  
+  /* Sidebar variables */
+  --sidebar-background: 0 0% 98%;
+  --sidebar-foreground: 222.2 84% 4.9%;
+  --sidebar-primary: 221.2 83.2% 53.3%;
+  --sidebar-primary-foreground: 210 40% 98%;
+  --sidebar-accent: 210 40% 96%;
+  --sidebar-accent-foreground: 222.2 84% 4.9%;
+  --sidebar-border: 214.3 31.8% 91.4%;
+  --sidebar-ring: 221.2 83.2% 53.3%;
+}
+
+.dark {
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+  --card: 222.2 84% 4.9%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222.2 84% 4.9%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 217.2 91.2% 59.8%;
+  --primary-foreground: 222.2 84% 4.9%;
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 224.3 76.3% 94.1%;
+  
+  /* Dark mode sidebar variables */
+  --sidebar-background: 222.2 84% 4.9%;
+  --sidebar-foreground: 210 40% 98%;
+  --sidebar-primary: 217.2 91.2% 59.8%;
+  --sidebar-primary-foreground: 222.2 84% 4.9%;
+  --sidebar-accent: 217.2 32.6% 17.5%;
+  --sidebar-accent-foreground: 210 40% 98%;
+  --sidebar-border: 217.2 32.6% 17.5%;
+  --sidebar-ring: 224.3 76.3% 94.1%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-cairo;
+  }
+}
+
+/* ========================================
+   POLICES GOOGLE FONTS - CLASSES UTILITAIRES
+   ======================================== */
+
+/* CAIRO - Police principale */
+.cairo-extralight {
+  font-family: "Cairo", var(--font-cairo), sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 200;
+  font-style: normal;
+  font-variation-settings: "slnt" 0;
+}
+
+.cairo-light {
+  font-family: "Cairo", var(--font-cairo), sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 300;
+  font-style: normal;
+  font-variation-settings: "slnt" 0;
+}
+
+.cairo-regular {
+  font-family: "Cairo", var(--font-cairo), sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal;
+  font-variation-settings: "slnt" 0;
+}
+
+.cairo-medium {
+  font-family: "Cairo", var(--font-cairo), sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 500;
+  font-style: normal;
+  font-variation-settings: "slnt" 0;
+}
+
+.cairo-semibold {
+  font-family: "Cairo", var(--font-cairo), sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 600;
+  font-style: normal;
+  font-variation-settings: "slnt" 0;
+}
+
+.cairo-bold {
+  font-family: "Cairo", var(--font-cairo), sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 700;
+  font-style: normal;
+  font-variation-settings: "slnt" 0;
+}
+
+.cairo-extrabold {
+  font-family: "Cairo", var(--font-cairo), sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 800;
+  font-style: normal;
+  font-variation-settings: "slnt" 0;
+}
+
+.cairo-black {
+  font-family: "Cairo", var(--font-cairo), sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 900;
+  font-style: normal;
+  font-variation-settings: "slnt" 0;
+}
+
+/* TAJAWAL - Police arabe */
+.tajawal-extralight {
+  font-family: "Tajawal", var(--font-tajawal), sans-serif;
+  font-weight: 200;
+  font-style: normal;
+}
+
+.tajawal-light {
+  font-family: "Tajawal", var(--font-tajawal), sans-serif;
+  font-weight: 300;
+  font-style: normal;
+}
+
+.tajawal-regular {
+  font-family: "Tajawal", var(--font-tajawal), sans-serif;
+  font-weight: 400;
+  font-style: normal;
+}
+
+.tajawal-medium {
+  font-family: "Tajawal", var(--font-tajawal), sans-serif;
+  font-weight: 500;
+  font-style: normal;
+}
+
+.tajawal-bold {
+  font-family: "Tajawal", var(--font-tajawal), sans-serif;
+  font-weight: 700;
+  font-style: normal;
+}
+
+.tajawal-extrabold {
+  font-family: "Tajawal", var(--font-tajawal), sans-serif;
+  font-weight: 800;
+  font-style: normal;
+}
+
+.tajawal-black {
+  font-family: "Tajawal", var(--font-tajawal), sans-serif;
+  font-weight: 900;
+  font-style: normal;
+}
+
+/* POPPINS - Police latine */
+.poppins-thin {
+  font-family: "Poppins", var(--font-poppins), sans-serif;
+  font-weight: 100;
+  font-style: normal;
+}
+
+.poppins-extralight {
+  font-family: "Poppins", var(--font-poppins), sans-serif;
+  font-weight: 200;
+  font-style: normal;
+}
+
+.poppins-light {
+  font-family: "Poppins", var(--font-poppins), sans-serif;
+  font-weight: 300;
+  font-style: normal;
+}
+
+.poppins-regular {
+  font-family: "Poppins", var(--font-poppins), sans-serif;
+  font-weight: 400;
+  font-style: normal;
+}
+
+.poppins-medium {
+  font-family: "Poppins", var(--font-poppins), sans-serif;
+  font-weight: 500;
+  font-style: normal;
+}
+
+.poppins-semibold {
+  font-family: "Poppins", var(--font-poppins), sans-serif;
+  font-weight: 600;
+  font-style: normal;
+}
+
+.poppins-bold {
+  font-family: "Poppins", var(--font-poppins), sans-serif;
+  font-weight: 700;
+  font-style: normal;
+}
+
+.poppins-extrabold {
+  font-family: "Poppins", var(--font-poppins), sans-serif;
+  font-weight: 800;
+  font-style: normal;
+}
+
+.poppins-black {
+  font-family: "Poppins", var(--font-poppins), sans-serif;
+  font-weight: 900;
+  font-style: normal;
+}
+
+/* POPPINS ITALIC */
+.poppins-thin-italic {
+  font-family: "Poppins", var(--font-poppins), sans-serif;
+  font-weight: 100;
+  font-style: italic;
+}
+
+.poppins-extralight-italic {
+  font-family: "Poppins", var(--font-poppins), sans-serif;
+  font-weight: 200;
+  font-style: italic;
+}
+
+.poppins-light-italic {
+  font-family: "Poppins", var(--font-poppins), sans-serif;
+  font-weight: 300;
+  font-style: italic;
+}
+
+.poppins-regular-italic {
+  font-family: "Poppins", var(--font-poppins), sans-serif;
+  font-weight: 400;
+  font-style: italic;
+}
+
+.poppins-medium-italic {
+  font-family: "Poppins", var(--font-poppins), sans-serif;
+  font-weight: 500;
+  font-style: italic;
+}
+
+.poppins-semibold-italic {
+  font-family: "Poppins", var(--font-poppins), sans-serif;
+  font-weight: 600;
+  font-style: italic;
+}
+
+.poppins-bold-italic {
+  font-family: "Poppins", var(--font-poppins), sans-serif;
+  font-weight: 700;
+  font-style: italic;
+}
+
+.poppins-extrabold-italic {
+  font-family: "Poppins", var(--font-poppins), sans-serif;
+  font-weight: 800;
+  font-style: italic;
+}
+
+.poppins-black-italic {
+  font-family: "Poppins", var(--font-poppins), sans-serif;
+  font-weight: 900;
+  font-style: italic;
+}
+
+/* MULISH - Police moderne */
+.mulish-extralight {
+  font-family: "Mulish", var(--font-mulish), sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 200;
+  font-style: normal;
+}
+
+.mulish-light {
+  font-family: "Mulish", var(--font-mulish), sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 300;
+  font-style: normal;
+}
+
+.mulish-regular {
+  font-family: "Mulish", var(--font-mulish), sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal;
+}
+
+.mulish-medium {
+  font-family: "Mulish", var(--font-mulish), sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 500;
+  font-style: normal;
+}
+
+.mulish-semibold {
+  font-family: "Mulish", var(--font-mulish), sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 600;
+  font-style: normal;
+}
+
+.mulish-bold {
+  font-family: "Mulish", var(--font-mulish), sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 700;
+  font-style: normal;
+}
+
+.mulish-extrabold {
+  font-family: "Mulish", var(--font-mulish), sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 800;
+  font-style: normal;
+}
+
+.mulish-black {
+  font-family: "Mulish", var(--font-mulish), sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 900;
+  font-style: normal;
+}
+
+/* IBM PLEX SANS ARABIC - Police arabe professionnelle */
+.ibm-plex-sans-arabic-thin {
+  font-family: "IBM Plex Sans Arabic", var(--font-ibm-plex-sans-arabic), sans-serif;
+  font-weight: 100;
+  font-style: normal;
+}
+
+.ibm-plex-sans-arabic-extralight {
+  font-family: "IBM Plex Sans Arabic", var(--font-ibm-plex-sans-arabic), sans-serif;
+  font-weight: 200;
+  font-style: normal;
+}
+
+.ibm-plex-sans-arabic-light {
+  font-family: "IBM Plex Sans Arabic", var(--font-ibm-plex-sans-arabic), sans-serif;
+  font-weight: 300;
+  font-style: normal;
+}
+
+.ibm-plex-sans-arabic-regular {
+  font-family: "IBM Plex Sans Arabic", var(--font-ibm-plex-sans-arabic), sans-serif;
+  font-weight: 400;
+  font-style: normal;
+}
+
+.ibm-plex-sans-arabic-medium {
+  font-family: "IBM Plex Sans Arabic", var(--font-ibm-plex-sans-arabic), sans-serif;
+  font-weight: 500;
+  font-style: normal;
+}
+
+.ibm-plex-sans-arabic-semibold {
+  font-family: "IBM Plex Sans Arabic", var(--font-ibm-plex-sans-arabic), sans-serif;
+  font-weight: 600;
+  font-style: normal;
+}
+
+.ibm-plex-sans-arabic-bold {
+  font-family: "IBM Plex Sans Arabic", var(--font-ibm-plex-sans-arabic), sans-serif;
+  font-weight: 700;
+  font-style: normal;
+}
+/* Styles RTL pour l'arabe */
+[dir="rtl"] .rtl\:space-x-reverse > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-x-reverse: 1;
+}
+
+[dir="rtl"] .rtl\:text-end {
+  text-align: end;
+}
+
+/* Gestion automatique des marges pour RTL */
+[dir="rtl"] .space-x-4 > :not([hidden]) ~ :not([hidden]) {
+  margin-left: 0;
+  margin-right: calc(1rem * var(--tw-space-x-reverse));
+}
+
+[dir="rtl"] .space-x-3 > :not([hidden]) ~ :not([hidden]) {
+  margin-left: 0;
+  margin-right: calc(0.75rem * var(--tw-space-x-reverse));
+}
+
+[dir="rtl"] .space-x-2 > :not([hidden]) ~ :not([hidden]) {
+  margin-left: 0;
+  margin-right: calc(0.5rem * var(--tw-space-x-reverse));
+}
+
+/* Gestion des icônes pour RTL */
+[dir="rtl"] .icon-rtl-flip {
+  transform: scaleX(-1);
+}
+
+/* Styles personnalisés pour les toasts */
+.toast-container {
+  position: fixed !important;
+  top: 20px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 9999 !important;
+}
+
+.toast-container .toast {
+  margin: 8px 0 !important;
+  min-width: 300px !important;
+  max-width: 500px !important;
+  text-align: center !important;
+  backdrop-filter: blur(10px) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.toast-container .toast:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Animation d'entrée personnalisée */
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-100%) translateX(-50%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) translateX(-50%);
+  }
+}
+
+.toast-container .toast {
+  animation: toastSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* Responsive design pour les toasts */
+@media (max-width: 768px) {
+  .toast-container .toast {
+    min-width: 280px !important;
+    max-width: 90vw !important;
+    margin: 6px 0 !important;
+    padding: 12px 16px !important;
+    font-size: 13px !important;
+  }
+}
+
+/* ========================================
+   SIDEBAR RESPONSIVE BEHAVIOR
+   ======================================== */
+
+/* Sur mobile, la sidebar est en overlay par défaut */
+@media (max-width: 768px) {
+  [data-sidebar="sidebar"] {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    z-index: 50 !important;
+    height: 100vh !important;
+    transform: translateX(-100%) !important;
+    transition: transform 0.3s ease-in-out !important;
+  }
+
+  [data-sidebar="sidebar"][data-state="open"] {
+    transform: translateX(0) !important;
+  }
+
+  /* Overlay sombre sur mobile quand la sidebar est ouverte */
+  [data-sidebar="sidebar"][data-state="open"]::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: -1;
+  }
+}
+
+/* Sur desktop, la sidebar est toujours visible */
+@media (min-width: 769px) {
+  [data-sidebar="sidebar"] {
+    position: relative !important;
+    transform: translateX(0) !important;
+  }
+
+  [data-sidebar="sidebar"][data-state="collapsed"] {
+    width: 60px !important;
+  }
+}
+
