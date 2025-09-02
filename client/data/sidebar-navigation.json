@@ -1,0 +1,110 @@
+{
+  "categories": [
+    {
+      "id": "dashboard",
+      "label": "Tableau de bord",
+      "items": [
+        {
+          "id": "analytics",
+          "title": "Analytics",
+          "url": "/back-office/analytics",
+          "icon": "BarChart3",
+          "description": "Statistiques et métriques"
+        },
+        {
+          "id": "reports",
+          "title": "Rapports",
+          "url": "/back-office/reports",
+          "icon": "FileBarChart",
+          "description": "Rapports détaillés"
+        }
+      ]
+    },
+    {
+      "id": "content",
+      "label": "Gestion de contenu",
+      "items": [
+        {
+          "id": "categories",
+          "title": "Catégories",
+          "url": "/back-office/categories",
+          "icon": "FolderOpen",
+          "badge": "12",
+          "description": "Gérer les catégories"
+        },
+        {
+          "id": "products",
+          "title": "Produits",
+          "url": "/back-office/products",
+          "icon": "Package",
+          "badge": "156",
+          "description": "Catalogue des produits"
+        },
+        {
+          "id": "orders",
+          "title": "Commandes",
+          "url": "/back-office/orders",
+          "icon": "ShoppingCart",
+          "badge": "23",
+          "description": "Gestion des commandes"
+        }
+      ]
+    },
+    {
+      "id": "users",
+      "label": "Utilisateurs",
+      "items": [
+        {
+          "id": "customers",
+          "title": "Clients",
+          "url": "/back-office/customers",
+          "icon": "Users",
+          "badge": "1.2k",
+          "description": "Base de données clients"
+        },
+        {
+          "id": "staff",
+          "title": "Personnel",
+          "url": "/back-office/staff",
+          "icon": "UserCheck",
+          "description": "Gestion du personnel"
+        }
+      ]
+    },
+    {
+      "id": "communication",
+      "label": "Communication",
+      "items": [
+        {
+          "id": "messages",
+          "title": "Messages",
+          "url": "/back-office/messages",
+          "icon": "MessageSquare",
+          "badge": "5",
+          "description": "Messages clients"
+        },
+        {
+          "id": "notifications",
+          "title": "Notifications",
+          "url": "/back-office/notifications",
+          "icon": "Bell",
+          "badge": "new",
+          "description": "Centre de notifications"
+        }
+      ]
+    },
+    {
+      "id": "system",
+      "label": "Système",
+      "items": [
+        {
+          "id": "settings",
+          "title": "Paramètres",
+          "url": "/back-office/settings",
+          "icon": "Settings",
+          "description": "Configuration système"
+        }
+      ]
+    }
+  ]
+}
