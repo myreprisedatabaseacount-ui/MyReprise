@@ -60,11 +60,11 @@ async function connectToDatabase() {
     await sequelize.authenticate();
     logger.info('✅ Connexion Sequelize/MySQL établie avec succès');
     
-    // Synchronisation des modèles (en développement)
-    if (process.env.NODE_ENV === 'development') {
-      await sequelize.sync({ alter: true });
-      logger.info('🔄 Modèles Sequelize synchronisés');
-    }
+    // Synchronisation des modèles désactivée - gérée dans models/index.js
+    // if (process.env.NODE_ENV === 'development') {
+    //   await sequelize.sync({ alter: true });
+    //   logger.info('🔄 Modèles Sequelize synchronisés');
+    // }
     
     return sequelize;
   } catch (error) {

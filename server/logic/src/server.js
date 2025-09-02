@@ -3,7 +3,21 @@
  * Responsable de la logique métier complète de l'application
  */
 
-require('dotenv').config();
+// Configuration manuelle pour éviter le .env corrompu
+process.env.NODE_ENV = process.env.NODE_ENV || 'development';
+process.env.PORT = process.env.PORT || '3001';
+process.env.DB_HOST = process.env.DB_HOST || 'localhost';
+process.env.DB_PORT = process.env.DB_PORT || '3306';
+process.env.DB_USERNAME = process.env.DB_USERNAME || 'root';
+process.env.DB_PASSWORD = process.env.DB_PASSWORD || '';
+process.env.DB_DATABASE = process.env.DB_DATABASE || 'myreprise_new';
+process.env.DB_NAME = process.env.DB_NAME || 'myreprise_new';
+process.env.REDIS_HOST = process.env.REDIS_HOST || 'localhost';
+process.env.REDIS_PORT = process.env.REDIS_PORT || '6379';
+process.env.NEO4J_URI = process.env.NEO4J_URI || 'neo4j://localhost:7687';
+process.env.NEO4J_USER = process.env.NEO4J_USER || 'neo4j';
+process.env.NEO4J_PASSWORD = process.env.NEO4J_PASSWORD || 'neo4j123';
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'myreprisel2alamiya&&codesecretman3tihchlberrani';
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -189,8 +203,15 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Démarrer le serveur avec debug
 console.log('🔄 DÉBUT DU SCRIPT SERVER.JS');
+console.log('🔄 Variables d\'environnement:');
+console.log('  - PORT:', process.env.PORT);
+console.log('  - DB_HOST:', process.env.DB_HOST);
+console.log('  - DB_NAME:', process.env.DB_NAME);
+console.log('  - NODE_ENV:', process.env.NODE_ENV);
+
 startServer().catch(error => {
   console.error('💥 ERREUR FATALE:', error);
+  console.error('💥 Stack trace:', error.stack);
   process.exit(1);
 });
 

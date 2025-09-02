@@ -30,28 +30,64 @@ async function initializeModels() {
     const sequelize = getSequelize();
     
     // Créer les modèles
+    console.log('🔄 Création User...');
     const User = createUserModel(sequelize);
+    console.log('🔄 Création Address...');
     const Address = createAddressModel(sequelize);
+    console.log('🔄 Création Store...');
     const Store = createStoreModel(sequelize);
+    console.log('🔄 Création Product...');
     const Product = createProductModel(sequelize);
+    console.log('🔄 Création Category...');
     const Category = createCategoryModel(sequelize);
+    console.log('🔄 Création Brand...');
     const Brand = createBrandModel(sequelize);
+    console.log('🔄 Création Subject...');
     const Subject = createSubjectModel(sequelize);
+    console.log('🔄 Création SubjectCategory...');
     const SubjectCategory = createSubjectCategoryModel(sequelize);
+    console.log('🔄 Création Offer...');
     const Offer = createOfferModel(sequelize);
+    console.log('🔄 Création OfferImage...');
     const OfferImage = createOfferImageModel(sequelize);
+    console.log('🔄 Création Order...');
     const Order = createOrderModel(sequelize);
+    console.log('🔄 Création UserSnapshot...');
     const UserSnapshot = createUserSnapshotModel(sequelize);
+    console.log('🔄 Création ProductSnapshot...');
     const ProductSnapshot = createProductSnapshotModel(sequelize);
     // Exchange supprimé
+    console.log('🔄 Création DeliveryCompany...');
     const DeliveryCompany = createDeliveryCompanyModel(sequelize);
+    console.log('🔄 Création DeliveryInfo...');
     const DeliveryInfo = createDeliveryInfoModel(sequelize);
+    console.log('🔄 Création Setting...');
     const Setting = createSettingModel(sequelize);
     
     // Définir les associations
     logger.info('🔄 Définition des associations...');
     
+    // Vérifier que tous les modèles sont définis
+    console.log('🔄 Vérification des modèles...');
+    console.log('  - User:', typeof User);
+    console.log('  - Address:', typeof Address);
+    console.log('  - Store:', typeof Store);
+    console.log('  - Product:', typeof Product);
+    console.log('  - Category:', typeof Category);
+    console.log('  - Brand:', typeof Brand);
+    console.log('  - Subject:', typeof Subject);
+    console.log('  - SubjectCategory:', typeof SubjectCategory);
+    console.log('  - Offer:', typeof Offer);
+    console.log('  - OfferImage:', typeof OfferImage);
+    console.log('  - Order:', typeof Order);
+    console.log('  - UserSnapshot:', typeof UserSnapshot);
+    console.log('  - ProductSnapshot:', typeof ProductSnapshot);
+    console.log('  - DeliveryCompany:', typeof DeliveryCompany);
+    console.log('  - DeliveryInfo:', typeof DeliveryInfo);
+    console.log('  - Setting:', typeof Setting);
+    
     // User <-> Address
+    console.log('🔄 Association User <-> Address...');
     User.belongsTo(Address, { foreignKey: 'addressId', as: 'Address' });
     Address.hasMany(User, { foreignKey: 'addressId', as: 'Users' });
     
