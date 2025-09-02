@@ -27,10 +27,10 @@ services:
     build: ./logic
     container_name: myreprise_nodejs_1
     ports:
-      - "3000:3000"
+      - "3001:3001"
     environment:
       - NODE_ENV=production
-      - PORT=3000
+      - PORT=3001
       - DATABASE_URL=${DATABASE_URL}
       - JWT_SECRET=${JWT_SECRET}
       - PAYMENT_SERVICE_URL=http://payment-service:8080
@@ -51,10 +51,10 @@ services:
     build: ./logic
     container_name: myreprise_nodejs_2
     ports:
-      - "3001:3000"
+      - "3002:3001"
     environment:
       - NODE_ENV=production
-      - PORT=3000
+      - PORT=3001
       - DATABASE_URL=${DATABASE_URL}
       - JWT_SECRET=${JWT_SECRET}
       - PAYMENT_SERVICE_URL=http://payment-service:8080
@@ -71,25 +71,25 @@ services:
       - mysql
 
   # Service de Paiement Spring Boot Java 17
-  # TEMPORAIREMENT DÉSACTIVÉ - JAR non construit
-  # payment-service:
-  #   build: ./payment-service
-  #   container_name: myreprise_payment
-  #   ports:
-  #     - "8080:8080"
-  #   environment:
-  #     - SPRING_PROFILES_ACTIVE=prod
-  #     - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/myreprise_payments
-  #     - SPRING_DATASOURCE_USERNAME=${DB_USERNAME}
-  #     - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
-  #     - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
-  #     - PAYPAL_CLIENT_ID=${PAYPAL_CLIENT_ID}
-  #     - PAYPAL_CLIENT_SECRET=${PAYPAL_CLIENT_SECRET}
-  #   networks:
-  #     - myreprise-network
-  #   restart: unless-stopped
-  #   depends_on:
-  #     - mysql
+  # Service de Paiement Spring Boot
+  payment-service:
+    build: ./payment-service
+    container_name: myreprise_payment
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/myreprise_payments
+      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - PAYPAL_CLIENT_ID=${PAYPAL_CLIENT_ID}
+      - PAYPAL_CLIENT_SECRET=${PAYPAL_CLIENT_SECRET}
+    networks:
+      - myreprise-network
+    restart: unless-stopped
+    depends_on:
+      - mysql
 
   # Service IA FastAPI
   ai-service:
@@ -110,6 +110,30 @@ services:
     restart: unless-stopped
     depends_on:
       - redis
+
+  # Service Graph Neo4j FastAPI
+  graph-service:
+    build: ./graph-service
+    container_name: myreprise_graph_service
+    ports:
+      - "8002:8002"
+    environment:
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_DATABASE=${DB_DATABASE}
+    volumes:
+      - ./graph-service:/app
+    depends_on:
+      - neo4j
+      - mysql
+    networks:
+      - myreprise-network
+    restart: unless-stopped
 
   # Base de données MySQL
   mysql:
@@ -149,7 +173,7 @@ services:
       - "7474:7474"  # Interface Neo4j Browser
       - "7687:7687"  # Port Bolt pour connexions
     environment:
-      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD}
+      - NEO4J_AUTH=neo4j/neo4j123
       - NEO4J_PLUGINS=["apoc"]
       - NEO4J_dbms_security_procedures_unrestricted=apoc.*
       - NEO4J_dbms_memory_heap_initial__size=512m
