@@ -157,10 +157,13 @@ async function startServer() {
     console.log('✅ MySQL connecté');
     logger.info('✅ Connexion à MySQL établie');
     
+    // Attendre un peu pour s'assurer que la connexion est stable
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
     // Initialisation des modèles et création des tables
-    logger.info('🔄 Début initialisation des modèles...');
+    console.log('🔄 Début initialisation des modèles...');
     await initializeModels();
-    logger.info('✅ Modèles initialisés avec succès');
+    console.log('✅ Modèles initialisés avec succès');
     // Connexion à Redis (désactivée temporairement)
     // await connectToRedis();
     logger.info('⚠️ Redis désactivé temporairement');

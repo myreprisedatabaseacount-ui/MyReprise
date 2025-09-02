@@ -50,11 +50,15 @@ class MyRepriseMigrator:
             'categories': 0,
             'brands': 0,
             'subjects': 0,
+            'subject_categories': 0,
             'products': 0,
             'offers': 0,
+            'offer_images': 0,
             'orders': 0,
             'user_snapshots': 0,
             'product_snapshots': 0,
+            'delivery_companies': 0,
+            'delivery_infos': 0,
             'relationships': 0
         }
 
@@ -93,9 +97,12 @@ class MyRepriseMigrator:
             "CREATE CONSTRAINT subject_id IF NOT EXISTS FOR (sub:Subject) REQUIRE sub.id IS UNIQUE",
             "CREATE CONSTRAINT product_id IF NOT EXISTS FOR (p:Product) REQUIRE p.id IS UNIQUE",
             "CREATE CONSTRAINT offer_id IF NOT EXISTS FOR (o:Offer) REQUIRE o.id IS UNIQUE",
+            "CREATE CONSTRAINT offer_image_id IF NOT EXISTS FOR (oi:OfferImage) REQUIRE oi.id IS UNIQUE",
             "CREATE CONSTRAINT order_id IF NOT EXISTS FOR (ord:Order) REQUIRE ord.id IS UNIQUE",
             "CREATE CONSTRAINT user_snapshot_id IF NOT EXISTS FOR (us:UserSnapshot) REQUIRE us.id IS UNIQUE",
-            "CREATE CONSTRAINT product_snapshot_id IF NOT EXISTS FOR (ps:ProductSnapshot) REQUIRE ps.id IS UNIQUE"
+            "CREATE CONSTRAINT product_snapshot_id IF NOT EXISTS FOR (ps:ProductSnapshot) REQUIRE ps.id IS UNIQUE",
+            "CREATE CONSTRAINT delivery_company_id IF NOT EXISTS FOR (dc:DeliveryCompany) REQUIRE dc.id IS UNIQUE",
+            "CREATE CONSTRAINT delivery_info_id IF NOT EXISTS FOR (di:DeliveryInfo) REQUIRE di.id IS UNIQUE"
         ]
         
         with self.neo4j_driver.session() as session:
@@ -165,7 +172,7 @@ class MyRepriseMigrator:
         logger.info(f"✅ {self.stats['addresses']} adresses migrées")
 
     def migrate_categories(self):
-        """Migrer les catégories avec support multilingue"""
+        """Migrer les catégories avec support multilingue et nouveaux champs"""
         cursor = self.mysql_conn.cursor(dictionary=True)
         cursor.execute("SELECT * FROM categories")
         categories = cursor.fetchall()
@@ -182,6 +189,9 @@ class MyRepriseMigrator:
                         descriptionFr: $description_fr,
                         image: $image,
                         icon: $icon,
+                        gender: $gender,
+                        ageMin: $age_min,
+                        ageMax: $age_max,
                         createdAt: datetime($created_at),
                         updatedAt: datetime($updated_at)
                     })
@@ -265,13 +275,18 @@ class MyRepriseMigrator:
         logger.info(f"✅ {self.stats['products']} produits migrés")
 
     def migrate_offers(self):
-        """Migrer les offres"""
+        """Migrer les offres avec tous les champs"""
         cursor = self.mysql_conn.cursor(dictionary=True)
         cursor.execute("SELECT * FROM offers")
         offers = cursor.fetchall()
         
         with self.neo4j_driver.session() as session:
             for offer in offers:
+                # Convertir les valeurs décimales en float
+                offer_data = dict(offer)
+                if offer_data.get('price') is not None:
+                    offer_data['price'] = float(offer_data['price'])
+                
                 session.run("""
                     CREATE (o:Offer {
                         id: $id,
@@ -290,7 +305,7 @@ class MyRepriseMigrator:
                         createdAt: datetime($created_at),
                         updatedAt: datetime($updated_at)
                     })
-                """, **offer)
+                """, **offer_data)
                 
                 self.stats['offers'] += 1
         
@@ -321,22 +336,34 @@ class MyRepriseMigrator:
         logger.info(f"✅ {self.stats['stores']} magasins migrés")
 
     def migrate_orders(self):
-        """Migrer les commandes avec la vraie structure"""
+        """Migrer les commandes avec la vraie structure complète"""
         cursor = self.mysql_conn.cursor(dictionary=True)
         cursor.execute("SELECT * FROM orders")
         orders = cursor.fetchall()
         
         with self.neo4j_driver.session() as session:
             for order in orders:
+                # Convertir les valeurs décimales en float
+                order_data = dict(order)
+                if order_data.get('total_amount') is not None:
+                    order_data['total_amount'] = float(order_data['total_amount'])
+                if order_data.get('balance_amount') is not None:
+                    order_data['balance_amount'] = float(order_data['balance_amount'])
+                
                 session.run("""
                     CREATE (o:Order {
                         id: $id,
+                        orderNumber: $order_number,
+                        status: $status,
+                        totalAmount: $total_amount,
+                        notes: $notes,
+                        exchangeDate: $exchange_date,
                         balanceAmount: $balance_amount,
                         balancePayerId: $balance_payer_id,
                         createdAt: datetime($created_at),
                         updatedAt: datetime($updated_at)
                     })
-                """, **order)
+                """, **order_data)
                 
                 self.stats['orders'] += 1
         
@@ -377,6 +404,11 @@ class MyRepriseMigrator:
         
         with self.neo4j_driver.session() as session:
             for snapshot in snapshots:
+                # Convertir les valeurs décimales en float
+                snapshot_data = dict(snapshot)
+                if snapshot_data.get('price') is not None:
+                    snapshot_data['price'] = float(snapshot_data['price'])
+                
                 session.run("""
                     CREATE (ps:ProductSnapshot {
                         id: $id,
@@ -391,13 +423,116 @@ class MyRepriseMigrator:
                         createdAt: datetime($created_at),
                         updatedAt: datetime($updated_at)
                     })
-                """, **snapshot)
+                """, **snapshot_data)
                 
                 self.stats['product_snapshots'] += 1
         
         logger.info(f"✅ {self.stats['product_snapshots']} snapshots produits migrés")
 
+    def migrate_subject_categories(self):
+        """Migrer les relations matières-catégories"""
+        cursor = self.mysql_conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM subject_categories")
+        subject_categories = cursor.fetchall()
+        
+        with self.neo4j_driver.session() as session:
+            for sc in subject_categories:
+                session.run("""
+                    CREATE (sc:SubjectCategory {
+                        id: $id,
+                        subjectId: $subject_id,
+                        categoryId: $category_id,
+                        createdAt: datetime($created_at),
+                        updatedAt: datetime($updated_at)
+                    })
+                """, **sc)
+                
+                self.stats['subject_categories'] += 1
+        
+        logger.info(f"✅ {self.stats['subject_categories']} relations matières-catégories migrées")
 
+    def migrate_offer_images(self):
+        """Migrer les images d'offres"""
+        cursor = self.mysql_conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM offer_images")
+        offer_images = cursor.fetchall()
+        
+        with self.neo4j_driver.session() as session:
+            for oi in offer_images:
+                session.run("""
+                    CREATE (oi:OfferImage {
+                        id: $id,
+                        color: $color,
+                        colorHex: $color_hex,
+                        isMain: $is_main,
+                        imageUrl: $image_url,
+                        offerId: $offer_id,
+                        createdAt: datetime($created_at),
+                        updatedAt: datetime($updated_at)
+                    })
+                """, **oi)
+                
+                self.stats['offer_images'] += 1
+        
+        logger.info(f"✅ {self.stats['offer_images']} images d'offres migrées")
+
+    def migrate_delivery_companies(self):
+        """Migrer les entreprises de livraison"""
+        cursor = self.mysql_conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM delivery_companies")
+        delivery_companies = cursor.fetchall()
+        
+        with self.neo4j_driver.session() as session:
+            for dc in delivery_companies:
+                session.run("""
+                    CREATE (dc:DeliveryCompany {
+                        id: $id,
+                        name: $name,
+                        createdAt: datetime($created_at),
+                        updatedAt: datetime($updated_at)
+                    })
+                """, **dc)
+                
+                self.stats['delivery_companies'] += 1
+        
+        logger.info(f"✅ {self.stats['delivery_companies']} entreprises de livraison migrées")
+
+    def migrate_delivery_infos(self):
+        """Migrer les informations de livraison"""
+        cursor = self.mysql_conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM delivery_infos")
+        delivery_infos = cursor.fetchall()
+        
+        with self.neo4j_driver.session() as session:
+            for di in delivery_infos:
+                session.run("""
+                    CREATE (di:DeliveryInfo {
+                        id: $id,
+                        orderId: $order_id,
+                        companyId: $company_id,
+                        deliveryStatus: $delivery_status,
+                        deliveryComment: $delivery_comment,
+                        deliveryType: $delivery_type,
+                        isFragile: $is_fragile,
+                        orderNumber: $order_number,
+                        packageCount: $package_count,
+                        packageHeight: $package_height,
+                        packageLength: $package_length,
+                        packageWidth: $package_width,
+                        rangeWeight: $range_weight,
+                        status: $status,
+                        subject: $subject,
+                        totalPrice: $total_price,
+                        totalAmount: $total_amount,
+                        totalWeight: $total_weight,
+                        createdAt: datetime($created_at),
+                        updatedAt: datetime($updated_at)
+                    })
+                """, **di)
+                
+                self.stats['delivery_infos'] += 1
+        
+        logger.info(f"✅ {self.stats['delivery_infos']} informations de livraison migrées")
 
     def create_relationships(self):
         """Créer toutes les relations entre les nœuds"""
@@ -520,6 +655,34 @@ class MyRepriseMigrator:
                 MATCH (old:Offer), (new:Offer)
                 WHERE old.replacedByOffer = new.id
                 CREATE (old)-[:REPLACED_BY]->(new)
+                """,
+                
+                # Offer -> OfferImage
+                """
+                MATCH (o:Offer), (oi:OfferImage)
+                WHERE oi.offerId = o.id
+                CREATE (o)-[:HAS_IMAGE]->(oi)
+                """,
+                
+                # Subject -> Category (via SubjectCategory)
+                """
+                MATCH (s:Subject), (sc:SubjectCategory), (c:Category)
+                WHERE sc.subjectId = s.id AND sc.categoryId = c.id
+                CREATE (s)-[:RELATED_TO]->(c)
+                """,
+                
+                # Order -> DeliveryInfo
+                """
+                MATCH (o:Order), (di:DeliveryInfo)
+                WHERE di.orderId = o.id
+                CREATE (o)-[:HAS_DELIVERY]->(di)
+                """,
+                
+                # DeliveryInfo -> DeliveryCompany
+                """
+                MATCH (di:DeliveryInfo), (dc:DeliveryCompany)
+                WHERE di.companyId = dc.id
+                CREATE (di)-[:DELIVERED_BY]->(dc)
                 """
             ]
             
@@ -589,11 +752,15 @@ class MyRepriseMigrator:
             self.migrate_categories()
             self.migrate_brands()
             self.migrate_subjects()
+            self.migrate_subject_categories()
             self.migrate_products()
             self.migrate_offers()
+            self.migrate_offer_images()
             self.migrate_orders()
             self.migrate_user_snapshots()
             self.migrate_product_snapshots()
+            self.migrate_delivery_companies()
+            self.migrate_delivery_infos()
             
             # Création des relations
             self.create_relationships()

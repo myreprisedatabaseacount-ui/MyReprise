@@ -1,52 +1,33 @@
-#!/usr/bin/env node
-/**
- * Test du serveur sans Redis
- */
+console.log('🔄 DÉBUT DU TEST SERVER');
+console.log('🔄 Variables d\'environnement:');
+console.log('  - PORT:', process.env.PORT);
+console.log('  - DB_HOST:', process.env.DB_HOST);
+console.log('  - DB_NAME:', process.env.DB_NAME);
+console.log('  - NODE_ENV:', process.env.NODE_ENV);
 
-require('dotenv').config();
+console.log('🔄 Test import express...');
 const express = require('express');
+console.log('✅ Express importé');
+
+console.log('🔄 Test import database...');
 const { connectToDatabase } = require('./src/config/database');
+console.log('✅ Database importé');
+
+console.log('🔄 Test import models...');
 const { initializeModels } = require('./src/models');
-const logger = require('./src/utils/logger');
+console.log('✅ Models importé');
 
-const app = express();
-const PORT = process.env.PORT || 3001;
-
-// Middleware basic
-app.use(express.json());
-
-// Route de test
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    service: 'MyReprise-NodeJS',
-    message: 'Service démarré et en bonne santé',
-    timestamp: new Date().toISOString()
-  });
+console.log('🔄 Test connexion MySQL...');
+connectToDatabase().then(() => {
+  console.log('✅ MySQL connecté');
+  console.log('🔄 Test initialisation modèles...');
+  return initializeModels();
+}).then(() => {
+  console.log('✅ Modèles initialisés');
+  console.log('✅ TOUS LES TESTS PASSÉS');
+  process.exit(0);
+}).catch(error => {
+  console.error('❌ ERREUR:', error);
+  console.error('❌ Stack trace:', error.stack);
+  process.exit(1);
 });
-
-async function startTestServer() {
-  try {
-    console.log('🔄 Démarrage du serveur de test...');
-    
-    console.log('🔄 Connexion à MySQL...');
-    await connectToDatabase();
-    console.log('✅ MySQL connecté');
-    
-    console.log('🔄 Initialisation des modèles...');
-    await initializeModels();
-    console.log('✅ Modèles initialisés');
-    
-    console.log('🔄 Démarrage du serveur HTTP...');
-    app.listen(PORT, () => {
-      console.log(`🚀 Serveur de test démarré sur le port ${PORT}`);
-      console.log(`🔗 Test: http://localhost:${PORT}/api/health`);
-    });
-    
-  } catch (error) {
-    console.error('❌ Erreur:', error);
-    process.exit(1);
-  }
-}
-
-startTestServer();
