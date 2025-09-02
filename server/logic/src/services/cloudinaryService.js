@@ -1,5 +1,5 @@
-import { v2 as cloudinary } from "cloudinary";
-import dotenv from "dotenv";
+const { v2: cloudinary } = require("cloudinary");
+const dotenv = require("dotenv");
 dotenv.config();
 
 cloudinary.config({
@@ -36,4 +36,4 @@ const uploadFromBuffer = async (buffer, folder = "", options = {}) => {
   });
 };
 
-export default { uploadFile, uploadFromBuffer };
+module.exports = { uploadFile, uploadFromBuffer };

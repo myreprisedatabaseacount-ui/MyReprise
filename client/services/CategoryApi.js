@@ -34,7 +34,7 @@ export const CategoryApi = createApi({
         }
         
         return {
-          url: '/categories/create',
+          url: '/api/categories/create',
           method: 'POST',
           body: formData,
         };
@@ -45,7 +45,7 @@ export const CategoryApi = createApi({
     // Mutation pour ajouter une catégorie avec URLs Cloudinary (si les fichiers sont déjà uploadés)
     insertCategoryWithUrls: builder.mutation({
       query: (categoryData) => ({
-        url: '/categories/create-with-urls',
+        url: '/api/categories/create-with-urls',
         method: 'POST',
         body: {
           nameAr: categoryData.titleAr,
@@ -65,20 +65,20 @@ export const CategoryApi = createApi({
 
     // Query pour récupérer toutes les catégories
     getCategories: builder.query({
-      query: () => '/categories',
+      query: () => '/api/categories',
       providesTags: ['Category'],
     }),
 
     // Query pour récupérer une catégorie par ID
     getCategoryById: builder.query({
-      query: (id) => `/categories/${id}`,
+      query: (id) => `/api/categories/${id}`,
       providesTags: (result, error, id) => [{ type: 'Category', id }],
     }),
 
     // Mutation pour mettre à jour une catégorie
     updateCategory: builder.mutation({
       query: ({ id, ...categoryData }) => ({
-        url: `/categories/${id}`,
+        url: `/api/categories/${id}`,
         method: 'PUT',
         body: categoryData,
       }),
@@ -88,7 +88,7 @@ export const CategoryApi = createApi({
     // Mutation pour supprimer une catégorie
     deleteCategory: builder.mutation({
       query: (id) => ({
-        url: `/categories/${id}`,
+        url: `/api/categories/${id}`,
         method: 'DELETE',
       }),
       invalidatesTags: ['Category'],

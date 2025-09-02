@@ -1,6 +1,6 @@
-import express from "express";
-import multer from "multer";
-import { createCategory } from "../controllers/categoryController.js";
+const express = require("express");
+const multer = require("multer");
+const { createCategory } = require("../controllers/categoryController.js");
 
 const categoryRoutes = express.Router();
 const storage = multer.memoryStorage();
@@ -41,4 +41,4 @@ categoryRoutes.post("/create", upload.fields([
 // Route alternative pour créer une catégorie sans fichiers (si les fichiers sont déjà uploadés via Cloudinary)
 categoryRoutes.post("/create-with-urls", createCategory);
 
-export default categoryRoutes;
+module.exports = categoryRoutes;

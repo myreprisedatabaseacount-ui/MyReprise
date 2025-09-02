@@ -1,7 +1,7 @@
-import cloudinaryService from "../services/cloudinaryService.js";
-import Category from "../models/Category.js"; // ton modèle
+const cloudinaryService = require("../services/cloudinaryService.js");
+const Category = require("../models/Category.js");
 
-export const createCategory = async (req, res) => {
+const createCategory = async (req, res) => {
   try {
     const { 
       nameAr, 
@@ -113,4 +113,8 @@ export const createCategory = async (req, res) => {
       details: err.message 
     });
   }
+};
+
+module.exports = {
+  createCategory
 };

@@ -33,6 +33,7 @@ const { initializeModels } = require('./models');
 const logger = require('./utils/logger');
 const { connectToDatabase } = require('./config/database');
 const { connectToRedis } = require('./config/redis');
+const { categoryRoutes } = require('./routes');
 
 // Configuration de l'application
 const app = express();
@@ -80,6 +81,8 @@ const limiter = rateLimit({
 
 app.use('/api', limiter);
 
+
+
 // Middleware de logging
 if (NODE_ENV === 'production') {
   app.use(morgan('combined', { stream: logger.stream }));
@@ -94,6 +97,8 @@ app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Configuration des routes
+app.use('/api/categories', categoryRoutes);
 
 
 // Route unique de santé

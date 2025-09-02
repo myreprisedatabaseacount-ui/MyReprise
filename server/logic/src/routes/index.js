@@ -1,9 +1,5 @@
-/**
- * Index des routes pour le service Node.js principal
- */
-
 const auth = require('./auth');
-const categoryRoutes = require('./categoryRoutes');
+const categoryRoutes = require('./categoryRoutes.js');
 // const upload = require('./upload');
 // const users = require('./users');
 // const products = require('./products');
