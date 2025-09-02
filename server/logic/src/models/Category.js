@@ -65,6 +65,29 @@ const Category = sequelize.define('Category', {
       len: [1, 100]
     }
   },
+  gender: {
+    type: DataTypes.ENUM('male', 'female', 'mixte'),
+    allowNull: true,
+    defaultValue: 'mixte'
+  },
+  ageMin: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    field: 'age_min',
+    validate: {
+      min: 0,
+      max: 120
+    }
+  },
+  ageMax: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    field: 'age_max',
+    validate: {
+      min: 0,
+      max: 120
+    }
+  },
   createdAt: {
     type: DataTypes.DATE,
     allowNull: false,

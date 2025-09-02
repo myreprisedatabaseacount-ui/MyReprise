@@ -4,6 +4,7 @@ import '../globals.css';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
+import ReduxProvider from '../../lib/ReduxProvider';
 
 // Police principale Cairo
 const cairo = Cairo({
@@ -95,9 +96,11 @@ export default async function RootLayout({
       <body
         className={`${cairo.variable} ${tajawal.variable} ${poppins.variable} ${mulish.variable} ${ibmPlexSansArabic.variable} ${geistSans.variable} font-cairo antialiased bg-background text-foreground`}
       >
-        <NextIntlClientProvider locale={locale} messages={messages}>
-          {children}
-        </NextIntlClientProvider>
+        <ReduxProvider>
+          <NextIntlClientProvider locale={locale} messages={messages}>
+            {children}
+          </NextIntlClientProvider>
+        </ReduxProvider>
       </body>
     </html>
   );

@@ -9,8 +9,14 @@ const nextConfig = {
       }
     }
     return config
-  },
+  }
+  // images: {
+  //   loader: 'custom',
+  //   loaderFile: './src/utils/cloudenary-loader.ts',
+  // }
 }
+
+
 
 const withNextIntl = createNextIntlPlugin();
 

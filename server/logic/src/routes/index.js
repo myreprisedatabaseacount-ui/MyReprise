@@ -3,6 +3,8 @@
  */
 
 const auth = require('./auth');
+const categoryRoutes = require('./categoryRoutes');
+// const upload = require('./upload');
 // const users = require('./users');
 // const products = require('./products');
 // const orders = require('./orders');
@@ -11,6 +13,8 @@ const auth = require('./auth');
 
 module.exports = {
   auth,
+  categoryRoutes,
+  // upload,
   // users,
   // products,
   // orders,

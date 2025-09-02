@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, Folder, Image, Code, Palette, Database, Globe, Smartphone, Monitor } from 'lucide-react';
+import { ChevronDown, ChevronRight, Folder, Image, Code, Palette, Database, Globe, Smartphone, Monitor, Edit3, ArrowRightLeft, Trash2, MoreHorizontal, Plus } from 'lucide-react';
 
 interface SubCategory {
   id: string;
@@ -131,9 +131,16 @@ interface CategoryCardProps {
   category: Category;
   isExpanded: boolean;
   onToggle: () => void;
+  onEdit: (categoryId: string) => void;
+  onTransfer: (categoryId: string) => void;
+  onDelete: (categoryId: string) => void;
+  onAddSubCategory: (categoryId: string) => void;
+  onEditSubCategory: (subCategoryId: string, parentCategoryId: string) => void;
+  onTransferSubCategoryProducts: (subCategoryId: string, parentCategoryId: string) => void;
+  onDeleteSubCategory: (subCategoryId: string, parentCategoryId: string) => void;
 }
 
-const CategoryCard: React.FC<CategoryCardProps> = ({ category, isExpanded, onToggle }) => {
+const CategoryCard: React.FC<CategoryCardProps> = ({ category, isExpanded, onToggle, onEdit, onTransfer, onDelete, onAddSubCategory, onEditSubCategory, onTransferSubCategoryProducts, onDeleteSubCategory }) => {
   const Icon = category.icon;
 
   return (
@@ -167,6 +174,54 @@ const CategoryCard: React.FC<CategoryCardProps> = ({ category, isExpanded, onTog
                 <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
                   {category.count} éléments
                 </span>
+                
+                {/* Action Buttons */}
+                <div className="flex items-center space-x-1">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAddSubCategory(category.id);
+                    }}
+                    className="p-1.5 rounded-md hover:bg-green-50 hover:text-green-600 text-gray-400 transition-colors duration-200"
+                    title="Ajouter une sous-catégorie"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                  
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(category.id);
+                    }}
+                    className="p-1.5 rounded-md hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors duration-200"
+                    title="Modifier la catégorie"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                  </button>
+                  
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onTransfer(category.id);
+                    }}
+                    className="p-1.5 rounded-md hover:bg-orange-50 hover:text-orange-600 text-gray-400 transition-colors duration-200"
+                    title="Transférer les produits"
+                  >
+                    <ArrowRightLeft className="w-4 h-4" />
+                  </button>
+                  
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(category.id);
+                    }}
+                    className="p-1.5 rounded-md hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors duration-200"
+                    title="Supprimer la catégorie"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+                
                 <div className={`p-1 rounded-full transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}>
                   <ChevronRight className="w-4 h-4 text-gray-400" />
                 </div>
@@ -189,7 +244,7 @@ const CategoryCard: React.FC<CategoryCardProps> = ({ category, isExpanded, onTog
               return (
                 <div 
                   key={subCategory.id}
-                  className="bg-white p-4 rounded-lg border border-gray-100 hover:border-blue-200 hover:shadow-sm transition-all duration-200 cursor-pointer group"
+                  className="bg-white p-4 rounded-lg border border-gray-100 hover:border-blue-200 hover:shadow-sm transition-all duration-200 group"
                 >
                   <div className="flex items-start space-x-3">
                     <div className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
@@ -206,9 +261,47 @@ const CategoryCard: React.FC<CategoryCardProps> = ({ category, isExpanded, onTog
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-medium text-gray-900 mb-1 truncate group-hover:text-blue-600 transition-colors duration-200">
-                        {subCategory.title}
-                      </h4>
+                      <div className="flex items-start justify-between mb-1">
+                        <h4 className="text-sm font-medium text-gray-900 truncate group-hover:text-blue-600 transition-colors duration-200">
+                          {subCategory.title}
+                        </h4>
+                        
+                        {/* SubCategory Action Buttons */}
+                        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEditSubCategory(subCategory.id, category.id);
+                            }}
+                            className="p-1 rounded hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors duration-200"
+                            title="Modifier la sous-catégorie"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                          </button>
+                          
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onTransferSubCategoryProducts(subCategory.id, category.id);
+                            }}
+                            className="p-1 rounded hover:bg-orange-50 hover:text-orange-600 text-gray-400 transition-colors duration-200"
+                            title="Transférer les produits"
+                          >
+                            <ArrowRightLeft className="w-3 h-3" />
+                          </button>
+                          
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDeleteSubCategory(subCategory.id, category.id);
+                            }}
+                            className="p-1 rounded hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors duration-200"
+                            title="Supprimer la sous-catégorie"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
                       <p className="text-xs text-gray-500 leading-relaxed line-clamp-2">
                         {subCategory.description}
                       </p>
@@ -242,12 +335,75 @@ const CategoriesContent: React.FC = () => {
     });
   };
 
+  const handleEditCategory = (categoryId: string) => {
+    // TODO: Implémenter la logique de modification de catégorie
+    console.log('Modifier la catégorie:', categoryId);
+    // Ouvrir un modal ou naviguer vers une page de modification
+  };
+
+  const handleTransferProducts = (categoryId: string) => {
+    // TODO: Implémenter la logique de transfert de produits
+    console.log('Transférer les produits de la catégorie:', categoryId);
+    // Ouvrir un modal de sélection de catégorie de destination
+  };
+
+  const handleDeleteCategory = (categoryId: string) => {
+    // TODO: Implémenter la logique de suppression de catégorie
+    console.log('Supprimer la catégorie:', categoryId);
+    // Afficher une confirmation avant suppression
+    if (window.confirm('Êtes-vous sûr de vouloir supprimer cette catégorie ?')) {
+      // Logique de suppression
+    }
+  };
+
+  const handleAddSubCategory = (categoryId: string) => {
+    // Redirection vers la page d'ajout de sous-catégorie
+    window.location.href = `/back-office/categories/add/${categoryId}`;
+  };
+
+  const handleEditSubCategory = (subCategoryId: string, parentCategoryId: string) => {
+    // TODO: Implémenter la logique de modification de sous-catégorie
+    console.log('Modifier la sous-catégorie:', subCategoryId, 'de la catégorie parent:', parentCategoryId);
+    // Ouvrir un modal ou naviguer vers une page de modification
+  };
+
+  const handleTransferSubCategoryProducts = (subCategoryId: string, parentCategoryId: string) => {
+    // TODO: Implémenter la logique de transfert de produits de sous-catégorie
+    console.log('Transférer les produits de la sous-catégorie:', subCategoryId, 'de la catégorie parent:', parentCategoryId);
+    // Ouvrir un modal de sélection de catégorie de destination
+  };
+
+  const handleDeleteSubCategory = (subCategoryId: string, parentCategoryId: string) => {
+    // TODO: Implémenter la logique de suppression de sous-catégorie
+    console.log('Supprimer la sous-catégorie:', subCategoryId, 'de la catégorie parent:', parentCategoryId);
+    // Afficher une confirmation avant suppression
+    if (window.confirm('Êtes-vous sûr de vouloir supprimer cette sous-catégorie ?')) {
+      // Logique de suppression
+    }
+  };
+
+  const handleAddParentCategory = () => {
+    // Redirection vers la page d'ajout de catégorie parent
+    window.location.href = '/back-office/categories/add';
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Catégories</h1>
-        <p className="text-gray-600">Explorez et organisez vos contenus par catégories</p>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Catégories</h1>
+            <p className="text-gray-600">Explorez et organisez vos contenus par catégories</p>
+          </div>
+          <button
+            onClick={handleAddParentCategory}
+            className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="font-medium">Ajouter une catégorie</span>
+          </button>
+        </div>
       </div>
 
       {/* Categories Grid */}
@@ -258,6 +414,13 @@ const CategoriesContent: React.FC = () => {
             category={category}
             isExpanded={expandedCategories.has(category.id)}
             onToggle={() => toggleCategory(category.id)}
+            onEdit={handleEditCategory}
+            onTransfer={handleTransferProducts}
+            onDelete={handleDeleteCategory}
+            onAddSubCategory={handleAddSubCategory}
+            onEditSubCategory={handleEditSubCategory}
+            onTransferSubCategoryProducts={handleTransferSubCategoryProducts}
+            onDeleteSubCategory={handleDeleteSubCategory}
           />
         ))}
       </div>
