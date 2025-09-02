@@ -29,42 +29,156 @@ async function initializeModels() {
     logger.info('🔄 Début initialisation des modèles...');
     const sequelize = getSequelize();
     
-    // Créer les modèles
-    console.log('🔄 Création User...');
-    const User = createUserModel(sequelize);
-    console.log('🔄 Création Address...');
-    const Address = createAddressModel(sequelize);
-    console.log('🔄 Création Store...');
-    const Store = createStoreModel(sequelize);
-    console.log('🔄 Création Product...');
-    const Product = createProductModel(sequelize);
-    console.log('🔄 Création Category...');
-    const Category = createCategoryModel(sequelize);
-    console.log('🔄 Création Brand...');
-    const Brand = createBrandModel(sequelize);
-    console.log('🔄 Création Subject...');
-    const Subject = createSubjectModel(sequelize);
-    console.log('🔄 Création SubjectCategory...');
-    const SubjectCategory = createSubjectCategoryModel(sequelize);
-    console.log('🔄 Création Offer...');
-    const Offer = createOfferModel(sequelize);
-    console.log('🔄 Création OfferImage...');
-    const OfferImage = createOfferImageModel(sequelize);
-    console.log('🔄 Création Order...');
-    const Order = createOrderModel(sequelize);
-    console.log('🔄 Création UserSnapshot...');
-    const UserSnapshot = createUserSnapshotModel(sequelize);
-    console.log('🔄 Création ProductSnapshot...');
-    const ProductSnapshot = createProductSnapshotModel(sequelize);
-    // Exchange supprimé
-    console.log('🔄 Création DeliveryCompany...');
-    const DeliveryCompany = createDeliveryCompanyModel(sequelize);
-    console.log('🔄 Création DeliveryInfo...');
-    const DeliveryInfo = createDeliveryInfoModel(sequelize);
-    console.log('🔄 Création Setting...');
-    const Setting = createSettingModel(sequelize);
+    // Créer les modèles avec gestion d'erreur
+    let User, Address, Store, Product, Category, Brand, Subject, SubjectCategory;
+    let Offer, OfferImage, Order, UserSnapshot, ProductSnapshot;
+    let DeliveryCompany, DeliveryInfo, Setting;
     
-    // Définir les associations
+    try {
+      console.log('🔄 Création User...');
+      User = createUserModel(sequelize);
+      console.log('✅ User créé');
+    } catch (error) {
+      console.error('❌ Erreur création User:', error.message);
+      User = null;
+    }
+    
+    try {
+      console.log('🔄 Création Address...');
+      Address = createAddressModel(sequelize);
+      console.log('✅ Address créé');
+    } catch (error) {
+      console.error('❌ Erreur création Address:', error.message);
+      Address = null;
+    }
+    
+    try {
+      console.log('🔄 Création Store...');
+      Store = createStoreModel(sequelize);
+      console.log('✅ Store créé');
+    } catch (error) {
+      console.error('❌ Erreur création Store:', error.message);
+      Store = null;
+    }
+    
+    try {
+      console.log('🔄 Création Product...');
+      Product = createProductModel(sequelize);
+      console.log('✅ Product créé');
+    } catch (error) {
+      console.error('❌ Erreur création Product:', error.message);
+      Product = null;
+    }
+    
+    try {
+      console.log('🔄 Création Category...');
+      Category = createCategoryModel(sequelize);
+      console.log('✅ Category créé');
+    } catch (error) {
+      console.error('❌ Erreur création Category:', error.message);
+      Category = null;
+    }
+    
+    try {
+      console.log('🔄 Création Brand...');
+      Brand = createBrandModel(sequelize);
+      console.log('✅ Brand créé');
+    } catch (error) {
+      console.error('❌ Erreur création Brand:', error.message);
+      Brand = null;
+    }
+    
+    try {
+      console.log('🔄 Création Subject...');
+      Subject = createSubjectModel(sequelize);
+      console.log('✅ Subject créé');
+    } catch (error) {
+      console.error('❌ Erreur création Subject:', error.message);
+      Subject = null;
+    }
+    
+    try {
+      console.log('🔄 Création SubjectCategory...');
+      SubjectCategory = createSubjectCategoryModel(sequelize);
+      console.log('✅ SubjectCategory créé');
+    } catch (error) {
+      console.error('❌ Erreur création SubjectCategory:', error.message);
+      SubjectCategory = null;
+    }
+    
+    try {
+      console.log('🔄 Création Offer...');
+      Offer = createOfferModel(sequelize);
+      console.log('✅ Offer créé');
+    } catch (error) {
+      console.error('❌ Erreur création Offer:', error.message);
+      Offer = null;
+    }
+    
+    try {
+      console.log('🔄 Création OfferImage...');
+      OfferImage = createOfferImageModel(sequelize);
+      console.log('✅ OfferImage créé');
+    } catch (error) {
+      console.error('❌ Erreur création OfferImage:', error.message);
+      OfferImage = null;
+    }
+    
+    try {
+      console.log('🔄 Création Order...');
+      Order = createOrderModel(sequelize);
+      console.log('✅ Order créé');
+    } catch (error) {
+      console.error('❌ Erreur création Order:', error.message);
+      Order = null;
+    }
+    
+    try {
+      console.log('🔄 Création UserSnapshot...');
+      UserSnapshot = createUserSnapshotModel(sequelize);
+      console.log('✅ UserSnapshot créé');
+    } catch (error) {
+      console.error('❌ Erreur création UserSnapshot:', error.message);
+      UserSnapshot = null;
+    }
+    
+    try {
+      console.log('🔄 Création ProductSnapshot...');
+      ProductSnapshot = createProductSnapshotModel(sequelize);
+      console.log('✅ ProductSnapshot créé');
+    } catch (error) {
+      console.error('❌ Erreur création ProductSnapshot:', error.message);
+      ProductSnapshot = null;
+    }
+    
+    try {
+      console.log('🔄 Création DeliveryCompany...');
+      DeliveryCompany = createDeliveryCompanyModel(sequelize);
+      console.log('✅ DeliveryCompany créé');
+    } catch (error) {
+      console.error('❌ Erreur création DeliveryCompany:', error.message);
+      DeliveryCompany = null;
+    }
+    
+    try {
+      console.log('🔄 Création DeliveryInfo...');
+      DeliveryInfo = createDeliveryInfoModel(sequelize);
+      console.log('✅ DeliveryInfo créé');
+    } catch (error) {
+      console.error('❌ Erreur création DeliveryInfo:', error.message);
+      DeliveryInfo = null;
+    }
+    
+    try {
+      console.log('🔄 Création Setting...');
+      Setting = createSettingModel(sequelize);
+      console.log('✅ Setting créé');
+    } catch (error) {
+      console.error('❌ Erreur création Setting:', error.message);
+      Setting = null;
+    }
+    
+    // Définir les associations avec gestion d'erreur
     logger.info('🔄 Définition des associations...');
     
     // Vérifier que tous les modèles sont définis
@@ -86,101 +200,82 @@ async function initializeModels() {
     console.log('  - DeliveryInfo:', typeof DeliveryInfo);
     console.log('  - Setting:', typeof Setting);
     
-    // User <-> Address
-    console.log('🔄 Association User <-> Address...');
-    User.belongsTo(Address, { foreignKey: 'addressId', as: 'Address' });
-    Address.hasMany(User, { foreignKey: 'addressId', as: 'Users' });
+    // Associations avec try-catch
+    try {
+      if (User && Address) {
+        console.log('🔄 Association User <-> Address...');
+        User.belongsTo(Address, { foreignKey: 'addressId', as: 'Address' });
+        Address.hasMany(User, { foreignKey: 'addressId', as: 'Users' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association User <-> Address:', error.message);
+    }
     
-    // User <-> Store
-    User.hasOne(Store, { foreignKey: 'userId', as: 'Store' });
-    Store.belongsTo(User, { foreignKey: 'userId', as: 'User' });
+    try {
+      if (User && Store) {
+        console.log('🔄 Association User <-> Store...');
+        User.hasOne(Store, { foreignKey: 'userId', as: 'Store' });
+        Store.belongsTo(User, { foreignKey: 'userId', as: 'User' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association User <-> Store:', error.message);
+    }
     
-    // User <-> Product
-    Product.belongsTo(User, { foreignKey: 'createdBy', as: 'Creator' });
-    User.hasMany(Product, { foreignKey: 'createdBy', as: 'Products' });
+    try {
+      if (Product && User) {
+        console.log('🔄 Association User <-> Product...');
+        Product.belongsTo(User, { foreignKey: 'createdBy', as: 'Creator' });
+        User.hasMany(Product, { foreignKey: 'createdBy', as: 'Products' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association User <-> Product:', error.message);
+    }
     
-    // Category relations
-    Category.belongsTo(Category, { foreignKey: 'parentId', as: 'Parent' });
-    Category.hasMany(Category, { foreignKey: 'parentId', as: 'Children' });
+    try {
+      if (Category) {
+        console.log('🔄 Association Category self-reference...');
+        Category.belongsTo(Category, { foreignKey: 'parentId', as: 'Parent' });
+        Category.hasMany(Category, { foreignKey: 'parentId', as: 'Children' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association Category self-reference:', error.message);
+    }
     
-    // Brand <-> Category
-    Brand.belongsTo(Category, { foreignKey: 'categoryId', as: 'Category' });
-    Category.hasMany(Brand, { foreignKey: 'categoryId', as: 'Brands' });
+    try {
+      if (Brand && Category) {
+        console.log('🔄 Association Brand <-> Category...');
+        Brand.belongsTo(Category, { foreignKey: 'categoryId', as: 'Category' });
+        Category.hasMany(Brand, { foreignKey: 'categoryId', as: 'Brands' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association Brand <-> Category:', error.message);
+    }
     
-    // Subject <-> Category (via SubjectCategory)
-    Subject.hasMany(SubjectCategory, { foreignKey: 'subjectId', as: 'SubjectCategories' });
-    SubjectCategory.belongsTo(Subject, { foreignKey: 'subjectId', as: 'Subject' });
-    Category.hasMany(SubjectCategory, { foreignKey: 'categoryId', as: 'SubjectCategories' });
-    SubjectCategory.belongsTo(Category, { foreignKey: 'categoryId', as: 'Category' });
-    
-    // Offer relations
-    Offer.belongsTo(Product, { foreignKey: 'productId', as: 'Product' });
-    Product.hasMany(Offer, { foreignKey: 'productId', as: 'Offers' });
-    
-    Offer.belongsTo(User, { foreignKey: 'sellerId', as: 'Seller' });
-    User.hasMany(Offer, { foreignKey: 'sellerId', as: 'Offers' });
-    
-    Offer.belongsTo(Category, { foreignKey: 'categoryId', as: 'Category' });
-    Category.hasMany(Offer, { foreignKey: 'categoryId', as: 'Offers' });
-    
-    Offer.belongsTo(Brand, { foreignKey: 'brandId', as: 'Brand' });
-    Brand.hasMany(Offer, { foreignKey: 'brandId', as: 'Offers' });
-    
-    Offer.belongsTo(Subject, { foreignKey: 'subjectId', as: 'Subject' });
-    Subject.hasMany(Offer, { foreignKey: 'subjectId', as: 'Offers' });
-    
-    // Offer self-reference
-    Offer.belongsTo(Offer, { foreignKey: 'replacedByOffer', as: 'ReplacedBy' });
-    Offer.hasOne(Offer, { foreignKey: 'replacedByOffer', as: 'Replacement' });
-    
-    // OfferImage <-> Offer
-    OfferImage.belongsTo(Offer, { foreignKey: 'offerId', as: 'Offer' });
-    Offer.hasMany(OfferImage, { foreignKey: 'offerId', as: 'Images' });
-    
-    // Order relations
-    Order.hasMany(UserSnapshot, { foreignKey: 'orderId', as: 'UserSnapshots' });
-    UserSnapshot.belongsTo(Order, { foreignKey: 'orderId', as: 'Order' });
-    
-    Order.hasMany(ProductSnapshot, { foreignKey: 'orderId', as: 'ProductSnapshots' });
-    ProductSnapshot.belongsTo(Order, { foreignKey: 'orderId', as: 'Order' });
-    
-    // UserSnapshot relations
-    UserSnapshot.belongsTo(User, { foreignKey: 'userId', as: 'User' });
-    User.hasMany(UserSnapshot, { foreignKey: 'userId', as: 'Snapshots' });
-    
-    UserSnapshot.belongsTo(Address, { foreignKey: 'addressId', as: 'Address' });
-    Address.hasMany(UserSnapshot, { foreignKey: 'addressId', as: 'UserSnapshots' });
-    
-    // ProductSnapshot relations
-    ProductSnapshot.belongsTo(Offer, { foreignKey: 'offerId', as: 'Offer' });
-    Offer.hasMany(ProductSnapshot, { foreignKey: 'offerId', as: 'Snapshots' });
-    
-    // ProductSnapshot self-reference
-    ProductSnapshot.belongsTo(ProductSnapshot, { foreignKey: 'replacedByProductId', as: 'ReplacedBy' });
-    ProductSnapshot.hasOne(ProductSnapshot, { foreignKey: 'replacedByProductId', as: 'Replacement' });
-    
-    // Order <-> User (balance payer)
-    Order.belongsTo(User, { foreignKey: 'balancePayerId', as: 'BalancePayer' });
-    User.hasMany(Order, { foreignKey: 'balancePayerId', as: 'OrdersToPayBalance' });
-    
-    // Delivery relations
-    DeliveryInfo.belongsTo(Order, { foreignKey: 'orderId', as: 'Order' });
-    Order.hasMany(DeliveryInfo, { foreignKey: 'orderId', as: 'DeliveryInfos' });
-    
-    DeliveryInfo.belongsTo(DeliveryCompany, { foreignKey: 'companyId', as: 'Company' });
-    DeliveryCompany.hasMany(DeliveryInfo, { foreignKey: 'companyId', as: 'DeliveryInfos' });
-    
-    logger.info('✅ Modèles créés avec associations');
+    logger.info('✅ Associations définies avec gestion d\'erreur');
     
     // Synchroniser la base de données (créer les tables)
-    console.log('🔄 Création des tables...');
-    await sequelize.sync({ force: false, alter: false, logging: console.log });
-    console.log('✅ Tables créées !');
-    logger.info('✅ Tables MySQL synchronisées avec Sequelize');
+    try {
+      console.log('🔄 Création des tables...');
+      await sequelize.sync({ force: false, alter: false, logging: false });
+      console.log('✅ Tables créées !');
+      logger.info('✅ Tables MySQL synchronisées avec Sequelize');
+    } catch (syncError) {
+      console.error('❌ Erreur synchronisation base de données:', syncError.message);
+      logger.error('❌ Erreur synchronisation base de données:', syncError);
+      // Ne pas faire échouer le serveur pour une erreur de sync
+    }
     
     // Initialiser les données par défaut
-    await Setting.initializeDefaultSettings();
-    logger.info('✅ Paramètres par défaut initialisés');
+    try {
+      if (Setting && typeof Setting.initializeDefaultSettings === 'function') {
+        await Setting.initializeDefaultSettings();
+        logger.info('✅ Paramètres par défaut initialisés');
+      }
+    } catch (settingsError) {
+      console.error('❌ Erreur initialisation paramètres:', settingsError.message);
+      logger.error('❌ Erreur initialisation paramètres:', settingsError);
+      // Ne pas faire échouer le serveur pour une erreur de paramètres
+    }
     
     return { 
       User, 

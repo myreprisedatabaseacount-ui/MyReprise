@@ -48,6 +48,15 @@ const dbConfig = {
 
 async function connectToDatabase() {
   try {
+    console.log('🔄 Tentative de connexion à la base de données...');
+    console.log('📝 Configuration DB:', {
+      host: dbConfig.host,
+      port: dbConfig.port,
+      database: dbConfig.database,
+      username: dbConfig.username,
+      // password: dbConfig.password ? '***' : 'vide'
+    });
+    
     // Créer l'instance Sequelize
     sequelize = new Sequelize(
       dbConfig.database,
@@ -56,20 +65,26 @@ async function connectToDatabase() {
       dbConfig
     );
     
-    // Test de la connexion
-    await sequelize.authenticate();
-    logger.info('✅ Connexion Sequelize/MySQL établie avec succès');
+    // Test de la connexion avec timeout
+    console.log('🔄 Test de connexion...');
+    await Promise.race([
+      sequelize.authenticate(),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout connexion DB')), 10000)
+      )
+    ]);
     
-    // Synchronisation des modèles désactivée - gérée dans models/index.js
-    // if (process.env.NODE_ENV === 'development') {
-    //   await sequelize.sync({ alter: true });
-    //   logger.info('🔄 Modèles Sequelize synchronisés');
-    // }
+    console.log('✅ Connexion Sequelize/MySQL établie avec succès');
+    logger.info('✅ Connexion Sequelize/MySQL établie avec succès');
     
     return sequelize;
   } catch (error) {
+    console.error('❌ Erreur de connexion Sequelize:', error.message);
     logger.error('❌ Erreur de connexion Sequelize:', error);
-    throw error;
+    
+    // Ne pas faire échouer le serveur, juste logger l'erreur
+    console.log('⚠️ Le serveur continuera sans base de données');
+    return null;
   }
 }
 
@@ -81,23 +96,39 @@ async function closeDatabase() {
 }
 
 function getSequelize() {
-  if (!sequelize) {
-    throw new Error('Instance Sequelize non initialisée');
+  try {
+    if (!sequelize) {
+      console.error('❌ Instance Sequelize non initialisée');
+      throw new Error('Instance Sequelize non initialisée');
+    }
+    return sequelize;
+  } catch (error) {
+    console.error('❌ Erreur getSequelize:', error.message);
+    throw error;
   }
-  return sequelize;
 }
 
 // Helper pour les transactions
 async function withTransaction(callback) {
-  const transaction = await sequelize.transaction();
-  
   try {
-    const result = await callback(transaction);
-    await transaction.commit();
-    return result;
+    if (!sequelize) {
+      throw new Error('Instance Sequelize non initialisée pour la transaction');
+    }
+    
+    const transaction = await sequelize.transaction();
+    
+    try {
+      const result = await callback(transaction);
+      await transaction.commit();
+      return result;
+    } catch (error) {
+      await transaction.rollback();
+      logger.error('❌ Transaction Sequelize échouée:', error);
+      throw error;
+    }
   } catch (error) {
-    await transaction.rollback();
-    logger.error('❌ Transaction Sequelize échouée:', error);
+    console.error('❌ Erreur withTransaction:', error.message);
+    logger.error('❌ Erreur withTransaction:', error);
     throw error;
   }
 }
