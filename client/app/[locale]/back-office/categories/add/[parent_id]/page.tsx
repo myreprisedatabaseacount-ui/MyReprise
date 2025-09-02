@@ -56,7 +56,7 @@ const AddSubCategoryPage: React.FC = () => {
         if (file) {
             // Vérifier que c'est une image
             if (!file.type.startsWith('image/')) {
-                setErrors(prev => ({ ...prev, image: 'Veuillez sélectionner un fichier image valide' }));
+                setErrors((prev: any) => ({ ...prev, image: 'Veuillez sélectionner un fichier image valide' }));
                 return;
             }
 
@@ -81,7 +81,7 @@ const AddSubCategoryPage: React.FC = () => {
         if (file) {
             // Vérifier que c'est un fichier SVG
             if (file.type !== 'image/svg+xml') {
-                setErrors(prev => ({ ...prev, icon: 'Veuillez sélectionner un fichier SVG valide' }));
+                setErrors((prev: any) => ({ ...prev, icon: 'Veuillez sélectionner un fichier SVG valide' }));
                 return;
             }
 
