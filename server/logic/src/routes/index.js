@@ -1,4 +1,3 @@
-const auth = require('./auth');
 const categoryRoutes = require('./categoryRoutes.js');
 // const upload = require('./upload');
 // const users = require('./users');
@@ -8,7 +7,6 @@ const categoryRoutes = require('./categoryRoutes.js');
 // const analytics = require('./analytics');
 
 module.exports = {
-  auth,
   categoryRoutes,
   // upload,
   // users,

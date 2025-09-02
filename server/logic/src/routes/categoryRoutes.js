@@ -3,42 +3,76 @@ const multer = require("multer");
 const { createCategory } = require("../controllers/categoryController.js");
 
 const categoryRoutes = express.Router();
-const storage = multer.memoryStorage();
-const upload = multer({ 
-  storage,
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB max
-  },
-  fileFilter: (req, file, cb) => {
-    // Pour les images
-    if (file.fieldname === 'image') {
-      if (file.mimetype.startsWith('image/')) {
-        cb(null, true);
-      } else {
-        cb(new Error('Seules les images sont autorisées pour le champ image'), false);
+
+// Configuration multer avec gestion d'erreur
+let upload;
+try {
+  const storage = multer.memoryStorage();
+  upload = multer({ 
+    storage,
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB max
+    },
+    fileFilter: (req, file, cb) => {
+      try {
+        // Pour les images
+        if (file.fieldname === 'image') {
+          if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+          } else {
+            cb(new Error('Seules les images sont autorisées pour le champ image'), false);
+          }
+        }
+        // Pour les icônes SVG
+        else if (file.fieldname === 'icon') {
+          if (file.mimetype === 'image/svg+xml') {
+            cb(null, true);
+          } else {
+            cb(new Error('Seuls les fichiers SVG sont autorisés pour le champ icon'), false);
+          }
+        }
+        else {
+          cb(new Error('Champ de fichier non reconnu'), false);
+        }
+      } catch (filterError) {
+        console.error('❌ Erreur filtre multer:', filterError);
+        cb(filterError, false);
       }
     }
-    // Pour les icônes SVG
-    else if (file.fieldname === 'icon') {
-      if (file.mimetype === 'image/svg+xml') {
-        cb(null, true);
-      } else {
-        cb(new Error('Seuls les fichiers SVG sont autorisés pour le champ icon'), false);
-      }
-    }
-    else {
-      cb(new Error('Champ de fichier non reconnu'), false);
-    }
+  });
+  console.log('✅ Configuration multer initialisée');
+} catch (multerError) {
+  console.error('❌ Erreur configuration multer:', multerError);
+  // Créer une configuration multer basique en cas d'erreur
+  upload = multer({ storage: multer.memoryStorage() });
+}
+
+// Middleware de gestion d'erreur pour multer
+const handleMulterError = (error, req, res, next) => {
+  if (error instanceof multer.MulterError) {
+    console.error('❌ Erreur Multer:', error);
+    return res.status(400).json({
+      error: 'Erreur upload fichier',
+      details: error.message
+    });
+  } else if (error) {
+    console.error('❌ Erreur upload:', error);
+    return res.status(400).json({
+      error: 'Erreur upload fichier',
+      details: error.message
+    });
   }
-});
+  next();
+};
 
 // Route pour créer une catégorie avec uploads multiples
-categoryRoutes.post("/create", upload.fields([
-  { name: 'image', maxCount: 1 },
-  { name: 'icon', maxCount: 1 }
-]), createCategory);
-
-// Route alternative pour créer une catégorie sans fichiers (si les fichiers sont déjà uploadés via Cloudinary)
-categoryRoutes.post("/create-with-urls", createCategory);
+categoryRoutes.post("/create", 
+  upload.fields([
+    { name: 'image', maxCount: 1 },
+    { name: 'icon', maxCount: 1 }
+  ]),
+  handleMulterError,
+  createCategory
+);
 
 module.exports = categoryRoutes;

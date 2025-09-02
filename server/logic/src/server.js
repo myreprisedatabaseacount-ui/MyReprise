@@ -152,31 +152,54 @@ async function startServer() {
     console.log('🔄 startServer() appelée');
     
     // Connexion à la base de données
-    console.log('🔄 Connexion à MySQL...');
-    await connectToDatabase();
-    console.log('✅ MySQL connecté');
-    logger.info('✅ Connexion à MySQL établie');
-    
-    // Attendre un peu pour s'assurer que la connexion est stable
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    try {
+      console.log('🔄 Connexion à MySQL...');
+      await connectToDatabase();
+      console.log('✅ MySQL connecté');
+      logger.info('✅ Connexion à MySQL établie');
+    } catch (dbError) {
+      console.error('❌ Erreur connexion MySQL:', dbError.message);
+      logger.error('❌ Erreur connexion MySQL:', dbError);
+      // Continuer même si la DB échoue pour permettre le démarrage
+    }
     
     // Initialisation des modèles et création des tables
-    console.log('🔄 Début initialisation des modèles...');
-    await initializeModels();
-    console.log('✅ Modèles initialisés avec succès');
+    try {
+      logger.info('🔄 Début initialisation des modèles...');
+      await initializeModels();
+      logger.info('✅ Modèles initialisés avec succès');
+    } catch (modelsError) {
+      console.error('❌ Erreur initialisation modèles:', modelsError.message);
+      logger.error('❌ Erreur initialisation modèles:', modelsError);
+      // Continuer même si les modèles échouent
+    }
+    
     // Connexion à Redis (désactivée temporairement)
-    // await connectToRedis();
-    logger.info('⚠️ Redis désactivé temporairement');
+    try {
+      // await connectToRedis();
+      logger.info('⚠️ Redis désactivé temporairement');
+    } catch (redisError) {
+      console.error('❌ Erreur Redis:', redisError.message);
+      logger.info('⚠️ Redis non disponible');
+    }
     
     // Démarrage du serveur
-    server.listen(PORT, '0.0.0.0', () => {
-      logger.info(`🚀 Serveur MyReprise démarré sur le port ${PORT}`);
-      logger.info(`📝 Environnement: ${NODE_ENV}`);
-      logger.info(`🔗 Health check: http://localhost:${PORT}/api/health`);
-    });
+    try {
+      server.listen(PORT, '0.0.0.0', () => {
+        logger.info(`🚀 Serveur MyReprise démarré sur le port ${PORT}`);
+        logger.info(`📝 Environnement: ${NODE_ENV}`);
+        logger.info(`🔗 Health check: http://localhost:${PORT}/api/health`);
+        console.log(`🚀 Serveur démarré avec succès sur le port ${PORT}`);
+      });
+    } catch (serverError) {
+      console.error('❌ Erreur démarrage serveur:', serverError.message);
+      logger.error('❌ Erreur démarrage serveur:', serverError);
+      throw serverError;
+    }
     
   } catch (error) {
-    logger.error('❌ Erreur lors du démarrage du serveur:', error);
+    console.error('❌ Erreur critique lors du démarrage du serveur:', error);
+    logger.error('❌ Erreur critique lors du démarrage du serveur:', error);
     process.exit(1);
   }
 }
