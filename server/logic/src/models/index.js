@@ -1,66 +1,83 @@
 /**
- * Index des modèles Sequelize
- * Point d'entrée central pour tous les modèles de données
+ * Index des modèles Sequelize - Version complète
  */
 
-const { getSequelize, DataTypes } = require('../config/database');
+const { getSequelize } = require('../config/database');
 const logger = require('../utils/logger');
 
 // Import des modèles
-const User = require('./User');
-const Address = require('./Address');
-const Store = require('./Store');
-const Product = require('./Product');
-const Category = require('./Category');
-const Brand = require('./Brand');
-const Subject = require('./Subject');
-const SubjectCategory = require('./SubjectCategory');
-const Offer = require('./Offer');
-const OfferImage = require('./OfferImage');
-const Order = require('./Order');
-const UserSnapshot = require('./UserSnapshot');
-const ProductSnapshot = require('./ProductSnapshot');
-const Exchange = require('./Exchange');
-const DeliveryCompany = require('./DeliveryCompany');
-const DeliveryInfo = require('./DeliveryInfo');
-const Setting = require('./Setting');
+const createUserModel = require('./User');
+const createAddressModel = require('./Address');
+const createStoreModel = require('./Store');
+const createProductModel = require('./Product');
+const createCategoryModel = require('./Category');
+const createBrandModel = require('./Brand');
+const createSubjectModel = require('./Subject');
+const createSubjectCategoryModel = require('./SubjectCategory');
+const createOfferModel = require('./Offer');
+const createOfferImageModel = require('./OfferImage');
+const createOrderModel = require('./Order');
+const createUserSnapshotModel = require('./UserSnapshot');
+const createProductSnapshotModel = require('./ProductSnapshot');
+// Exchange model supprimé - pas dans les spécifications
+const createDeliveryCompanyModel = require('./DeliveryCompany');
+const createDeliveryInfoModel = require('./DeliveryInfo');
+const createSettingModel = require('./Setting');
 
-/**
- * Initialiser tous les modèles et leurs associations
- */
 async function initializeModels() {
   try {
+    logger.info('🔄 Début initialisation des modèles...');
     const sequelize = getSequelize();
     
-    // Définir les associations entre modèles
+    // Créer les modèles
+    const User = createUserModel(sequelize);
+    const Address = createAddressModel(sequelize);
+    const Store = createStoreModel(sequelize);
+    const Product = createProductModel(sequelize);
+    const Category = createCategoryModel(sequelize);
+    const Brand = createBrandModel(sequelize);
+    const Subject = createSubjectModel(sequelize);
+    const SubjectCategory = createSubjectCategoryModel(sequelize);
+    const Offer = createOfferModel(sequelize);
+    const OfferImage = createOfferImageModel(sequelize);
+    const Order = createOrderModel(sequelize);
+    const UserSnapshot = createUserSnapshotModel(sequelize);
+    const ProductSnapshot = createProductSnapshotModel(sequelize);
+    // Exchange supprimé
+    const DeliveryCompany = createDeliveryCompanyModel(sequelize);
+    const DeliveryInfo = createDeliveryInfoModel(sequelize);
+    const Setting = createSettingModel(sequelize);
     
-    // ===== User Relations =====
+    // Définir les associations
+    logger.info('🔄 Définition des associations...');
+    
+    // User <-> Address
     User.belongsTo(Address, { foreignKey: 'addressId', as: 'Address' });
     Address.hasMany(User, { foreignKey: 'addressId', as: 'Users' });
     
+    // User <-> Store
     User.hasOne(Store, { foreignKey: 'userId', as: 'Store' });
     Store.belongsTo(User, { foreignKey: 'userId', as: 'User' });
     
-    // ===== Product Relations =====
+    // User <-> Product
     Product.belongsTo(User, { foreignKey: 'createdBy', as: 'Creator' });
     User.hasMany(Product, { foreignKey: 'createdBy', as: 'Products' });
     
-    // ===== Category Relations =====
+    // Category relations
     Category.belongsTo(Category, { foreignKey: 'parentId', as: 'Parent' });
     Category.hasMany(Category, { foreignKey: 'parentId', as: 'Children' });
     
-    // ===== Brand Relations =====
+    // Brand <-> Category
     Brand.belongsTo(Category, { foreignKey: 'categoryId', as: 'Category' });
     Category.hasMany(Brand, { foreignKey: 'categoryId', as: 'Brands' });
     
-    // ===== Subject Relations =====
+    // Subject <-> Category (via SubjectCategory)
     Subject.hasMany(SubjectCategory, { foreignKey: 'subjectId', as: 'SubjectCategories' });
     SubjectCategory.belongsTo(Subject, { foreignKey: 'subjectId', as: 'Subject' });
-    
     Category.hasMany(SubjectCategory, { foreignKey: 'categoryId', as: 'SubjectCategories' });
     SubjectCategory.belongsTo(Category, { foreignKey: 'categoryId', as: 'Category' });
     
-    // ===== Offer Relations =====
+    // Offer relations
     Offer.belongsTo(Product, { foreignKey: 'productId', as: 'Product' });
     Product.hasMany(Offer, { foreignKey: 'productId', as: 'Offers' });
     
@@ -76,55 +93,78 @@ async function initializeModels() {
     Offer.belongsTo(Subject, { foreignKey: 'subjectId', as: 'Subject' });
     Subject.hasMany(Offer, { foreignKey: 'subjectId', as: 'Offers' });
     
-    // Offer self-reference pour replacedByOffer
+    // Offer self-reference
     Offer.belongsTo(Offer, { foreignKey: 'replacedByOffer', as: 'ReplacedBy' });
     Offer.hasOne(Offer, { foreignKey: 'replacedByOffer', as: 'Replacement' });
     
-    // ===== OfferImage Relations =====
+    // OfferImage <-> Offer
     OfferImage.belongsTo(Offer, { foreignKey: 'offerId', as: 'Offer' });
     Offer.hasMany(OfferImage, { foreignKey: 'offerId', as: 'Images' });
     
-    // ===== Order Relations =====
+    // Order relations
     Order.hasMany(UserSnapshot, { foreignKey: 'orderId', as: 'UserSnapshots' });
     UserSnapshot.belongsTo(Order, { foreignKey: 'orderId', as: 'Order' });
     
     Order.hasMany(ProductSnapshot, { foreignKey: 'orderId', as: 'ProductSnapshots' });
     ProductSnapshot.belongsTo(Order, { foreignKey: 'orderId', as: 'Order' });
     
-    // ===== UserSnapshot Relations =====
+    // UserSnapshot relations
     UserSnapshot.belongsTo(User, { foreignKey: 'userId', as: 'User' });
     User.hasMany(UserSnapshot, { foreignKey: 'userId', as: 'Snapshots' });
     
     UserSnapshot.belongsTo(Address, { foreignKey: 'addressId', as: 'Address' });
     Address.hasMany(UserSnapshot, { foreignKey: 'addressId', as: 'UserSnapshots' });
     
-    // ===== ProductSnapshot Relations =====
+    // ProductSnapshot relations
     ProductSnapshot.belongsTo(Offer, { foreignKey: 'offerId', as: 'Offer' });
     Offer.hasMany(ProductSnapshot, { foreignKey: 'offerId', as: 'Snapshots' });
     
-    // ProductSnapshot self-reference pour replacedByProductId
+    // ProductSnapshot self-reference
     ProductSnapshot.belongsTo(ProductSnapshot, { foreignKey: 'replacedByProductId', as: 'ReplacedBy' });
     ProductSnapshot.hasOne(ProductSnapshot, { foreignKey: 'replacedByProductId', as: 'Replacement' });
     
-    // ===== Exchange Relations =====
-    Exchange.belongsTo(User, { foreignKey: 'initiatorUserId', as: 'Initiator' });
-    User.hasMany(Exchange, { foreignKey: 'initiatorUserId', as: 'InitiatedExchanges' });
+    // Order <-> User (balance payer)
+    Order.belongsTo(User, { foreignKey: 'balancePayerId', as: 'BalancePayer' });
+    User.hasMany(Order, { foreignKey: 'balancePayerId', as: 'OrdersToPayBalance' });
     
-    Exchange.belongsTo(Offer, { foreignKey: 'offeredOfferId', as: 'OfferedOffer' });
-    Offer.hasMany(Exchange, { foreignKey: 'offeredOfferId', as: 'ExchangesFrom' });
-    
-    Exchange.belongsTo(Offer, { foreignKey: 'requestedOfferId', as: 'RequestedOffer' });
-    Offer.hasMany(Exchange, { foreignKey: 'requestedOfferId', as: 'ExchangesTo' });
-    
-    // ===== Delivery Relations =====
+    // Delivery relations
     DeliveryInfo.belongsTo(Order, { foreignKey: 'orderId', as: 'Order' });
     Order.hasMany(DeliveryInfo, { foreignKey: 'orderId', as: 'DeliveryInfos' });
     
     DeliveryInfo.belongsTo(DeliveryCompany, { foreignKey: 'companyId', as: 'Company' });
     DeliveryCompany.hasMany(DeliveryInfo, { foreignKey: 'companyId', as: 'DeliveryInfos' });
     
-    logger.info('✅ Modèles Sequelize et associations initialisés');
-    return sequelize;
+    logger.info('✅ Modèles créés avec associations');
+    
+    // Synchroniser la base de données (créer les tables)
+    console.log('🔄 Création des tables...');
+    await sequelize.sync({ force: false, alter: false, logging: console.log });
+    console.log('✅ Tables créées !');
+    logger.info('✅ Tables MySQL synchronisées avec Sequelize');
+    
+    // Initialiser les données par défaut
+    await Setting.initializeDefaultSettings();
+    logger.info('✅ Paramètres par défaut initialisés');
+    
+    return { 
+      User, 
+      Address, 
+      Store,
+      Product, 
+      Category, 
+      Brand, 
+      Subject, 
+      SubjectCategory, 
+      Offer, 
+      OfferImage, 
+      Order,
+      UserSnapshot,
+      ProductSnapshot,
+      // Exchange supprimé
+      DeliveryCompany,
+      DeliveryInfo,
+      Setting 
+    };
     
   } catch (error) {
     logger.error('❌ Erreur lors de l\'initialisation des modèles:', error);
@@ -132,49 +172,6 @@ async function initializeModels() {
   }
 }
 
-/**
- * Synchroniser la base de données
- */
-async function syncDatabase(options = {}) {
-  try {
-    const sequelize = getSequelize();
-    
-    const defaultOptions = {
-      force: false,      // Ne pas supprimer les tables existantes
-      alter: process.env.NODE_ENV === 'development', // Modifier en dev seulement
-      logging: (sql) => logger.debug(`Sequelize: ${sql}`)
-    };
-    
-    const syncOptions = { ...defaultOptions, ...options };
-    
-    await sequelize.sync(syncOptions);
-    logger.info('✅ Base de données synchronisée');
-    
-  } catch (error) {
-    logger.error('❌ Erreur lors de la synchronisation:', error);
-    throw error;
-  }
-}
-
 module.exports = {
-  initializeModels,
-  syncDatabase,
-  // Export des modèles
-  User,
-  Address,
-  Store,
-  Product,
-  Category,
-  Brand,
-  Subject,
-  SubjectCategory,
-  Offer,
-  OfferImage,
-  Order,
-  UserSnapshot,
-  ProductSnapshot,
-  Exchange,
-  DeliveryCompany,
-  DeliveryInfo,
-  Setting
+  initializeModels
 };

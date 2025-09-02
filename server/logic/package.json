@@ -5,13 +5,15 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
+    "start:3001": "PORT=3001 node src/server.js",
     "dev": "nodemon src/server.js",
+    "dev:3001": "PORT=3001 nodemon src/server.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "lint": "eslint src/**/*.js",
     "lint:fix": "eslint src/**/*.js --fix",
     "docker:build": "docker build -t myreprise-nodejs .",
-    "docker:run": "docker run -p 3000:3000 myreprise-nodejs"
+    "docker:run": "docker run -p 3001:3001 myreprise-nodejs"
   },
   "keywords": [
     "nodejs",

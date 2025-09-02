@@ -12,6 +12,8 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
+const { initializeModels } = require('./models');
+
 
 // Import des modules internes
 const logger = require('./utils/logger');
@@ -28,7 +30,7 @@ const io = new Server(server, {
   }
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // Middleware de sécurité
@@ -128,19 +130,27 @@ app.use('*', (req, res) => {
 // Fonction de démarrage du serveur
 async function startServer() {
   try {
+    console.log('🔄 startServer() appelée');
+    
     // Connexion à la base de données
+    console.log('🔄 Connexion à MySQL...');
     await connectToDatabase();
+    console.log('✅ MySQL connecté');
     logger.info('✅ Connexion à MySQL établie');
     
-    // Connexion à Redis
-    await connectToRedis();
-    logger.info('✅ Connexion à Redis établie');
+    // Initialisation des modèles et création des tables
+    logger.info('🔄 Début initialisation des modèles...');
+    await initializeModels();
+    logger.info('✅ Modèles initialisés avec succès');
+    // Connexion à Redis (désactivée temporairement)
+    // await connectToRedis();
+    logger.info('⚠️ Redis désactivé temporairement');
     
     // Démarrage du serveur
     server.listen(PORT, '0.0.0.0', () => {
       logger.info(`🚀 Serveur MyReprise démarré sur le port ${PORT}`);
       logger.info(`📝 Environnement: ${NODE_ENV}`);
-      logger.info(`🔗 Health check: http://localhost:${PORT}/health`);
+      logger.info(`🔗 Health check: http://localhost:${PORT}/api/health`);
     });
     
   } catch (error) {
@@ -177,7 +187,11 @@ process.on('unhandledRejection', (reason, promise) => {
   process.exit(1);
 });
 
-// Démarrer le serveur
-startServer();
+// Démarrer le serveur avec debug
+console.log('🔄 DÉBUT DU SCRIPT SERVER.JS');
+startServer().catch(error => {
+  console.error('💥 ERREUR FATALE:', error);
+  process.exit(1);
+});
 
 module.exports = { app, server, io };

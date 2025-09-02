@@ -11,7 +11,7 @@ let sequelize;
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',  // Changed from 'mysql' to 'localhost'
   port: process.env.DB_PORT || 3306,
-  database: process.env.DB_NAME || 'myreprise',
+  database: process.env.DB_NAME || 'myreprise_new',
   username: process.env.DB_USERNAME || 'root',
   password: process.env.DB_PASSWORD || '',   // Remplacez par votre mot de passe MySQL
   dialect: 'mysql',
