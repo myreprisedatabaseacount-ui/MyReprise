@@ -1,6 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 import { setRequestLocale } from 'next-intl/server';
 import NavBar from '../../components/Header/NavBar';
+import AuthProvider from '../../components/auth/AuthProvider';
 
 export default async function HomePage({
   params
@@ -65,6 +66,7 @@ export default async function HomePage({
           </div>
         </div>
       </div>
+      <AuthProvider />
     </>
   );
 }

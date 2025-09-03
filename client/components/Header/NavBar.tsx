@@ -2,14 +2,17 @@
 
 import React from 'react';
 import { Button } from '../ui/button';
+import { useAuth } from '../../services/hooks/useAuth';
 
 interface NavBarProps {
   className?: string;
 }
 
 const NavBar: React.FC<NavBarProps> = ({ className = '' }) => {
+  const { openLogin } = useAuth();
+
   const handleLogin = () => {
-    console.log('Bouton Login cliqué');
+    openLogin();
   };
 
   return (
