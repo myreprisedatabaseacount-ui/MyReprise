@@ -505,6 +505,23 @@ class MyRepriseMigrator:
         
         with self.neo4j_driver.session() as session:
             for di in delivery_infos:
+                # Convertir les valeurs décimales en float
+                di_data = dict(di)
+                if di_data.get('total_price') is not None:
+                    di_data['total_price'] = float(di_data['total_price'])
+                if di_data.get('total_amount') is not None:
+                    di_data['total_amount'] = float(di_data['total_amount'])
+                if di_data.get('total_weight') is not None:
+                    di_data['total_weight'] = float(di_data['total_weight'])
+                if di_data.get('package_height') is not None:
+                    di_data['package_height'] = float(di_data['package_height'])
+                if di_data.get('package_length') is not None:
+                    di_data['package_length'] = float(di_data['package_length'])
+                if di_data.get('package_width') is not None:
+                    di_data['package_width'] = float(di_data['package_width'])
+                if di_data.get('range_weight') is not None:
+                    di_data['range_weight'] = float(di_data['range_weight'])
+                
                 session.run("""
                     CREATE (di:DeliveryInfo {
                         id: $id,
@@ -528,7 +545,7 @@ class MyRepriseMigrator:
                         createdAt: datetime($created_at),
                         updatedAt: datetime($updated_at)
                     })
-                """, **di)
+                """, **di_data)
                 
                 self.stats['delivery_infos'] += 1
         

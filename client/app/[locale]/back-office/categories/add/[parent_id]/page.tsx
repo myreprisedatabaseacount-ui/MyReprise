@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Upload, X, Save, Eye, Folder, FileImage, Users, Calendar } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
-import { useInsertCategoryMutation } from '../../../../../../services/CategoryApi';
+import { useInsertCategoryMutation } from '../../../../../../services/api/CategoryApi';
 
 interface SubCategoryFormData {
     titleFr: string;
