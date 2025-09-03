@@ -2,24 +2,25 @@
  * Index des modèles Sequelize - Version complète
  */
 
-const { getSequelize } = require('../config/database');
+const db = require('../config/db');
 const logger = require('../utils/logger');
 
-// Import des modèles
-const createUserModel = require('./User');
-const createAddressModel = require('./Address');
-const createStoreModel = require('./Store');
-const createProductModel = require('./Product');
-const createCategoryModel = require('./Category');
-const createBrandModel = require('./Brand');
+// Import des modèles refactorisés
+const { User } = require('./User');
+const { Address } = require('./Address');
+const { Store } = require('./Store');
+const { Product } = require('./Product');
+const { Category } = require('./Category');
+const { Brand } = require('./Brand');
+const { Offer } = require('./Offer');
+const { Order } = require('./Order');
+
+// Import des modèles non encore refactorisés
 const createSubjectModel = require('./Subject');
 const createSubjectCategoryModel = require('./SubjectCategory');
-const createOfferModel = require('./Offer');
 const createOfferImageModel = require('./OfferImage');
-const createOrderModel = require('./Order');
 const createUserSnapshotModel = require('./UserSnapshot');
 const createProductSnapshotModel = require('./ProductSnapshot');
-// Exchange model supprimé - pas dans les spécifications
 const createDeliveryCompanyModel = require('./DeliveryCompany');
 const createDeliveryInfoModel = require('./DeliveryInfo');
 const createSettingModel = require('./Setting');
@@ -27,66 +28,21 @@ const createSettingModel = require('./Setting');
 async function initializeModels() {
   try {
     logger.info('🔄 Début initialisation des modèles...');
-    const sequelize = getSequelize();
+    const sequelize = db.getSequelize();
     
     // Créer les modèles avec gestion d'erreur
-    let User, Address, Store, Product, Category, Brand, Subject, SubjectCategory;
-    let Offer, OfferImage, Order, UserSnapshot, ProductSnapshot;
+    let Subject, SubjectCategory, OfferImage, UserSnapshot, ProductSnapshot;
     let DeliveryCompany, DeliveryInfo, Setting;
     
-    try {
-      console.log('🔄 Création User...');
-      User = createUserModel(sequelize);
-      console.log('✅ User créé');
-    } catch (error) {
-      console.error('❌ Erreur création User:', error.message);
-      User = null;
-    }
-    
-    try {
-      console.log('🔄 Création Address...');
-      Address = createAddressModel(sequelize);
-      console.log('✅ Address créé');
-    } catch (error) {
-      console.error('❌ Erreur création Address:', error.message);
-      Address = null;
-    }
-    
-    try {
-      console.log('🔄 Création Store...');
-      Store = createStoreModel(sequelize);
-      console.log('✅ Store créé');
-    } catch (error) {
-      console.error('❌ Erreur création Store:', error.message);
-      Store = null;
-    }
-    
-    try {
-      console.log('🔄 Création Product...');
-      Product = createProductModel(sequelize);
-      console.log('✅ Product créé');
-    } catch (error) {
-      console.error('❌ Erreur création Product:', error.message);
-      Product = null;
-    }
-    
-    try {
-      console.log('🔄 Création Category...');
-      Category = createCategoryModel(sequelize);
-      console.log('✅ Category créé');
-    } catch (error) {
-      console.error('❌ Erreur création Category:', error.message);
-      Category = null;
-    }
-    
-    try {
-      console.log('🔄 Création Brand...');
-      Brand = createBrandModel(sequelize);
-      console.log('✅ Brand créé');
-    } catch (error) {
-      console.error('❌ Erreur création Brand:', error.message);
-      Brand = null;
-    }
+    // Modèles refactorisés déjà importés
+    console.log('✅ User importé');
+    console.log('✅ Address importé');
+    console.log('✅ Store importé');
+    console.log('✅ Product importé');
+    console.log('✅ Category importé');
+    console.log('✅ Brand importé');
+    console.log('✅ Offer importé');
+    console.log('✅ Order importé');
     
     try {
       console.log('🔄 Création Subject...');
@@ -106,14 +62,7 @@ async function initializeModels() {
       SubjectCategory = null;
     }
     
-    try {
-      console.log('🔄 Création Offer...');
-      Offer = createOfferModel(sequelize);
-      console.log('✅ Offer créé');
-    } catch (error) {
-      console.error('❌ Erreur création Offer:', error.message);
-      Offer = null;
-    }
+    // Offer déjà importé
     
     try {
       console.log('🔄 Création OfferImage...');
@@ -124,14 +73,7 @@ async function initializeModels() {
       OfferImage = null;
     }
     
-    try {
-      console.log('🔄 Création Order...');
-      Order = createOrderModel(sequelize);
-      console.log('✅ Order créé');
-    } catch (error) {
-      console.error('❌ Erreur création Order:', error.message);
-      Order = null;
-    }
+    // Order déjà importé
     
     try {
       console.log('🔄 Création UserSnapshot...');

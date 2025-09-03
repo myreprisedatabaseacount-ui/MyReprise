@@ -1,109 +1,113 @@
-/**
- * Serveur principal Node.js pour MyReprise
- * Responsable de la logique métier complète de l'application
- */
+const express = require("express");
+const cors = require("cors");
+const helmet = require("helmet");
+const path = require("path");
+const cookieParser = require("cookie-parser");
+const { Op } = require("sequelize");
+const dotenv = require("dotenv");
+const bcrypt = require("bcrypt");
+const { sequelize } = require('./config/db.js');
+dotenv.config();
 
-// Configuration manuelle pour éviter le .env corrompu
-process.env.NODE_ENV = process.env.NODE_ENV || 'development';
-process.env.PORT = process.env.PORT || '3001';
-process.env.DB_HOST = process.env.DB_HOST || 'localhost';
-process.env.DB_PORT = process.env.DB_PORT || '3306';
-process.env.DB_USERNAME = process.env.DB_USERNAME || 'root';
-process.env.DB_PASSWORD = process.env.DB_PASSWORD || '';
-process.env.DB_DATABASE = process.env.DB_DATABASE || 'myreprise_new';
-process.env.DB_NAME = process.env.DB_NAME || 'myreprise_new';
-process.env.REDIS_HOST = process.env.REDIS_HOST || 'localhost';
-process.env.REDIS_PORT = process.env.REDIS_PORT || '6379';
-process.env.NEO4J_URI = process.env.NEO4J_URI || 'neo4j://localhost:7687';
-process.env.NEO4J_USER = process.env.NEO4J_USER || 'neo4j';
-process.env.NEO4J_PASSWORD = process.env.NEO4J_PASSWORD || 'neo4j123';
-process.env.JWT_SECRET = process.env.JWT_SECRET || 'myreprisel2alamiya&&codesecretman3tihchlberrani';
-const express = require('express');
-const helmet = require('helmet');
-const cors = require('cors');
-const morgan = require('morgan');
-const compression = require('compression');
-const rateLimit = require('express-rate-limit');
-const { createServer } = require('http');
-const { Server } = require('socket.io');
-const { initializeModels } = require('./models');
+const db = require("./config/db.js");
+const fs = require('fs');
 
+// Import des modèles refactorisés
+const { User } = require('./models/User');
+const { Address } = require('./models/Address');
+const { Store } = require('./models/Store');
+const { Product } = require('./models/Product');
+const { Category } = require('./models/Category');
+const { Brand } = require('./models/Brand');
+const { Offer } = require('./models/Offer');
+const { Order } = require('./models/Order');
 
-// Import des modules internes
-const logger = require('./utils/logger');
-const { connectToDatabase } = require('./config/database');
-const { connectToRedis } = require('./config/redis');
-const { categoryRoutes } = require('./routes');
+// Import des routes
+const { categoryRoutes, userRoutes } = require('./routes');
 
-// Configuration de l'application
 const app = express();
-const server = createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
-    methods: ["GET", "POST"]
+const rateLimit = require('express-rate-limit');
+
+// Charger les variables sensibles depuis le fichier .env
+const PORT = process.env.PORT || 3001;
+
+// Middleware de nettoyage JSON personnalisé
+app.use((req, res, next) => {
+  if (req.is('application/json')) {
+    let data = '';
+    req.setEncoding('utf8');
+    
+    req.on('data', (chunk) => {
+      data += chunk;
+    });
+    
+    req.on('end', () => {
+      try {
+        // Nettoyer le JSON des caractères invisibles
+        const cleanData = data
+          .replace(/\r\n/g, '')  // Supprimer les retours à la ligne Windows
+          .replace(/\n/g, '')    // Supprimer les retours à la ligne Unix
+          .replace(/\r/g, '')    // Supprimer les retours chariot
+          .replace(/\s+/g, ' ')  // Remplacer les espaces multiples par un seul
+          .trim();               // Supprimer les espaces en début/fin
+        
+        // Parser le JSON nettoyé
+        req.body = JSON.parse(cleanData);
+        next();
+        
+      } catch (e) {
+        res.status(400).json({
+          error: 'JSON invalide',
+          message: 'Le format JSON de la requête est incorrect',
+          details: e.message
+        });
+      }
+    });
+  } else {
+    next();
   }
 });
 
-const PORT = process.env.PORT || 3001;
-const NODE_ENV = process.env.NODE_ENV || 'development';
+// Middleware de gestion d'erreur JSON
+app.use((error, req, res, next) => {
+  if (error instanceof SyntaxError && error.status === 400 && 'body' in error) {
+    return res.status(400).json({
+      error: 'JSON invalide',
+      message: 'Le format JSON de la requête est incorrect',
+      details: error.message
+    });
+  }
+  next(error);
+});
 
-// Middleware de sécurité
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
-    },
-  },
-}));
-
-// CORS Configuration
 app.use(cors({
   origin: process.env.FRONTEND_URL || "http://localhost:3000",
   credentials: true,
-  optionsSuccessStatus: 200
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 }));
 
-// Rate limiting
+app.use("/api/images", express.static("./uploads")); // Servir les fichiers statiques
+app.use(helmet()); // Ajouter des en-têtes de sécurité
+
+// Middleware pour parser les cookies
+app.use(cookieParser());
+
+// Limiter les requêtes à 100 par heure par IP
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limite chaque IP à 100 requêtes par windowMs
-  message: {
-    error: 'Trop de requêtes depuis cette IP, veuillez réessayer plus tard.',
-    retryAfter: '15 minutes'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
+  windowMs: 60 * 1000, // 1 minute
+  max: 1000, // max 1000 requêtes par minute
+  message: 'Trop de requêtes, réessayez dans une minute.',
 });
 
-app.use('/api', limiter);
+app.use(limiter);
 
+// Routes
+app.use("/api/categories", categoryRoutes);
+app.use("/api/auth", userRoutes);
+app.use("/api/users", userRoutes);
 
-
-// Middleware de logging
-if (NODE_ENV === 'production') {
-  app.use(morgan('combined', { stream: logger.stream }));
-} else {
-  app.use(morgan('dev'));
-}
-
-// Middleware de compression
-app.use(compression());
-
-// Middleware de parsing
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Configuration des routes
-app.use('/api/categories', categoryRoutes);
-
-
-// Route unique de santé
+// Route de santé
 app.get('/api/health', (req, res) => {
-  console.log('✅ Service Node.js - Démarré et en bonne santé');
   res.status(200).json({
     status: 'healthy',
     service: 'MyReprise-NodeJS',
@@ -113,137 +117,16 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// WebSocket pour temps réel
-io.use((socket, next) => {
-  // Authentification WebSocket
-  const token = socket.request.headers.authorization;
-  if (token) {
-    // Valider le token JWT ici
-    next();
-  } else {
-    next(new Error('Authentication error'));
-  }
-});
-
-io.on('connection', (socket) => {
-  logger.info(`Nouvelle connexion WebSocket: ${socket.id}`);
-  
-  socket.on('join_room', (room) => {
-    socket.join(room);
-    logger.info(`Socket ${socket.id} a rejoint la room ${room}`);
+// Fonction pour démarrer le serveur
+function startServer() {
+  app.listen(PORT, () => {
+    console.log(`🚀 Serveur MyReprise démarré sur le port ${PORT}`);
   });
-  
-  socket.on('disconnect', () => {
-    logger.info(`Connexion WebSocket fermée: ${socket.id}`);
-  });
-});
-
-// Middleware simple pour les routes non trouvées
-app.use('*', (req, res) => {
-  res.status(404).json({
-    error: 'Route non trouvée',
-    path: req.originalUrl
-  });
-});
-
-// Fonction de démarrage du serveur
-async function startServer() {
-  try {
-    console.log('🔄 startServer() appelée');
-    
-    // Connexion à la base de données
-    try {
-      console.log('🔄 Connexion à MySQL...');
-      await connectToDatabase();
-      console.log('✅ MySQL connecté');
-      logger.info('✅ Connexion à MySQL établie');
-    } catch (dbError) {
-      console.error('❌ Erreur connexion MySQL:', dbError.message);
-      logger.error('❌ Erreur connexion MySQL:', dbError);
-      // Continuer même si la DB échoue pour permettre le démarrage
-    }
-    
-    // Initialisation des modèles et création des tables
-    try {
-      logger.info('🔄 Début initialisation des modèles...');
-      await initializeModels();
-      logger.info('✅ Modèles initialisés avec succès');
-    } catch (modelsError) {
-      console.error('❌ Erreur initialisation modèles:', modelsError.message);
-      logger.error('❌ Erreur initialisation modèles:', modelsError);
-      // Continuer même si les modèles échouent
-    }
-    
-    // Connexion à Redis (désactivée temporairement)
-    try {
-      // await connectToRedis();
-      logger.info('⚠️ Redis désactivé temporairement');
-    } catch (redisError) {
-      console.error('❌ Erreur Redis:', redisError.message);
-      logger.info('⚠️ Redis non disponible');
-    }
-    
-    // Démarrage du serveur
-    try {
-      server.listen(PORT, '0.0.0.0', () => {
-        logger.info(`🚀 Serveur MyReprise démarré sur le port ${PORT}`);
-        logger.info(`📝 Environnement: ${NODE_ENV}`);
-        logger.info(`🔗 Health check: http://localhost:${PORT}/api/health`);
-        console.log(`🚀 Serveur démarré avec succès sur le port ${PORT}`);
-      });
-    } catch (serverError) {
-      console.error('❌ Erreur démarrage serveur:', serverError.message);
-      logger.error('❌ Erreur démarrage serveur:', serverError);
-      throw serverError;
-    }
-    
-  } catch (error) {
-    console.error('❌ Erreur critique lors du démarrage du serveur:', error);
-    logger.error('❌ Erreur critique lors du démarrage du serveur:', error);
-    process.exit(1);
-  }
 }
 
-// Gestion des signaux de fermeture
-process.on('SIGTERM', () => {
-  logger.info('Signal SIGTERM reçu, fermeture gracieuse du serveur...');
-  server.close(() => {
-    logger.info('Serveur fermé');
-    process.exit(0);
+db.initializeDatabase()
+  .then(() => startServer())
+  .catch((error) => {
+    console.error("Erreur lors de l'initialisation de l'application :", error);
+    process.exit(1); // Arrêter l'application en cas d'échec critique
   });
-});
-
-process.on('SIGINT', () => {
-  logger.info('Signal SIGINT reçu, fermeture gracieuse du serveur...');
-  server.close(() => {
-    logger.info('Serveur fermé');
-    process.exit(0);
-  });
-});
-
-// Gestion des erreurs non capturées
-process.on('uncaughtException', (error) => {
-  logger.error('Exception non capturée:', error);
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Promesse rejetée non gérée à:', promise, 'raison:', reason);
-  process.exit(1);
-});
-
-// Démarrer le serveur avec debug
-console.log('🔄 DÉBUT DU SCRIPT SERVER.JS');
-console.log('🔄 Variables d\'environnement:');
-console.log('  - PORT:', process.env.PORT);
-console.log('  - DB_HOST:', process.env.DB_HOST);
-console.log('  - DB_NAME:', process.env.DB_NAME);
-console.log('  - NODE_ENV:', process.env.NODE_ENV);
-
-startServer().catch(error => {
-  console.error('💥 ERREUR FATALE:', error);
-  console.error('💥 Stack trace:', error.stack);
-  process.exit(1);
-});
-
-module.exports = { app, server, io };

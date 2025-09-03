@@ -1,6 +1,6 @@
 const categoryRoutes = require('./categoryRoutes.js');
+const userRoutes = require('./userRoutes.js');
 // const upload = require('./upload');
-// const users = require('./users');
 // const products = require('./products');
 // const orders = require('./orders');
 // const notifications = require('./notifications');
@@ -8,8 +8,8 @@ const categoryRoutes = require('./categoryRoutes.js');
 
 module.exports = {
   categoryRoutes,
+  userRoutes,
   // upload,
-  // users,
   // products,
   // orders,
   // notifications,

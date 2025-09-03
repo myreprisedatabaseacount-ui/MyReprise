@@ -1,249 +1,361 @@
-/**
- * Middleware d'authentification et autorisation
- */
-
 const jwt = require('jsonwebtoken');
-const { cache } = require('../config/redis');
-const logger = require('../utils/logger');
+const { User } = require('../models/User.js');
+const logger = require('../utils/logger.js');
+
+// Configuration JWT
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
+
+// ========================================
+// MIDDLEWARE D'AUTHENTIFICATION
+// ========================================
 
 /**
- * Middleware d'authentification JWT
+ * 🔐 Middleware d'authentification JWT
+ * Vérifie la présence et la validité du token JWT
  */
-async function authenticate(req, res, next) {
-  try {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader) {
-      return res.status(401).json({
-        error: 'Token d\'authentification requis',
-        code: 'MISSING_TOKEN'
-      });
-    }
-
-    if (!authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        error: 'Format de token invalide. Utilisez "Bearer <token>"',
-        code: 'INVALID_TOKEN_FORMAT'
-      });
-    }
-
-    const token = authHeader.split(' ')[1];
-
-    if (!token) {
-      return res.status(401).json({
-        error: 'Token manquant',
-        code: 'MISSING_TOKEN'
-      });
-    }
-
+const authenticateToken = async (req, res, next) => {
     try {
-      // Vérifier si le token est blacklisté
-      const isBlacklisted = await cache.exists(`blacklist:${token}`);
-      if (isBlacklisted) {
-        return res.status(401).json({
-          error: 'Token invalide ou expiré',
-          code: 'TOKEN_BLACKLISTED'
-        });
-      }
+        // Récupération du token depuis l'en-tête Authorization
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.split(' ')[1]; // Format: "Bearer TOKEN"
 
-      // Vérifier et décoder le token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                error: 'Token d\'accès requis',
+                code: 'TOKEN_MISSING'
+            });
+        }
 
-      // Ajouter les informations utilisateur à la requête
-      req.user = {
-        userId: decoded.userId,
-        email: decoded.email,
-        token: token
-      };
-
-      // Continuer vers le middleware suivant
-      next();
-
-    } catch (jwtError) {
-      let errorMessage = 'Token invalide';
-      let errorCode = 'INVALID_TOKEN';
-
-      if (jwtError.name === 'TokenExpiredError') {
-        errorMessage = 'Token expiré';
-        errorCode = 'TOKEN_EXPIRED';
-      } else if (jwtError.name === 'JsonWebTokenError') {
-        errorMessage = 'Token malformé';
-        errorCode = 'MALFORMED_TOKEN';
-      }
-
-      return res.status(401).json({
-        error: errorMessage,
-        code: errorCode
-      });
-    }
-
-  } catch (error) {
-    logger.logError(error, req);
-    return res.status(500).json({
-      error: 'Erreur lors de la vérification de l\'authentification',
-      code: 'AUTH_ERROR'
-    });
-  }
-}
-
-/**
- * Middleware d'autorisation par rôle
- */
-function authorize(roles = []) {
-  return async (req, res, next) => {
-    try {
-      if (!req.user) {
-        return res.status(401).json({
-          error: 'Authentification requise',
-          code: 'NOT_AUTHENTICATED'
-        });
-      }
-
-      // Si aucun rôle n'est spécifié, autoriser tous les utilisateurs authentifiés
-      if (roles.length === 0) {
-        return next();
-      }
-
-      // Récupérer les rôles de l'utilisateur depuis le cache
-      let userRoles = await cache.get(`user_roles:${req.user.userId}`);
-
-      if (!userRoles) {
-        // Si pas en cache, récupérer depuis la base de données
-        const { query } = require('../config/database');
-        const result = await query(`
-          SELECT r.name 
-          FROM roles r 
-          JOIN user_roles ur ON r.id = ur.role_id 
-          WHERE ur.user_id = $1
-        `, [req.user.userId]);
-
-        userRoles = result.rows.map(row => row.name);
+        // Vérification du token
+        const decoded = jwt.verify(token, JWT_SECRET);
         
-        // Mettre en cache pour 1 heure
-        await cache.set(`user_roles:${req.user.userId}`, userRoles, 3600);
-      }
+        // Vérification que l'utilisateur existe toujours
+        const user = await User.findByPk(decoded.userId);
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                error: 'Utilisateur non trouvé',
+                code: 'USER_NOT_FOUND'
+            });
+        }
 
-      // Vérifier si l'utilisateur a au moins un des rôles requis
-      const hasRequiredRole = roles.some(role => userRoles.includes(role));
+        // Ajout des informations utilisateur à la requête
+        req.user = {
+            userId: decoded.userId,
+            email: decoded.email,
+            role: decoded.role
+        };
 
-      if (!hasRequiredRole) {
-        logger.warn(`Accès refusé pour l'utilisateur ${req.user.userId}. Rôles requis: ${roles.join(', ')}, Rôles utilisateur: ${userRoles.join(', ')}`);
-        
-        return res.status(403).json({
-          error: 'Droits insuffisants',
-          code: 'INSUFFICIENT_PERMISSIONS',
-          requiredRoles: roles,
-          userRoles: userRoles
-        });
-      }
-
-      // Ajouter les rôles à l'objet utilisateur
-      req.user.roles = userRoles;
-      
-      next();
+        next();
 
     } catch (error) {
-      logger.logError(error, req);
-      return res.status(500).json({
-        error: 'Erreur lors de la vérification des autorisations',
-        code: 'AUTHORIZATION_ERROR'
-      });
+        logger.error('Erreur d\'authentification:', error);
+
+        if (error.name === 'JsonWebTokenError') {
+            return res.status(401).json({
+                success: false,
+                error: 'Token invalide',
+                code: 'TOKEN_INVALID'
+            });
+        }
+
+        if (error.name === 'TokenExpiredError') {
+            return res.status(401).json({
+                success: false,
+                error: 'Token expiré',
+                code: 'TOKEN_EXPIRED'
+            });
+        }
+
+        return res.status(500).json({
+            success: false,
+            error: 'Erreur d\'authentification',
+            code: 'AUTH_ERROR'
+        });
     }
-  };
-}
+};
 
 /**
- * Middleware pour vérifier que l'utilisateur peut accéder à ses propres ressources
+ * 🛡️ Middleware de vérification de rôle
+ * Vérifie que l'utilisateur a le rôle requis
  */
-function authorizeOwnership(userIdParam = 'userId') {
-  return (req, res, next) => {
+const requireRole = (requiredRoles) => {
+    return (req, res, next) => {
+        try {
+            if (!req.user) {
+                return res.status(401).json({
+                    success: false,
+                    error: 'Authentification requise',
+                    code: 'AUTH_REQUIRED'
+                });
+            }
+
+            // Convertir en tableau si c'est une string
+            const roles = Array.isArray(requiredRoles) ? requiredRoles : [requiredRoles];
+
+            // Vérifier si l'utilisateur a l'un des rôles requis
+            if (!roles.includes(req.user.role)) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Permissions insuffisantes',
+                    code: 'INSUFFICIENT_PERMISSIONS',
+                    required: roles,
+                    current: req.user.role
+                });
+            }
+
+            next();
+
+        } catch (error) {
+            logger.error('Erreur de vérification de rôle:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Erreur de vérification des permissions',
+                code: 'ROLE_CHECK_ERROR'
+            });
+        }
+    };
+};
+
+/**
+ * 👑 Middleware pour les administrateurs uniquement
+ */
+const requireAdmin = requireRole('admin');
+
+/**
+ * 🔧 Middleware pour les modérateurs et administrateurs
+ */
+const requireModerator = requireRole(['admin', 'moderator']);
+
+/**
+ * ✅ Middleware pour les utilisateurs vérifiés uniquement
+ */
+const requireVerified = async (req, res, next) => {
     try {
-      if (!req.user) {
-        return res.status(401).json({
-          error: 'Authentification requise',
-          code: 'NOT_AUTHENTICATED'
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                error: 'Authentification requise',
+                code: 'AUTH_REQUIRED'
+            });
+        }
+
+        // Récupération des informations complètes de l'utilisateur
+        const user = await User.findByPk(req.user.userId);
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                error: 'Utilisateur non trouvé',
+                code: 'USER_NOT_FOUND'
+            });
+        }
+
+        if (!user.isVerified) {
+            return res.status(403).json({
+                success: false,
+                error: 'Compte non vérifié',
+                code: 'ACCOUNT_NOT_VERIFIED',
+                message: 'Veuillez vérifier votre numéro de téléphone pour accéder à cette fonctionnalité'
+            });
+        }
+
+        next();
+
+    } catch (error) {
+        logger.error('Erreur de vérification du statut:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Erreur de vérification du statut',
+            code: 'VERIFICATION_ERROR'
         });
-      }
+    }
+};
 
-      const resourceUserId = req.params[userIdParam] || req.body[userIdParam] || req.query[userIdParam];
+/**
+ * 🔄 Middleware optionnel d'authentification
+ * N'échoue pas si le token est absent, mais ajoute les infos si présent
+ */
+const optionalAuth = async (req, res, next) => {
+    try {
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.split(' ')[1];
 
-      if (!resourceUserId) {
+        if (token) {
+            try {
+                const decoded = jwt.verify(token, JWT_SECRET);
+                const user = await User.findByPk(decoded.userId);
+                
+                if (user) {
+                    req.user = {
+                        userId: decoded.userId,
+                        email: decoded.email,
+                        role: decoded.role
+                    };
+                }
+            } catch (tokenError) {
+                // Token invalide, mais on continue sans authentification
+                logger.warn('Token invalide dans optionalAuth:', tokenError.message);
+            }
+        }
+
+        next();
+
+    } catch (error) {
+        logger.error('Erreur dans optionalAuth:', error);
+        next(); // Continue même en cas d'erreur
+    }
+};
+
+/**
+ * 🚫 Middleware pour empêcher l'accès aux utilisateurs connectés
+ * Utile pour les pages de connexion/inscription
+ */
+const requireGuest = (req, res, next) => {
+    if (req.user) {
         return res.status(400).json({
-          error: 'ID utilisateur manquant',
-          code: 'MISSING_USER_ID'
+            success: false,
+            error: 'Vous êtes déjà connecté',
+            code: 'ALREADY_AUTHENTICATED'
         });
-      }
-
-      // Convertir en string pour la comparaison
-      if (String(req.user.userId) !== String(resourceUserId)) {
-        return res.status(403).json({
-          error: 'Accès non autorisé à cette ressource',
-          code: 'RESOURCE_ACCESS_DENIED'
-        });
-      }
-
-      next();
-
-    } catch (error) {
-      logger.logError(error, req);
-      return res.status(500).json({
-        error: 'Erreur lors de la vérification de propriété',
-        code: 'OWNERSHIP_ERROR'
-      });
     }
-  };
-}
+    next();
+};
 
 /**
- * Middleware optionnel d'authentification (n'échoue pas si pas de token)
+ * 🔒 Middleware de vérification de propriété
+ * Vérifie que l'utilisateur est propriétaire de la ressource ou admin
  */
-async function optionalAuthenticate(req, res, next) {
-  try {
-    const authHeader = req.headers.authorization;
+const requireOwnershipOrAdmin = (resourceUserIdField = 'userId') => {
+    return (req, res, next) => {
+        try {
+            if (!req.user) {
+                return res.status(401).json({
+                    success: false,
+                    error: 'Authentification requise',
+                    code: 'AUTH_REQUIRED'
+                });
+            }
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return next(); // Continuer sans authentification
-    }
+            // Les administrateurs peuvent accéder à tout
+            if (req.user.role === 'admin') {
+                return next();
+            }
 
-    const token = authHeader.split(' ')[1];
+            // Vérification de la propriété
+            const resourceUserId = req.params[resourceUserIdField] || req.body[resourceUserIdField];
+            
+            if (parseInt(resourceUserId) !== req.user.userId) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Accès non autorisé à cette ressource',
+                    code: 'RESOURCE_ACCESS_DENIED'
+                });
+            }
 
-    if (!token) {
-      return next(); // Continuer sans authentification
-    }
+            next();
 
-    try {
-      // Vérifier si le token est blacklisté
-      const isBlacklisted = await cache.exists(`blacklist:${token}`);
-      if (isBlacklisted) {
-        return next(); // Continuer sans authentification
-      }
+        } catch (error) {
+            logger.error('Erreur de vérification de propriété:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Erreur de vérification des permissions',
+                code: 'OWNERSHIP_CHECK_ERROR'
+            });
+        }
+    };
+};
 
-      // Vérifier et décoder le token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+/**
+ * 📊 Middleware de logging des accès
+ * Enregistre les tentatives d'accès pour le monitoring
+ */
+const logAccess = (req, res, next) => {
+    const startTime = Date.now();
+    
+    // Log de la requête
+    logger.info(`Accès API: ${req.method} ${req.path}`, {
+        ip: req.ip,
+        userAgent: req.get('User-Agent'),
+        userId: req.user?.userId,
+        timestamp: new Date().toISOString()
+    });
 
-      // Ajouter les informations utilisateur à la requête
-      req.user = {
-        userId: decoded.userId,
-        email: decoded.email,
-        token: token
-      };
+    // Intercepter la réponse pour logger le temps de traitement
+    const originalSend = res.send;
+    res.send = function(data) {
+        const duration = Date.now() - startTime;
+        
+        logger.info(`Réponse API: ${req.method} ${req.path}`, {
+            statusCode: res.statusCode,
+            duration: `${duration} ms`,
+            userId: req.user?.userId
+        });
 
-    } catch (jwtError) {
-      // Ignorer les erreurs JWT et continuer sans authentification
-      logger.debug('Token JWT invalide dans optionalAuthenticate:', jwtError.message);
-    }
+        originalSend.call(this, data);
+    };
 
     next();
+};
 
-  } catch (error) {
-    logger.logError(error, req);
-    next(); // Continuer même en cas d'erreur
-  }
-}
+/**
+ * 🛡️ Middleware de rate limiting par utilisateur
+ * Limite le nombre de requêtes par utilisateur
+ */
+const rateLimitByUser = (maxRequests = 100, windowMs = 15 * 60 * 1000) => {
+    const userRequests = new Map();
+
+    return (req, res, next) => {
+        if (!req.user) {
+            return next(); // Pas de rate limiting pour les utilisateurs non connectés
+        }
+
+        const userId = req.user.userId;
+        const now = Date.now();
+        const windowStart = now - windowMs;
+
+        // Nettoyer les anciennes entrées
+        if (userRequests.has(userId)) {
+            const requests = userRequests.get(userId).filter(time => time > windowStart);
+            userRequests.set(userId, requests);
+        } else {
+            userRequests.set(userId, []);
+        }
+
+        const userRequestCount = userRequests.get(userId).length;
+
+        if (userRequestCount >= maxRequests) {
+            return res.status(429).json({
+                success: false,
+                error: 'Trop de requêtes',
+                code: 'RATE_LIMIT_EXCEEDED',
+                retryAfter: Math.ceil(windowMs / 1000)
+            });
+        }
+
+        // Ajouter la requête actuelle
+        userRequests.get(userId).push(now);
+
+        next();
+    };
+};
 
 module.exports = {
-  authenticate,
-  authorize,
-  authorizeOwnership,
-  optionalAuthenticate
+    // Authentification de base
+    authenticateToken,
+    optionalAuth,
+    requireGuest,
+    
+    // Vérification de rôles
+    requireRole,
+    requireAdmin,
+    requireModerator,
+    requireVerified,
+    
+    // Vérification de propriété
+    requireOwnershipOrAdmin,
+    
+    // Monitoring et sécurité
+    logAccess,
+    rateLimitByUser
 };
