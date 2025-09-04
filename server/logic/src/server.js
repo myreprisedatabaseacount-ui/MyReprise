@@ -3,6 +3,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const path = require("path");
 const cookieParser = require("cookie-parser");
+const multer = require("multer");
 const { Op } = require("sequelize");
 const dotenv = require("dotenv");
 const bcrypt = require("bcrypt");
@@ -28,12 +29,32 @@ const { categoryRoutes, userRoutes } = require('./routes');
 const app = express();
 const rateLimit = require('express-rate-limit');
 
+// Configuration de multer pour gérer les fichiers multipart
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB max
+  },
+  fileFilter: (req, file, cb) => {
+    // Accepter les images et les fichiers SVG
+    if (file.mimetype.startsWith('image/') || file.mimetype === 'image/svg+xml') {
+      cb(null, true);
+    } else {
+      cb(new Error('Type de fichier non supporté. Seules les images sont autorisées.'), false);
+    }
+  }
+});
+
 // Charger les variables sensibles depuis le fichier .env
 const PORT = process.env.PORT || 3001;
 
-// Middleware de nettoyage JSON personnalisé
+// Middleware pour parser les données JSON et multipart
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Middleware de nettoyage JSON personnalisé (pour les requêtes JSON uniquement)
 app.use((req, res, next) => {
-  if (req.is('application/json')) {
+  if (req.is('application/json') && !req.is('multipart/form-data')) {
     let data = '';
     req.setEncoding('utf8');
     
@@ -81,10 +102,21 @@ app.use((error, req, res, next) => {
 });
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:3000",
+  origin: ["http://localhost:3000", "http://localhost:3001"],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  optionsSuccessStatus: 200
 }));
+
+// Middleware pour gérer les requêtes OPTIONS (preflight)
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || 'http://localhost:3000');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(200);
+});
 
 app.use("/api/images", express.static("./uploads")); // Servir les fichiers statiques
 app.use(helmet()); // Ajouter des en-têtes de sécurité

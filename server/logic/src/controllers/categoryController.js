@@ -1,5 +1,5 @@
 const cloudinaryService = require("../services/cloudinaryService.js");
-const Category = require("../models/Category.js");
+const { Category } = require("../models/Category.js");
 
 const createCategory = async (req, res) => {
   try {
@@ -30,10 +30,20 @@ const createCategory = async (req, res) => {
           {
             resource_type: "image",
             transformation: [
-              { width: 800, height: 600, crop: "fill", quality: "auto" },
+              {
+                width: 800,
+                height: 600,
+                crop: "limit"   // garde les proportions originales
+              },
+              {
+                quality: "auto:best",  // compression intelligente haute qualité
+                fetch_format: "auto",  // format optimisé (WebP/AVIF si dispo)
+                flags: "lossy",        // permet la compression
+                bytes_limit: 400000    // limite stricte à 0.4 MB (400 KB)
+              }
             ],
           }
-        );
+        );        
         imageUrl = imageUploadResult.secure_url;
       } catch (uploadError) {
         console.error("❌ Erreur upload image:", uploadError);
@@ -118,14 +128,27 @@ const createCategory = async (req, res) => {
         ageMin: ageMinNum,
         ageMax: ageMaxNum,
         parentId: parentId ? parseInt(parentId) : null,
-        imageUrl,
-        iconUrl,
-        isActive: true,
+        image: imageUrl,
+        icon: iconUrl,
       });
 
       return res.status(201).json({
         success: true,
-        data: { id: category.id, nameAr, nameFr, imageUrl, iconUrl },
+        data: {
+          id: category.id,
+          nameAr,
+          nameFr,
+          descriptionAr,
+          descriptionFr,
+          gender: genderValue,
+          ageMin: ageMinNum,
+          ageMax: ageMaxNum,
+          parentId: parentId ? parseInt(parentId) : null,
+          image: imageUrl,
+          icon: iconUrl,
+          createdAt: category.createdAt,
+          updatedAt: category.updatedAt
+        },
         message: "Catégorie créée avec succès",
       });
     } catch (dbError) {
@@ -144,105 +167,6 @@ const createCategory = async (req, res) => {
   }
 };
 
-const createCategoryTeste = async (req, res) => {
-  try {
-    const {
-      nameAr,
-      nameFr,
-      descriptionAr,
-      descriptionFr,
-      gender,
-      ageMin,
-      ageMax,
-      parentId,
-    } = req.body;
-
-    // ✅ Validation des champs obligatoires
-    if (!nameAr || !nameFr) {
-      return res
-        .status(400)
-        .json({ error: "Les noms en arabe et français sont obligatoires" });
-    }
-
-    // ✅ Validation des âges
-    const ageMinNum = parseInt(ageMin) || 0;
-    const ageMaxNum = parseInt(ageMax) || 100;
-
-    if (ageMinNum < 0 || ageMinNum > 120) {
-      return res
-        .status(400)
-        .json({ error: "L'âge minimum doit être entre 0 et 120 ans" });
-    }
-
-    if (ageMaxNum < 0 || ageMaxNum > 120) {
-      return res
-        .status(400)
-        .json({ error: "L'âge maximum doit être entre 0 et 120 ans" });
-    }
-
-    if (ageMinNum >= ageMaxNum) {
-      return res.status(400).json({
-        error: "L'âge maximum doit être supérieur à l'âge minimum",
-      });
-    }
-
-    // ✅ Mapping genre
-    let genderValue = "mixte";
-    if (gender === "homme") genderValue = "male";
-    else if (gender === "femme") genderValue = "female";
-
-    // ✅ Sauvegarde DB sans upload d'images
-    try {
-      const category = await Category.create({
-        nameAr,
-        nameFr,
-        descriptionAr,
-        descriptionFr,
-        gender: genderValue,
-        ageMin: ageMinNum,
-        ageMax: ageMaxNum,
-        parentId: parentId ? parseInt(parentId) : null,
-        image: null, // Pas d'image pour le test
-        icon: null,  // Pas d'icône pour le test
-        isActive: true,
-      });
-
-      return res.status(201).json({
-        success: true,
-        data: { 
-          id: category.id, 
-          nameAr, 
-          nameFr, 
-          descriptionAr,
-          descriptionFr,
-          gender: genderValue,
-          ageMin: ageMinNum,
-          ageMax: ageMaxNum,
-          parentId: parentId ? parseInt(parentId) : null,
-          image: null,
-          icon: null,
-          createdAt: category.createdAt,
-          updatedAt: category.updatedAt
-        },
-        message: "Catégorie de test créée avec succès (sans images)",
-      });
-    } catch (dbError) {
-      console.error("❌ Erreur DB:", dbError);
-      return res.status(500).json({
-        error: "Erreur lors de la création en base de données",
-        details: dbError.message || "Erreur inconnue",
-      });
-    }
-  } catch (err) {
-    console.error("❌ Erreur interne:", err);
-    return res.status(500).json({
-      error: "Erreur interne du serveur",
-      details: err.message || "Erreur inconnue",
-    });
-  }
-};
- 
 module.exports = {
   createCategory,
-  createCategoryTeste,
 };

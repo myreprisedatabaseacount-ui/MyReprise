@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useInsertCategoryMutation } from '../../../../../services/api/CategoryApi';
 import { Button } from '@radix-ui/themes';
 import { toast } from 'sonner';
+import { compressImageByType } from '../../../../../utils/imageCompression';
 
 interface CategoryFormData {
     titleFr: string;
@@ -50,8 +51,8 @@ const AddCategoryPage: React.FC = () => {
         }
     };
 
-    // Gestion de l'upload d'image
-    const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    // Gestion de l'upload d'image avec compression
+    const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
             // Vérifier que c'est une image
@@ -60,23 +61,35 @@ const AddCategoryPage: React.FC = () => {
                 return;
             }
 
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const result = e.target?.result as string;
-                setImagePreview(result);
-                // @ts-ignore
-                setFormData(prev => ({ ...prev, image: file }));
-                // Effacer l'erreur si elle existait
-                if (errors.image) {
-                    setErrors((prev: any) => ({ ...prev, image: '' as any }));
-                }
-            };
-            reader.readAsDataURL(file);
+            try {
+                // Compresser l'image si nécessaire
+                const compressedResult = await compressImageByType(file, {
+                    maxSizeKB: 512, // 0.5MB max
+                    maxWidth: 1920,
+                    maxHeight: 1920,
+                    quality: 0.85
+                });
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const result = e.target?.result as string;
+                    setImagePreview(result);
+                    setFormData(prev => ({ ...prev, image: compressedResult.file }));
+                    // Effacer l'erreur si elle existait
+                    if (errors.image) {
+                        setErrors((prev: any) => ({ ...prev, image: '' as any }));
+                    }
+                };
+                reader.readAsDataURL(compressedResult.file);
+            } catch (error) {
+                console.error('Erreur lors de la compression de l\'image:', error);
+                setErrors((prev: any) => ({ ...prev, image: 'Erreur lors de la compression de l\'image' }));
+            }
         }
     };
 
-    // Gestion de l'upload d'icône SVG
-    const handleIconUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    // Gestion de l'upload d'icône SVG avec compression
+    const handleIconUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
             // Vérifier que c'est un fichier SVG
@@ -85,18 +98,25 @@ const AddCategoryPage: React.FC = () => {
                 return;
             }
 
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const result = e.target?.result as string;
-                setIconPreview(result);
-                // @ts-ignore
-                setFormData(prev => ({ ...prev, icon: file }));
-                // Effacer l'erreur si elle existait
-                if (errors.icon) {
-                    setErrors(prev => ({ ...prev, icon: '' as any }));
-                }
-            };
-            reader.readAsDataURL(file);
+            try {
+                // Compresser l'icône SVG si nécessaire
+                const compressedResult = await compressImageByType(file);
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const result = e.target?.result as string;
+                    setIconPreview(result);
+                    setFormData(prev => ({ ...prev, icon: compressedResult.file }));
+                    // Effacer l'erreur si elle existait
+                    if (errors.icon) {
+                        setErrors(prev => ({ ...prev, icon: '' as any }));
+                    }
+                };
+                reader.readAsDataURL(compressedResult.file);
+            } catch (error) {
+                console.error('Erreur lors de la compression de l\'icône:', error);
+                setErrors((prev: any) => ({ ...prev, icon: 'Erreur lors de la compression de l\'icône' }));
+            }
         }
     };
 
@@ -172,7 +192,11 @@ const AddCategoryPage: React.FC = () => {
 
         try {
             // Appel API pour créer la catégorie
-            const result = await insertCategory(formData).unwrap();
+            const categoryData = {
+                ...formData,
+                parentId: null
+            };
+            const result = await insertCategory(categoryData).unwrap();
 
             console.log('Catégorie créée avec succès:', result);
 
@@ -419,7 +443,7 @@ const AddCategoryPage: React.FC = () => {
                                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors duration-200 relative">
                                         <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                         <p className="text-gray-600 mb-2">Cliquez pour ajouter une image</p>
-                                        <p className="text-sm text-gray-400">PNG, JPG jusqu'à 10MB</p>
+                                        <p className="text-sm text-gray-400">PNG, JPG (compressé à 0.5MB max)</p>
                                         <input
                                             type="file"
                                             accept="image/*"
