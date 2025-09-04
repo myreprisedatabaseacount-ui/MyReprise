@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { ArrowLeft, Upload, X, Save, Eye, FileImage, Users, Calendar } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useInsertCategoryMutation } from '../../../../../services/api/CategoryApi';
+import { Button } from '@radix-ui/themes';
+import { toast } from 'sonner';
 
 interface CategoryFormData {
     titleFr: string;
@@ -12,6 +14,7 @@ interface CategoryFormData {
     descriptionAr: string;
     icon: File | null;
     image: File | null;
+    parentId: string | null;
     targetGender: 'homme' | 'femme' | 'mixte';
     ageRangeMin: number;
     ageRangeMax: number;
@@ -20,7 +23,7 @@ interface CategoryFormData {
 const AddCategoryPage: React.FC = () => {
     const router = useRouter();
     const [insertCategory, { isLoading: isInsertCategoryLoading }] = useInsertCategoryMutation();
-    
+
     const [formData, setFormData] = useState<CategoryFormData>({
         titleFr: '',
         titleAr: '',
@@ -28,6 +31,7 @@ const AddCategoryPage: React.FC = () => {
         descriptionAr: '',
         icon: null,
         image: null,
+        parentId: null,
         targetGender: 'mixte',
         ageRangeMin: 0,
         ageRangeMax: 100,
@@ -52,7 +56,7 @@ const AddCategoryPage: React.FC = () => {
         if (file) {
             // Vérifier que c'est une image
             if (!file.type.startsWith('image/')) {
-                setErrors(prev => ({ ...prev, image: 'Veuillez sélectionner un fichier image valide' }));
+                setErrors((prev: any) => ({ ...prev, image: 'Veuillez sélectionner un fichier image valide' }));
                 return;
             }
 
@@ -64,7 +68,7 @@ const AddCategoryPage: React.FC = () => {
                 setFormData(prev => ({ ...prev, image: file }));
                 // Effacer l'erreur si elle existait
                 if (errors.image) {
-                    setErrors(prev => ({ ...prev, image: '' as any }));
+                    setErrors((prev: any) => ({ ...prev, image: '' as any }));
                 }
             };
             reader.readAsDataURL(file);
@@ -77,7 +81,7 @@ const AddCategoryPage: React.FC = () => {
         if (file) {
             // Vérifier que c'est un fichier SVG
             if (file.type !== 'image/svg+xml') {
-                setErrors(prev => ({ ...prev, icon: 'Veuillez sélectionner un fichier SVG valide' }));
+                setErrors((prev: any) => ({ ...prev, icon: 'Veuillez sélectionner un fichier SVG valide' }));
                 return;
             }
 
@@ -169,14 +173,14 @@ const AddCategoryPage: React.FC = () => {
         try {
             // Appel API pour créer la catégorie
             const result = await insertCategory(formData).unwrap();
-            
+
             console.log('Catégorie créée avec succès:', result);
-            
+
             // Redirection vers la page des catégories
             router.push('/back-office/categories');
         } catch (error: any) {
             console.error('Erreur lors de la création de la catégorie:', error);
-            
+
             // Gestion des erreurs de validation
             if (error?.data?.error) {
                 alert(`Erreur: ${error.data.error}`);

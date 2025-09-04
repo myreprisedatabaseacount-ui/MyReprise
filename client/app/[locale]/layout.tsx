@@ -5,6 +5,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import ReduxProvider from '../../lib/ReduxProvider';
+import { Toaster } from '@/components/ui/sonner';
 
 // Police principale Cairo
 const cairo = Cairo({
@@ -102,6 +103,7 @@ export default async function RootLayout({
           </NextIntlClientProvider>
         </ReduxProvider>
       </body>
+      <Toaster position="top-center" richColors theme="light" />
     </html>
   );
 }

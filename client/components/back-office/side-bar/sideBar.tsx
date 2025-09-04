@@ -71,11 +71,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem = 'dashboard' }) =>
   };
 
   return (
-    <>
+    <div>
       {/* Mobile Menu Button */}
       <button
         onClick={() => setIsMobileMenuOpen(true)}
-        className="md:hidden fixed top-4 left-4 z-50 p-2 bg-white shadow-lg rounded-lg hover:shadow-xl transition-shadow duration-200"
+        className="md:hidden fixed top-4 left-4 z-50 p-2 bg-white shadow-lg rounded-lg hover:shadow-xl transition-shadow duration-200  "
       >
         <Menu className="w-6 h-6 text-gray-700" />
       </button>
@@ -202,6 +202,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem = 'dashboard' }) =>
           </div>
         </div>
       </aside>
-    </>
+    </div>
   );
 };
