@@ -1,5 +1,5 @@
 const cloudinaryService = require("../services/cloudinaryService.js");
-const Category = require("../models/Category.js");
+const { Category } = require("../models/Category.js");
 
 const createCategory = async (req, res) => {
   try {
@@ -109,7 +109,7 @@ const createCategory = async (req, res) => {
 
     // ✅ Sauvegarde DB
     try {
-      const category = await Category.create({
+      const category = await Category.createCategory({
         nameAr,
         nameFr,
         descriptionAr,
@@ -118,8 +118,8 @@ const createCategory = async (req, res) => {
         ageMin: ageMinNum,
         ageMax: ageMaxNum,
         parentId: parentId ? parseInt(parentId) : null,
-        imageUrl,
-        iconUrl,
+        image: imageUrl,
+        icon: iconUrl,
         isActive: true,
       });
 

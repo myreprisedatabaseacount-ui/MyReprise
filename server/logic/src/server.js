@@ -25,6 +25,9 @@ const { Order } = require('./models/Order');
 // Import des routes
 const { categoryRoutes, userRoutes } = require('./routes');
 
+// Import Redis
+const { connectToRedis } = require('./config/redis');
+
 const app = express();
 const rateLimit = require('express-rate-limit');
 
@@ -118,10 +121,22 @@ app.get('/api/health', (req, res) => {
 });
 
 // Fonction pour démarrer le serveur
-function startServer() {
-  app.listen(PORT, () => {
-    console.log(`🚀 Serveur MyReprise démarré sur le port ${PORT}`);
-  });
+async function startServer() {
+  try {
+    // Initialiser Redis
+    await connectToRedis();
+    console.log('✅ Redis initialisé avec succès');
+    
+    app.listen(PORT, () => {
+      console.log(`🚀 Serveur MyReprise démarré sur le port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'initialisation de Redis:', error);
+    // Continuer sans Redis si ce n'est pas critique
+    app.listen(PORT, () => {
+      console.log(`🚀 Serveur MyReprise démarré sur le port ${PORT} (sans Redis)`);
+    });
+  }
 }
 
 db.initializeDatabase()
