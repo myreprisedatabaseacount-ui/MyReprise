@@ -294,6 +294,176 @@ class Neo4jSyncService {
     }
 
     // ========================================
+    // MÉTHODES DE SYNCHRONISATION DES MARQUES
+    // ========================================
+
+    /**
+     * Synchronise une marque vers Neo4j
+     */
+    static async syncBrand(brand, action = 'CREATE') {
+        try {
+            logger.info(`🔄 Synchronisation ${action} marque ${brand.id} vers Neo4j`);
+
+            // Préparer les données marque pour Neo4j
+            const brandData = this.prepareBrandDataForNeo4j(brand, action);
+
+            // Tentative de synchronisation temps réel
+            const success = await this.syncBrandToGraphService(brandData);
+
+            if (success) {
+                // Mettre en cache pour optimiser les futures requêtes
+                await this.cacheBrandData(brand);
+                logger.info(`✅ Marque ${brand.id} synchronisée avec succès`);
+                return true;
+            } else {
+                // En cas d'échec, ajouter à la queue de retry
+                await this.addBrandToRetryQueue(brandData);
+                logger.warn(`⚠️ Synchronisation marque échouée, ajoutée à la queue de retry`);
+                return false;
+            }
+
+        } catch (error) {
+            logger.error(`❌ Erreur synchronisation marque ${brand.id}:`, error);
+            
+            // En cas d'erreur, ajouter à la queue de retry
+            const brandData = this.prepareBrandDataForNeo4j(brand, action);
+            await this.addBrandToRetryQueue(brandData);
+            
+            return false;
+        }
+    }
+
+    /**
+     * Synchronise directement une marque avec le Graph Service
+     */
+    static async syncBrandToGraphService(brandData) {
+        try {
+            const response = await axios.post(
+                `${this.GRAPH_SERVICE_URL}/sync/brand`,
+                brandData,
+                {
+                    timeout: 10000, // 10 secondes timeout
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+
+            return response.status === 200;
+
+        } catch (error) {
+            logger.error('Erreur appel Graph Service pour marque:', error.message);
+            return false;
+        }
+    }
+
+    /**
+     * Prépare les données marque pour Neo4j
+     */
+    static prepareBrandDataForNeo4j(brand, action) {
+        return {
+            action: action, // CREATE, UPDATE, DELETE
+            brandId: brand.id,
+            brandData: {
+                id: brand.id,
+                nameAr: brand.nameAr,
+                nameFr: brand.nameFr,
+                descriptionAr: brand.descriptionAr,
+                descriptionFr: brand.descriptionFr,
+                logo: brand.logo,
+                categoryId: brand.categoryId,
+                isActive: brand.isActive,
+                createdAt: brand.createdAt,
+                updatedAt: brand.updatedAt
+            },
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    /**
+     * Met en cache les données marque dans Redis
+     */
+    static async cacheBrandData(brand) {
+        try {
+            const redis = getRedisClient();
+            const cacheKey = `brand:${brand.id}`;
+            const brandData = {
+                id: brand.id,
+                nameAr: brand.nameAr,
+                nameFr: brand.nameFr,
+                descriptionAr: brand.descriptionAr,
+                descriptionFr: brand.descriptionFr,
+                logo: brand.logo,
+                categoryId: brand.categoryId,
+                isActive: brand.isActive,
+                lastSync: new Date().toISOString()
+            };
+
+            // Cache pour 2 heures (marques changent moins souvent)
+            await redis.setEx(cacheKey, 7200, JSON.stringify(brandData));
+            logger.debug(`📦 Données marque ${brand.id} mises en cache`);
+
+        } catch (error) {
+            logger.error('Erreur mise en cache marque:', error);
+        }
+    }
+
+    /**
+     * Ajoute une marque à la queue de retry
+     */
+    static async addBrandToRetryQueue(brandData) {
+        try {
+            const redis = getRedisClient();
+            const retryData = {
+                ...brandData,
+                retryCount: 0,
+                nextRetry: Date.now() + this.RETRY_DELAY,
+                type: 'brand' // Marquer comme marque
+            };
+
+            await redis.lPush(this.SYNC_RETRY_KEY, JSON.stringify(retryData));
+            logger.info(`🔄 Marque ${brandData.brandId} ajoutée à la queue de retry`);
+
+        } catch (error) {
+            logger.error('Erreur ajout queue retry marque:', error);
+        }
+    }
+
+    /**
+     * Synchronise toutes les marques (pour migration initiale)
+     */
+    static async syncAllBrands() {
+        try {
+            const { Brand } = require('../models/Brand');
+            const brands = await Brand.findAll();
+            
+            logger.info(`🔄 Synchronisation de ${brands.length} marques vers Neo4j`);
+            
+            let successCount = 0;
+            let errorCount = 0;
+
+            for (const brand of brands) {
+                const success = await this.syncBrand(brand, 'CREATE');
+                if (success) {
+                    successCount++;
+                } else {
+                    errorCount++;
+                }
+                
+                // Petite pause pour éviter de surcharger
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+
+            logger.info(`✅ Synchronisation marques terminée: ${successCount} succès, ${errorCount} erreurs`);
+            return { successCount, errorCount };
+
+        } catch (error) {
+            logger.error('Erreur synchronisation toutes marques:', error);
+            throw error;
+        }
+    }
+
+    // ========================================
     // MÉTHODES DE SYNCHRONISATION DES CATÉGORIES
     // ========================================
 

@@ -24,7 +24,7 @@ const { Offer } = require('./models/Offer');
 const { Order } = require('./models/Order');
 
 // Import des routes
-const { categoryRoutes, userRoutes } = require('./routes');
+const { categoryRoutes, userRoutes, brandRoutes } = require('./routes');
 
 // Import Redis
 const { connectToRedis } = require('./config/redis');
@@ -138,6 +138,7 @@ app.use(limiter);
 
 // Routes
 app.use("/api/categories", categoryRoutes);
+app.use("/api/brands", brandRoutes);
 app.use("/api/auth", userRoutes);
 app.use("/api/users", userRoutes);
 
