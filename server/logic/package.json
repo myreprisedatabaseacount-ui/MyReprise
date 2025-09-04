@@ -13,7 +13,11 @@
     "lint": "eslint src/**/*.js",
     "lint:fix": "eslint src/**/*.js --fix",
     "docker:build": "docker build -t myreprise-nodejs .",
-    "docker:run": "docker run -p 3001:3001 myreprise-nodejs"
+    "docker:run": "docker run -p 3001:3001 myreprise-nodejs",
+    "sync:users-neo4j": "node src/scripts/sync-users-to-neo4j.js",
+    "sync:categories-neo4j": "node src/scripts/sync-categories-to-neo4j.js",
+    "sync:all-neo4j": "npm run sync:users-neo4j && npm run sync:categories-neo4j",
+    "process:sync-retry": "node src/scripts/process-sync-retry.js"
   },
   "keywords": [
     "nodejs",

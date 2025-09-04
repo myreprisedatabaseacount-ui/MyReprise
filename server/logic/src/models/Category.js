@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const db = require('../config/db');
+const Neo4jSyncService = require('../services/neo4jSyncService');
 
 const sequelize = db.getSequelize();
 
@@ -239,7 +240,14 @@ Category.createCategory = async function (categoryData) {
     throw new Error('Une catégorie avec ce nom français existe déjà');
   }
 
-  return await Category.create(categoryData);
+  const newCategory = await Category.create(categoryData);
+
+  // Synchroniser vers Neo4j (asynchrone, non bloquant)
+  Neo4jSyncService.syncCategory(newCategory, 'CREATE').catch(error => {
+    console.error('Erreur synchronisation Neo4j catégorie (non bloquant):', error);
+  });
+
+  return newCategory;
 };
 
 /**
@@ -284,7 +292,14 @@ Category.updateCategory = async function (id, updateData) {
     }
   }
 
-  return await category.update(updateData);
+  const updatedCategory = await category.update(updateData);
+
+  // Synchroniser vers Neo4j (asynchrone, non bloquant)
+  Neo4jSyncService.syncCategory(updatedCategory, 'UPDATE').catch(error => {
+    console.error('Erreur synchronisation Neo4j catégorie (non bloquant):', error);
+  });
+
+  return updatedCategory;
 };
 
 /**
@@ -305,7 +320,14 @@ Category.deleteCategory = async function (id) {
     await Category.deleteCategory(child.id);
   }
 
-  return await category.destroy();
+  const result = await category.destroy();
+
+  // Synchroniser vers Neo4j (asynchrone, non bloquant)
+  Neo4jSyncService.syncCategory(category, 'DELETE').catch(error => {
+    console.error('Erreur synchronisation Neo4j catégorie (non bloquant):', error);
+  });
+
+  return result;
 };
 
 /**

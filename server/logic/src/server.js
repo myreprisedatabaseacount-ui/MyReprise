@@ -130,3 +130,10 @@ db.initializeDatabase()
     console.error("Erreur lors de l'initialisation de l'application :", error);
     process.exit(1); // Arrêter l'application en cas d'échec critique
   });
+
+// db.syncModels()
+//   .then(() => startServer())
+//   .catch((error) => {
+//     console.error("Erreur lors de la synchronisation des modèles :", error);
+//     process.exit(1); // Arrêter l'application en cas d'échec critique
+//   });

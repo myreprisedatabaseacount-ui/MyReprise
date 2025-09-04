@@ -33,7 +33,7 @@ app.add_middleware(
 )
 
 # Configuration Neo4j
-NEO4J_URI = os.getenv('NEO4J_URI', 'bolt://localhost:7687')
+NEO4J_URI = os.getenv('NEO4J_URI', 'bolt://localhost:7474')
 NEO4J_USER = os.getenv('NEO4J_USER', 'neo4j')
 NEO4J_PASSWORD = os.getenv('NEO4J_PASSWORD', 'neo4j123')
 
@@ -73,6 +73,18 @@ class ExchangeChain(BaseModel):
     chainLength: int
     gain: float
     roiPercentage: float
+
+class UserSyncData(BaseModel):
+    action: str  # CREATE, UPDATE, DELETE
+    userId: int
+    userData: Dict[str, Any]
+    timestamp: str
+
+class CategorySyncData(BaseModel):
+    action: str  # CREATE, UPDATE, DELETE
+    categoryId: int
+    categoryData: Dict[str, Any]
+    timestamp: str
 
 # Routes principales
 
@@ -339,6 +351,300 @@ async def get_popular_categories(limit: int = 10):
             categories.append(dict(record))
         
         return {"categories": categories}
+
+@app.post("/sync/user")
+async def sync_user(sync_data: UserSyncData):
+    """Synchronise un utilisateur avec Neo4j"""
+    driver = get_neo4j_driver()
+    
+    try:
+        with driver.session() as session:
+            if sync_data.action == 'CREATE':
+                # Créer un nouvel utilisateur dans Neo4j
+                result = session.run("""
+                    MERGE (u:User {id: $userId})
+                    SET u.firstName = $firstName,
+                        u.lastName = $lastName,
+                        u.email = $email,
+                        u.phone = $phone,
+                        u.authProvider = $authProvider,
+                        u.primaryIdentifier = $primaryIdentifier,
+                        u.isVerified = $isVerified,
+                        u.role = $role,
+                        u.createdAt = datetime($createdAt),
+                        u.updatedAt = datetime($updatedAt),
+                        u.googleId = $googleId,
+                        u.facebookId = $facebookId,
+                        u.facebookEmail = $facebookEmail,
+                        u.facebookPhone = $facebookPhone,
+                        u.lastSync = datetime()
+                    RETURN u.id as userId, u.lastSync as lastSync
+                """, 
+                userId=sync_data.userId,
+                firstName=sync_data.userData.get('firstName'),
+                lastName=sync_data.userData.get('lastName'),
+                email=sync_data.userData.get('email'),
+                phone=sync_data.userData.get('phone'),
+                authProvider=sync_data.userData.get('authProvider'),
+                primaryIdentifier=sync_data.userData.get('primaryIdentifier'),
+                isVerified=sync_data.userData.get('isVerified', False),
+                role=sync_data.userData.get('role', 'user'),
+                createdAt=sync_data.userData.get('createdAt'),
+                updatedAt=sync_data.userData.get('updatedAt'),
+                googleId=sync_data.userData.get('googleId'),
+                facebookId=sync_data.userData.get('facebookId'),
+                facebookEmail=sync_data.userData.get('facebookEmail'),
+                facebookPhone=sync_data.userData.get('facebookPhone'))
+                
+                record = result.single()
+                logger.info(f"✅ Utilisateur {sync_data.userId} créé dans Neo4j")
+                
+                return {
+                    "success": True,
+                    "message": "Utilisateur synchronisé avec succès",
+                    "userId": record["userId"],
+                    "lastSync": record["lastSync"]
+                }
+                
+            elif sync_data.action == 'UPDATE':
+                # Mettre à jour un utilisateur existant
+                result = session.run("""
+                    MATCH (u:User {id: $userId})
+                    SET u.firstName = $firstName,
+                        u.lastName = $lastName,
+                        u.email = $email,
+                        u.phone = $phone,
+                        u.isVerified = $isVerified,
+                        u.role = $role,
+                        u.updatedAt = datetime($updatedAt),
+                        u.lastSync = datetime()
+                    RETURN u.id as userId, u.lastSync as lastSync
+                """, 
+                userId=sync_data.userId,
+                firstName=sync_data.userData.get('firstName'),
+                lastName=sync_data.userData.get('lastName'),
+                email=sync_data.userData.get('email'),
+                phone=sync_data.userData.get('phone'),
+                isVerified=sync_data.userData.get('isVerified', False),
+                role=sync_data.userData.get('role', 'user'),
+                updatedAt=sync_data.userData.get('updatedAt'))
+                
+                record = result.single()
+                if record:
+                    logger.info(f"✅ Utilisateur {sync_data.userId} mis à jour dans Neo4j")
+                    return {
+                        "success": True,
+                        "message": "Utilisateur mis à jour avec succès",
+                        "userId": record["userId"],
+                        "lastSync": record["lastSync"]
+                    }
+                else:
+                    raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
+                    
+            elif sync_data.action == 'DELETE':
+                # Supprimer un utilisateur
+                result = session.run("""
+                    MATCH (u:User {id: $userId})
+                    DETACH DELETE u
+                    RETURN count(u) as deleted
+                """, userId=sync_data.userId)
+                
+                record = result.single()
+                if record["deleted"] > 0:
+                    logger.info(f"✅ Utilisateur {sync_data.userId} supprimé de Neo4j")
+                    return {
+                        "success": True,
+                        "message": "Utilisateur supprimé avec succès",
+                        "userId": sync_data.userId
+                    }
+                else:
+                    raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
+            
+            else:
+                raise HTTPException(status_code=400, detail="Action non supportée")
+                
+    except Exception as e:
+        logger.error(f"❌ Erreur synchronisation utilisateur {sync_data.userId}: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur synchronisation: {str(e)}")
+
+@app.get("/users/{user_id}/status")
+async def get_user_sync_status(user_id: int):
+    """Vérifie le statut de synchronisation d'un utilisateur"""
+    driver = get_neo4j_driver()
+    
+    try:
+        with driver.session() as session:
+            result = session.run("""
+                MATCH (u:User {id: $userId})
+                RETURN u.id as userId, u.lastSync as lastSync, u.authProvider as authProvider
+            """, userId=user_id)
+            
+            record = result.single()
+            if record:
+                return {
+                    "exists": True,
+                    "userId": record["userId"],
+                    "lastSync": record["lastSync"],
+                    "authProvider": record["authProvider"]
+                }
+            else:
+                return {
+                    "exists": False,
+                    "userId": user_id
+                }
+                
+    except Exception as e:
+        logger.error(f"❌ Erreur vérification statut utilisateur {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur vérification: {str(e)}")
+
+@app.post("/sync/category")
+async def sync_category(sync_data: CategorySyncData):
+    """Synchronise une catégorie avec Neo4j"""
+    driver = get_neo4j_driver()
+    
+    try:
+        with driver.session() as session:
+            if sync_data.action == 'CREATE':
+                # Créer une nouvelle catégorie dans Neo4j
+                result = session.run("""
+                    MERGE (c:Category {id: $categoryId})
+                    SET c.parentId = $parentId,
+                        c.nameAr = $nameAr,
+                        c.nameFr = $nameFr,
+                        c.descriptionAr = $descriptionAr,
+                        c.descriptionFr = $descriptionFr,
+                        c.image = $image,
+                        c.icon = $icon,
+                        c.gender = $gender,
+                        c.ageMin = $ageMin,
+                        c.ageMax = $ageMax,
+                        c.createdAt = datetime($createdAt),
+                        c.updatedAt = datetime($updatedAt),
+                        c.lastSync = datetime()
+                    RETURN c.id as categoryId, c.lastSync as lastSync
+                """, 
+                categoryId=sync_data.categoryId,
+                parentId=sync_data.categoryData.get('parentId'),
+                nameAr=sync_data.categoryData.get('nameAr'),
+                nameFr=sync_data.categoryData.get('nameFr'),
+                descriptionAr=sync_data.categoryData.get('descriptionAr'),
+                descriptionFr=sync_data.categoryData.get('descriptionFr'),
+                image=sync_data.categoryData.get('image'),
+                icon=sync_data.categoryData.get('icon'),
+                gender=sync_data.categoryData.get('gender'),
+                ageMin=sync_data.categoryData.get('ageMin'),
+                ageMax=sync_data.categoryData.get('ageMax'),
+                createdAt=sync_data.categoryData.get('createdAt'),
+                updatedAt=sync_data.categoryData.get('updatedAt'))
+                
+                record = result.single()
+                logger.info(f"✅ Catégorie {sync_data.categoryId} créée dans Neo4j")
+                
+                return {
+                    "success": True,
+                    "message": "Catégorie synchronisée avec succès",
+                    "categoryId": record["categoryId"],
+                    "lastSync": record["lastSync"]
+                }
+                
+            elif sync_data.action == 'UPDATE':
+                # Mettre à jour une catégorie existante
+                result = session.run("""
+                    MATCH (c:Category {id: $categoryId})
+                    SET c.parentId = $parentId,
+                        c.nameAr = $nameAr,
+                        c.nameFr = $nameFr,
+                        c.descriptionAr = $descriptionAr,
+                        c.descriptionFr = $descriptionFr,
+                        c.image = $image,
+                        c.icon = $icon,
+                        c.gender = $gender,
+                        c.ageMin = $ageMin,
+                        c.ageMax = $ageMax,
+                        c.updatedAt = datetime($updatedAt),
+                        c.lastSync = datetime()
+                    RETURN c.id as categoryId, c.lastSync as lastSync
+                """, 
+                categoryId=sync_data.categoryId,
+                parentId=sync_data.categoryData.get('parentId'),
+                nameAr=sync_data.categoryData.get('nameAr'),
+                nameFr=sync_data.categoryData.get('nameFr'),
+                descriptionAr=sync_data.categoryData.get('descriptionAr'),
+                descriptionFr=sync_data.categoryData.get('descriptionFr'),
+                image=sync_data.categoryData.get('image'),
+                icon=sync_data.categoryData.get('icon'),
+                gender=sync_data.categoryData.get('gender'),
+                ageMin=sync_data.categoryData.get('ageMin'),
+                ageMax=sync_data.categoryData.get('ageMax'),
+                updatedAt=sync_data.categoryData.get('updatedAt'))
+                
+                record = result.single()
+                if record:
+                    logger.info(f"✅ Catégorie {sync_data.categoryId} mise à jour dans Neo4j")
+                    return {
+                        "success": True,
+                        "message": "Catégorie mise à jour avec succès",
+                        "categoryId": record["categoryId"],
+                        "lastSync": record["lastSync"]
+                    }
+                else:
+                    raise HTTPException(status_code=404, detail="Catégorie non trouvée")
+                    
+            elif sync_data.action == 'DELETE':
+                # Supprimer une catégorie
+                result = session.run("""
+                    MATCH (c:Category {id: $categoryId})
+                    DETACH DELETE c
+                    RETURN count(c) as deleted
+                """, categoryId=sync_data.categoryId)
+                
+                record = result.single()
+                if record["deleted"] > 0:
+                    logger.info(f"✅ Catégorie {sync_data.categoryId} supprimée de Neo4j")
+                    return {
+                        "success": True,
+                        "message": "Catégorie supprimée avec succès",
+                        "categoryId": sync_data.categoryId
+                    }
+                else:
+                    raise HTTPException(status_code=404, detail="Catégorie non trouvée")
+            
+            else:
+                raise HTTPException(status_code=400, detail="Action non supportée")
+                
+    except Exception as e:
+        logger.error(f"❌ Erreur synchronisation catégorie {sync_data.categoryId}: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur synchronisation: {str(e)}")
+
+@app.get("/categories/{category_id}/status")
+async def get_category_sync_status(category_id: int):
+    """Vérifie le statut de synchronisation d'une catégorie"""
+    driver = get_neo4j_driver()
+    
+    try:
+        with driver.session() as session:
+            result = session.run("""
+                MATCH (c:Category {id: $categoryId})
+                RETURN c.id as categoryId, c.lastSync as lastSync, c.nameFr as nameFr
+            """, categoryId=category_id)
+            
+            record = result.single()
+            if record:
+                return {
+                    "exists": True,
+                    "categoryId": record["categoryId"],
+                    "lastSync": record["lastSync"],
+                    "nameFr": record["nameFr"]
+                }
+            else:
+                return {
+                    "exists": False,
+                    "categoryId": category_id
+                }
+                
+    except Exception as e:
+        logger.error(f"❌ Erreur vérification statut catégorie {category_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur vérification: {str(e)}")
 
 @app.on_event("startup")
 async def startup_event():

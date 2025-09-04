@@ -31,7 +31,6 @@ const User = sequelize.define('User', {
     email: {
         type: DataTypes.STRING(255),
         allowNull: true,
-        unique: true,
         validate: {
             isEmail: true
         }
@@ -42,6 +41,13 @@ const User = sequelize.define('User', {
         unique: true,
         validate: {
             len: [10, 20]
+        }
+    },
+    password: {
+        type: DataTypes.STRING(255),
+        allowNull: true, // Optionnel car Google/Facebook n'en ont pas besoin
+        validate: {
+            len: [8, 255]
         }
     },
     // Nouveaux champs pour l'authentification multi-provider

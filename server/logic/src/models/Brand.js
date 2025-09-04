@@ -91,12 +91,6 @@ const Brand = sequelize.define('Brand', {
             fields: ['is_active']
         },
         {
-            fields: ['name_ar']
-        },
-        {
-            fields: ['name_fr']
-        },
-        {
             unique: true,
             fields: ['name_ar']
         },

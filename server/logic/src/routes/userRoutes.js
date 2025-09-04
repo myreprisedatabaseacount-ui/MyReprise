@@ -27,13 +27,8 @@ const registerValidator = [
         .isLength({ min: 2, max: 100 })
         .withMessage('Le nom doit contenir entre 2 et 100 caractères'),
     body('phone')
-        .isMobilePhone('any')
+        .isMobilePhone(['fr-FR', 'any'])
         .withMessage('Numéro de téléphone invalide'),
-    body('email')
-        .optional()
-        .isEmail()
-        .normalizeEmail()
-        .withMessage('Email invalide'),
     body('password')
         .isLength({ min: 8 })
         .withMessage('Le mot de passe doit contenir au moins 8 caractères')
@@ -44,7 +39,7 @@ const registerValidator = [
 // Validateur pour la connexion par téléphone
 const loginValidator = [
     body('phone')
-        .isMobilePhone('any')
+        .isMobilePhone(['fr-FR', 'any'])
         .withMessage('Numéro de téléphone invalide'),
     body('password')
         .notEmpty()

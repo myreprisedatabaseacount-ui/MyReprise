@@ -1,7 +1,9 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { User } = require('../models/User.js');
+const db = require('../config/db');
 const logger = require('../utils/logger.js');
+const Neo4jSyncService = require('./neo4jSyncService.js');
 
 // ========================================
 // CONFIGURATION JWT
@@ -41,7 +43,7 @@ class AuthService {
     }
 
     /**
-     * Authentification par téléphone (WhatsApp)
+     * Authentification par téléphone avec mot de passe
      */
     static async authenticateWithPhone(phone, password) {
         try {
@@ -55,6 +57,10 @@ class AuthService {
             }
 
             // Vérification du mot de passe
+            if (!user.password) {
+                throw new Error('Mot de passe non défini pour ce compte');
+            }
+
             const isPasswordValid = await bcrypt.compare(password, user.password);
             if (!isPasswordValid) {
                 throw new Error('Numéro de téléphone ou mot de passe incorrect');
@@ -111,6 +117,11 @@ class AuthService {
 
                 user = await User.createUser(userData);
                 logger.info(`Nouvel utilisateur Google créé: ${email}`);
+                
+                // Synchroniser vers Neo4j (asynchrone, non bloquant)
+                Neo4jSyncService.syncUser(user, 'CREATE').catch(error => {
+                    logger.error('Erreur synchronisation Neo4j (non bloquant):', error);
+                });
             }
 
             const tokens = this.generateTokens(user);
@@ -180,6 +191,11 @@ class AuthService {
 
                 user = await User.createUser(userData);
                 logger.info(`Nouvel utilisateur Facebook créé: ${facebookId}`);
+                
+                // Synchroniser vers Neo4j (asynchrone, non bloquant)
+                Neo4jSyncService.syncUser(user, 'CREATE').catch(error => {
+                    logger.error('Erreur synchronisation Neo4j (non bloquant):', error);
+                });
             }
 
             const tokens = this.generateTokens(user);
@@ -203,7 +219,7 @@ class AuthService {
     }
 
     /**
-     * Inscription par téléphone
+     * Inscription par téléphone avec mot de passe
      */
     static async registerWithPhone(userData) {
         try {
@@ -226,6 +242,11 @@ class AuthService {
 
             const newUser = await User.createUser(newUserData);
             const tokens = this.generateTokens(newUser);
+
+            // Synchroniser vers Neo4j (asynchrone, non bloquant)
+            Neo4jSyncService.syncUser(newUser, 'CREATE').catch(error => {
+                logger.error('Erreur synchronisation Neo4j (non bloquant):', error);
+            });
 
             logger.info(`Nouvel utilisateur téléphone inscrit: ${phone}`);
 

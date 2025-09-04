@@ -57,15 +57,15 @@ class Database {
   }
 
   // Méthode pour synchroniser les modèles
-  async syncModels(options = { force: false, alter: false }) {
-    try {
-      await this.sequelize.sync(options);
-      console.log("✅ Modèles synchronisés avec la base de données");
-    } catch (error) {
-      console.error("❌ Erreur lors de la synchronisation des modèles :", error);
-      throw error;
+      async syncModels(options = { force: false, alter: false }) {
+        try {
+            await this.sequelize.sync(options);
+            console.log("✅ Modèles synchronisés avec la base de données");
+        } catch (error) {
+            console.error("❌ Erreur lors de la synchronisation des modèles :", error);
+            throw error;
+        }
     }
-  }
 
   // Méthode pour fermer la connexion
   async closeDatabase() {
