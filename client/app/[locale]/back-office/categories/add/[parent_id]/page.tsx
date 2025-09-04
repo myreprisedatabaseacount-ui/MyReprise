@@ -5,6 +5,7 @@ import { ArrowLeft, Upload, X, Save, Eye, Folder, FileImage, Users, Calendar } f
 import { useRouter, useParams } from 'next/navigation';
 import { useInsertCategoryMutation } from '../../../../../../services/api/CategoryApi';
 import { compressImageByType } from '../../../../../../utils/imageCompression';
+import { toast } from 'sonner';
 
 interface SubCategoryFormData {
     titleFr: string;
@@ -70,6 +71,16 @@ const AddSubCategoryPage: React.FC = () => {
                     quality: 0.85
                 });
 
+                // Toast informatif si compression effectuée
+                if (compressedResult.compressionRatio < 1) {
+                    const originalSizeKB = Math.round(file.size / 1024);
+                    const compressedSizeKB = Math.round(compressedResult.compressedSize / 1024);
+                    toast.info('Image compressée', {
+                        description: `Taille réduite de ${originalSizeKB}KB à ${compressedSizeKB}KB`,
+                        duration: 3000,
+                    });
+                }
+
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     const result = e.target?.result as string;
@@ -84,6 +95,10 @@ const AddSubCategoryPage: React.FC = () => {
             } catch (error) {
                 console.error('Erreur lors de la compression de l\'image:', error);
                 setErrors((prev: any) => ({ ...prev, image: 'Erreur lors de la compression de l\'image' }));
+                toast.error('Erreur de compression', {
+                    description: 'Impossible de compresser l\'image. Veuillez réessayer.',
+                    duration: 4000,
+                });
             }
         }
     };
@@ -116,6 +131,10 @@ const AddSubCategoryPage: React.FC = () => {
             } catch (error) {
                 console.error('Erreur lors de la compression de l\'icône:', error);
                 setErrors((prev: any) => ({ ...prev, icon: 'Erreur lors de la compression de l\'icône' }));
+                toast.error('Erreur de compression', {
+                    description: 'Impossible de traiter l\'icône SVG. Veuillez réessayer.',
+                    duration: 4000,
+                });
             }
         }
     };
@@ -196,16 +215,33 @@ const AddSubCategoryPage: React.FC = () => {
             
             console.log('Catégorie créée avec succès:', result);
             
+            // Toast de succès
+            toast.success(result.message || 'Catégorie créée avec succès', {
+                description: `Titre: ${result.data?.nameFr || formData.titleFr}`,
+                duration: 4000,
+            });
+            
             // Redirection vers la page des catégories
             router.push('/back-office/categories');
         } catch (error: any) {
             console.error('Erreur lors de la création de la catégorie:', error);
             
-            // Gestion des erreurs de validation
+            // Gestion des erreurs avec toast
             if (error?.data?.error) {
-                alert(`Erreur: ${error.data.error}`);
+                toast.error('Erreur lors de la création', {
+                    description: error.data.details || error.data.error,
+                    duration: 6000,
+                });
+            } else if (error?.data?.details) {
+                toast.error('Erreur de validation', {
+                    description: error.data.details,
+                    duration: 6000,
+                });
             } else {
-                alert('Une erreur est survenue lors de la création de la catégorie');
+                toast.error('Erreur inattendue', {
+                    description: 'Une erreur est survenue lors de la création de la catégorie',
+                    duration: 6000,
+                });
             }
         } finally {
             setIsSubmitting(false);

@@ -65,4 +65,30 @@ const uploadFromBuffer = async (buffer, folder = "", options = {}) => {
   }
 };
 
-module.exports = { uploadFile, uploadFromBuffer };
+const deleteFile = async (publicId) => {
+  try {
+    console.log('🔄 Suppression fichier Cloudinary:', publicId);
+    
+    const result = await cloudinary.uploader.destroy(publicId);
+    console.log('✅ Fichier supprimé avec succès:', publicId);
+    return result;
+  } catch (error) {
+    console.error('❌ Erreur suppression fichier:', error);
+    throw new Error(`Erreur suppression Cloudinary: ${error.message}`);
+  }
+};
+
+const deleteMultipleFiles = async (publicIds) => {
+  try {
+    console.log('🔄 Suppression multiple fichiers Cloudinary:', publicIds);
+    
+    const result = await cloudinary.api.delete_resources(publicIds);
+    console.log('✅ Fichiers supprimés avec succès:', result);
+    return result;
+  } catch (error) {
+    console.error('❌ Erreur suppression multiple fichiers:', error);
+    throw new Error(`Erreur suppression multiple Cloudinary: ${error.message}`);
+  }
+};
+
+module.exports = { uploadFile, uploadFromBuffer, deleteFile, deleteMultipleFiles };
