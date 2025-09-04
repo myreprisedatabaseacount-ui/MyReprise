@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { ArrowLeft, Upload, X, Save, Eye, Folder, FileImage, Users, Calendar } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
 import { useInsertCategoryMutation } from '../../../../../../services/api/CategoryApi';
+import { compressImageByType } from '../../../../../../utils/imageCompression';
+import { toast } from 'sonner';
 
 interface SubCategoryFormData {
     titleFr: string;
@@ -50,8 +52,8 @@ const AddSubCategoryPage: React.FC = () => {
         }
     };
 
-    // Gestion de l'upload d'image
-    const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    // Gestion de l'upload d'image avec compression
+    const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
             // Vérifier que c'est une image
@@ -60,23 +62,49 @@ const AddSubCategoryPage: React.FC = () => {
                 return;
             }
 
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const result = e.target?.result as string;
-                setImagePreview(result);
-                // @ts-ignore
-                setFormData(prev => ({ ...prev, image: file }));
-                // Effacer l'erreur si elle existait
-                if (errors.image) {
-                    setErrors(prev => ({ ...prev, image: '' as any }));
+            try {
+                // Compresser l'image si nécessaire
+                const compressedResult = await compressImageByType(file, {
+                    maxSizeKB: 512, // 0.5MB max
+                    maxWidth: 1920,
+                    maxHeight: 1920,
+                    quality: 0.85
+                });
+
+                // Toast informatif si compression effectuée
+                if (compressedResult.compressionRatio < 1) {
+                    const originalSizeKB = Math.round(file.size / 1024);
+                    const compressedSizeKB = Math.round(compressedResult.compressedSize / 1024);
+                    toast.info('Image compressée', {
+                        description: `Taille réduite de ${originalSizeKB}KB à ${compressedSizeKB}KB`,
+                        duration: 3000,
+                    });
                 }
-            };
-            reader.readAsDataURL(file);
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const result = e.target?.result as string;
+                    setImagePreview(result);
+                    setFormData(prev => ({ ...prev, image: compressedResult.file }));
+                    // Effacer l'erreur si elle existait
+                    if (errors.image) {
+                        setErrors(prev => ({ ...prev, image: '' as any }));
+                    }
+                };
+                reader.readAsDataURL(compressedResult.file);
+            } catch (error) {
+                console.error('Erreur lors de la compression de l\'image:', error);
+                setErrors((prev: any) => ({ ...prev, image: 'Erreur lors de la compression de l\'image' }));
+                toast.error('Erreur de compression', {
+                    description: 'Impossible de compresser l\'image. Veuillez réessayer.',
+                    duration: 4000,
+                });
+            }
         }
     };
 
-    // Gestion de l'upload d'icône SVG
-    const handleIconUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    // Gestion de l'upload d'icône SVG avec compression
+    const handleIconUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
             // Vérifier que c'est un fichier SVG
@@ -85,18 +113,29 @@ const AddSubCategoryPage: React.FC = () => {
                 return;
             }
 
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const result = e.target?.result as string;
-                setIconPreview(result);
-                // @ts-ignore
-                setFormData(prev => ({ ...prev, icon: file }));
-                // Effacer l'erreur si elle existait
-                if (errors.icon) {
-                    setErrors(prev => ({ ...prev, icon: '' as any }));
-                }
-            };
-            reader.readAsDataURL(file);
+            try {
+                // Compresser l'icône SVG si nécessaire
+                const compressedResult = await compressImageByType(file);
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const result = e.target?.result as string;
+                    setIconPreview(result);
+                    setFormData(prev => ({ ...prev, icon: compressedResult.file }));
+                    // Effacer l'erreur si elle existait
+                    if (errors.icon) {
+                        setErrors(prev => ({ ...prev, icon: '' as any }));
+                    }
+                };
+                reader.readAsDataURL(compressedResult.file);
+            } catch (error) {
+                console.error('Erreur lors de la compression de l\'icône:', error);
+                setErrors((prev: any) => ({ ...prev, icon: 'Erreur lors de la compression de l\'icône' }));
+                toast.error('Erreur de compression', {
+                    description: 'Impossible de traiter l\'icône SVG. Veuillez réessayer.',
+                    duration: 4000,
+                });
+            }
         }
     };
 
@@ -176,16 +215,33 @@ const AddSubCategoryPage: React.FC = () => {
             
             console.log('Catégorie créée avec succès:', result);
             
+            // Toast de succès
+            toast.success(result.message || 'Catégorie créée avec succès', {
+                description: `Titre: ${result.data?.nameFr || formData.titleFr}`,
+                duration: 4000,
+            });
+            
             // Redirection vers la page des catégories
             router.push('/back-office/categories');
         } catch (error: any) {
             console.error('Erreur lors de la création de la catégorie:', error);
             
-            // Gestion des erreurs de validation
+            // Gestion des erreurs avec toast
             if (error?.data?.error) {
-                alert(`Erreur: ${error.data.error}`);
+                toast.error('Erreur lors de la création', {
+                    description: error.data.details || error.data.error,
+                    duration: 6000,
+                });
+            } else if (error?.data?.details) {
+                toast.error('Erreur de validation', {
+                    description: error.data.details,
+                    duration: 6000,
+                });
             } else {
-                alert('Une erreur est survenue lors de la création de la catégorie');
+                toast.error('Erreur inattendue', {
+                    description: 'Une erreur est survenue lors de la création de la catégorie',
+                    duration: 6000,
+                });
             }
         } finally {
             setIsSubmitting(false);
@@ -436,7 +492,7 @@ const AddSubCategoryPage: React.FC = () => {
                                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors duration-200 relative">
                                         <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                         <p className="text-gray-600 mb-2">Cliquez pour ajouter une image</p>
-                                        <p className="text-sm text-gray-400">PNG, JPG jusqu'à 10MB</p>
+                                        <p className="text-sm text-gray-400">PNG, JPG (compressé à 0.5MB max)</p>
                                         <input
                                             type="file"
                                             accept="image/*"
