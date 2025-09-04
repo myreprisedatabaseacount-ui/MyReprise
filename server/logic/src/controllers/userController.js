@@ -31,12 +31,13 @@ const register = async (req, res) => {
             });
         }
 
-        const { firstName, lastName, phone, password } = req.body;
+        const { firstName, lastName, phone, country, password } = req.body;
 
         const result = await AuthService.registerWithPhone({
             firstName,
             lastName,
             phone,
+            country,
             password
         });
 
@@ -67,9 +68,9 @@ const login = async (req, res) => {
             });
         }
 
-        const { phone, password } = req.body;
+        const { phone, country, password } = req.body;
 
-        const result = await AuthService.authenticateWithPhone(phone, password);
+        const result = await AuthService.authenticateWithPhone(phone, country, password);
         res.json(result);
 
     } catch (error) {

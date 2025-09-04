@@ -45,9 +45,12 @@ class AuthService {
     /**
      * Authentification par téléphone avec mot de passe
      */
-    static async authenticateWithPhone(phone, password) {
+    static async authenticateWithPhone(phone, country, password) {
         try {
-            const user = await User.findByPhone(phone);
+            // Construire le numéro complet avec le pays
+            const fullPhone = `${country}-${phone}`;
+            
+            const user = await User.findByPhone(fullPhone);
             if (!user) {
                 throw new Error('Numéro de téléphone ou mot de passe incorrect');
             }
@@ -223,7 +226,10 @@ class AuthService {
      */
     static async registerWithPhone(userData) {
         try {
-            const { firstName, lastName, phone, password } = userData;
+            const { firstName, lastName, phone, country, password } = userData;
+
+            // Construire le numéro complet avec le pays
+            const fullPhone = `${country}-${phone}`;
 
             // Hashage du mot de passe
             const saltRounds = 12;
@@ -232,10 +238,10 @@ class AuthService {
             const newUserData = {
                 firstName,
                 lastName,
-                phone,
+                phone: fullPhone,
                 password: hashedPassword,
                 authProvider: 'phone',
-                primaryIdentifier: phone,
+                primaryIdentifier: fullPhone,
                 isVerified: false, // TODO: Implémenter la vérification OTP
                 role: 'user'
             };
@@ -248,7 +254,7 @@ class AuthService {
                 logger.error('Erreur synchronisation Neo4j (non bloquant):', error);
             });
 
-            logger.info(`Nouvel utilisateur téléphone inscrit: ${phone}`);
+            logger.info(`Nouvel utilisateur téléphone inscrit: ${fullPhone}`);
 
             return {
                 success: true,

@@ -27,8 +27,11 @@ const registerValidator = [
         .isLength({ min: 2, max: 100 })
         .withMessage('Le nom doit contenir entre 2 et 100 caractères'),
     body('phone')
-        .isMobilePhone(['fr-FR', 'any'])
+        .isMobilePhone('ar-MA')
         .withMessage('Numéro de téléphone invalide'),
+    body('country')
+        .matches(/^\+\d{1,4}$/)
+        .withMessage('Code pays invalide (format: +212, +33, etc.)'),
     body('password')
         .isLength({ min: 8 })
         .withMessage('Le mot de passe doit contenir au moins 8 caractères')
@@ -39,8 +42,11 @@ const registerValidator = [
 // Validateur pour la connexion par téléphone
 const loginValidator = [
     body('phone')
-        .isMobilePhone(['fr-FR', 'any'])
+        .isMobilePhone('any')
         .withMessage('Numéro de téléphone invalide'),
+    body('country')
+        .matches(/^\+\d{1,4}$/)
+        .withMessage('Code pays invalide (format: +212, +33, etc.)'),
     body('password')
         .notEmpty()
         .withMessage('Mot de passe requis')
