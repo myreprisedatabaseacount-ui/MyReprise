@@ -119,7 +119,7 @@ const createCategory = async (req, res) => {
 
     // ✅ Sauvegarde DB
     try {
-      const category = await Category.create({
+      const category = await Category.createCategory({
         nameAr,
         nameFr,
         descriptionAr,
@@ -130,6 +130,91 @@ const createCategory = async (req, res) => {
         parentId: parentId ? parseInt(parentId) : null,
         image: imageUrl,
         icon: iconUrl,
+        isActive: true,
+      });
+
+      return res.status(201).json({
+        success: true,
+        data: { id: category.id, nameAr, nameFr, imageUrl, iconUrl },
+        message: "Catégorie créée avec succès",
+      });
+    } catch (dbError) {
+      console.error("❌ Erreur DB:", dbError);
+      return res.status(500).json({
+        error: "Erreur lors de la création en base de données",
+        details: dbError.message || "Erreur inconnue",
+      });
+    }
+  } catch (err) {
+    console.error("❌ Erreur interne:", err);
+    return res.status(500).json({
+      error: "Erreur interne du serveur",
+      details: err.message || "Erreur inconnue",
+    });
+  }
+};
+
+const createCategoryTeste = async (req, res) => {
+  try {
+    const {
+      nameAr,
+      nameFr,
+      descriptionAr,
+      descriptionFr,
+      gender,
+      ageMin,
+      ageMax,
+      parentId,
+    } = req.body;
+
+    // ✅ Validation des champs obligatoires
+    if (!nameAr || !nameFr) {
+      return res
+        .status(400)
+        .json({ error: "Les noms en arabe et français sont obligatoires" });
+    }
+
+    // ✅ Validation des âges
+    const ageMinNum = parseInt(ageMin) || 0;
+    const ageMaxNum = parseInt(ageMax) || 100;
+
+    if (ageMinNum < 0 || ageMinNum > 120) {
+      return res
+        .status(400)
+        .json({ error: "L'âge minimum doit être entre 0 et 120 ans" });
+    }
+
+    if (ageMaxNum < 0 || ageMaxNum > 120) {
+      return res
+        .status(400)
+        .json({ error: "L'âge maximum doit être entre 0 et 120 ans" });
+    }
+
+    if (ageMinNum >= ageMaxNum) {
+      return res.status(400).json({
+        error: "L'âge maximum doit être supérieur à l'âge minimum",
+      });
+    }
+
+    // ✅ Mapping genre
+    let genderValue = "mixte";
+    if (gender === "homme") genderValue = "male";
+    else if (gender === "femme") genderValue = "female";
+
+    // ✅ Sauvegarde DB sans upload d'images
+    try {
+      const category = await Category.create({
+        nameAr,
+        nameFr,
+        descriptionAr,
+        descriptionFr,
+        gender: genderValue,
+        ageMin: ageMinNum,
+        ageMax: ageMaxNum,
+        parentId: parentId ? parseInt(parentId) : null,
+        image: null, // Pas d'image pour le test
+        icon: null,  // Pas d'icône pour le test
+        isActive: true,
       });
 
       return res.status(201).json({

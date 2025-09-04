@@ -31,7 +31,7 @@ async function connectToRedis() {
         keepAlive: redisConfig.keepAlive
       },
       password: redisConfig.password,
-      database: redisConfig.db,
+      database: redisConfig.db, 
       retryDelayOnFailover: redisConfig.retryDelayOnFailover,
       maxRetriesPerRequest: redisConfig.maxRetriesPerRequest
     });
