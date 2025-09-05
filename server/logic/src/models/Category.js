@@ -1,4 +1,4 @@
-const { DataTypes } = require('sequelize');
+const { DataTypes, Op } = require('sequelize');
 const db = require('../config/db');
 const Neo4jSyncService = require('../services/neo4jSyncService');
 
@@ -62,7 +62,7 @@ const Category = sequelize.define('Category', {
     }
   },
   icon: {
-    type: DataTypes.STRING(100),
+    type: DataTypes.STRING(500),
     allowNull: true,
     validate: {
       isUrl: true
@@ -200,8 +200,8 @@ Category.findByGender = async function (gender, language = 'fr') {
 Category.findByAgeRange = async function (age, language = 'fr') {
   const categories = await Category.findAll({
     where: {
-      ageMin: { [db.Sequelize.Op.lte]: age },
-      ageMax: { [db.Sequelize.Op.gte]: age }
+      ageMin: { [Op.lte]: age },
+      ageMax: { [Op.gte]: age }
     }
   });
 
@@ -268,7 +268,7 @@ Category.updateCategory = async function (id, updateData) {
         where: {
           nameAr: updateData.nameAr,
           parentId: parentId,
-          id: { [db.Sequelize.Op.ne]: id }
+          id: { [Op.ne]: id }
         }
       });
 
@@ -282,7 +282,7 @@ Category.updateCategory = async function (id, updateData) {
         where: {
           nameFr: updateData.nameFr,
           parentId: parentId,
-          id: { [db.Sequelize.Op.ne]: id }
+          id: { [Op.ne]: id }
         }
       });
 

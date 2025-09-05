@@ -1,12 +1,11 @@
 'use client'
 
-import React, { useState } from 'react';
-import { ArrowLeft, Upload, X, Save, Eye, FileImage, Users, Calendar } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useInsertCategoryMutation } from '../../../../../services/api/CategoryApi';
-import { Button } from '@radix-ui/themes';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, Upload, X, Save, Eye, Folder, FileImage, Users, Calendar, Loader2 } from 'lucide-react';
+import { useRouter, useParams } from 'next/navigation';
+import { useGetCategoryByIdQuery, useUpdateCategoryMutation } from '../../../../../../services/api/CategoryApi';
+import { compressImageByType } from '../../../../../../utils/imageCompression';
 import { toast } from 'sonner';
-import { compressImageByType } from '../../../../../utils/imageCompression';
 
 interface CategoryFormData {
     titleFr: string;
@@ -21,9 +20,13 @@ interface CategoryFormData {
     ageRangeMax: number;
 }
 
-const AddCategoryPage: React.FC = () => {
+const EditCategoryPage: React.FC = () => {
     const router = useRouter();
-    const [insertCategory, { isLoading: isInsertCategoryLoading }] = useInsertCategoryMutation();
+    const params = useParams();
+    const categoryId = params.id as string;
+    
+    const { data: categoryData, isLoading: isCategoryLoading, error: categoryError } = useGetCategoryByIdQuery(categoryId);
+    const [updateCategory, { isLoading: isUpdateLoading }] = useUpdateCategoryMutation();
 
     const [formData, setFormData] = useState<CategoryFormData>({
         titleFr: '',
@@ -42,6 +45,34 @@ const AddCategoryPage: React.FC = () => {
     const [iconPreview, setIconPreview] = useState<string>('');
     const [errors, setErrors] = useState<Partial<CategoryFormData>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Charger les données de la catégorie
+    useEffect(() => {
+        if (categoryData?.data) {
+            const category = categoryData.data;
+            setFormData({
+                titleFr: category.nameFr || '',
+                titleAr: category.nameAr || '',
+                descriptionFr: category.descriptionFr || '',
+                descriptionAr: category.descriptionAr || '',
+                icon: null, // Pas de fichier par défaut
+                image: null, // Pas de fichier par défaut
+                parentId: category.parentId || null,
+                targetGender: category.gender === 'male' ? 'homme' : 
+                             category.gender === 'female' ? 'femme' : 'mixte',
+                ageRangeMin: category.ageMin || 0,
+                ageRangeMax: category.ageMax || 100,
+            });
+
+            // Charger les aperçus des images existantes
+            if (category.image) {
+                setImagePreview(category.image);
+            }
+            if (category.icon) {
+                setIconPreview(category.icon);
+            }
+        }
+    }, [categoryData]);
 
     const handleInputChange = (field: keyof CategoryFormData, value: string | number | File | null) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -87,7 +118,7 @@ const AddCategoryPage: React.FC = () => {
                     setFormData(prev => ({ ...prev, image: compressedResult.file }));
                     // Effacer l'erreur si elle existait
                     if (errors.image) {
-                        setErrors((prev: any) => ({ ...prev, image: '' as any }));
+                        setErrors(prev => ({ ...prev, image: '' as any }));
                     }
                 };
                 reader.readAsDataURL(compressedResult.file);
@@ -175,11 +206,12 @@ const AddCategoryPage: React.FC = () => {
             newErrors.descriptionAr = 'يجب أن يحتوي الوصف على 10 أحرف على الأقل';
         }
 
-        if (!formData.image) {
+        // Pour l'édition, l'image et l'icône ne sont pas obligatoires si elles existent déjà
+        if (!formData.image && !imagePreview) {
             newErrors.image = 'Une image est obligatoire' as any;
         }
 
-        if (!formData.icon) {
+        if (!formData.icon && !iconPreview) {
             newErrors.icon = 'Une icône SVG est obligatoire' as any;
         }
 
@@ -209,29 +241,28 @@ const AddCategoryPage: React.FC = () => {
         setIsSubmitting(true);
 
         try {
-            // Appel API pour créer la catégorie
-            const categoryData = {
-                ...formData,
-                parentId: null
-            };
-            const result = await insertCategory(categoryData).unwrap();
-
-            console.log('Catégorie créée avec succès:', result);
-
+            // Appel API pour mettre à jour la catégorie
+            const result = await updateCategory({
+                id: categoryId,
+                ...formData
+            }).unwrap();
+            
+            console.log('Catégorie mise à jour avec succès:', result);
+            
             // Toast de succès
-            toast.success(result.message || 'Catégorie créée avec succès', {
+            toast.success(result.message || 'Catégorie mise à jour avec succès', {
                 description: `Titre: ${result.data?.nameFr || formData.titleFr}`,
                 duration: 4000,
             });
-
+            
             // Redirection vers la page des catégories
             router.push('/back-office/categories');
         } catch (error: any) {
-            console.error('Erreur lors de la création de la catégorie:', error);
-
+            console.error('Erreur lors de la mise à jour de la catégorie:', error);
+            
             // Gestion des erreurs avec toast
             if (error?.data?.error) {
-                toast.error('Erreur lors de la création', {
+                toast.error('Erreur lors de la mise à jour', {
                     description: error.data.details || error.data.error,
                     duration: 6000,
                 });
@@ -242,7 +273,7 @@ const AddCategoryPage: React.FC = () => {
                 });
             } else {
                 toast.error('Erreur inattendue', {
-                    description: 'Une erreur est survenue lors de la création de la catégorie',
+                    description: 'Une erreur est survenue lors de la mise à jour de la catégorie',
                     duration: 6000,
                 });
             }
@@ -254,6 +285,36 @@ const AddCategoryPage: React.FC = () => {
     const handlePreview = () => {
         console.log('Aperçu de la catégorie:', formData);
     };
+
+    // Affichage du loading
+    if (isCategoryLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="flex items-center space-x-2">
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                    <span>Chargement de la catégorie...</span>
+                </div>
+            </div>
+        );
+    }
+
+    // Affichage de l'erreur
+    if (categoryError) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                    <h2 className="text-2xl font-bold text-red-600 mb-4">Erreur</h2>
+                    <p className="text-gray-600 mb-4">Impossible de charger la catégorie</p>
+                    <button
+                        onClick={() => router.push('/back-office/categories')}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                        Retour aux catégories
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen relative flex justify-center">
@@ -268,14 +329,29 @@ const AddCategoryPage: React.FC = () => {
                         <span>Retour aux catégories</span>
                     </button>
 
-                    <h1 className="text-3xl font-bold text-gray-900">Ajouter une catégorie</h1>
-                    <p className="text-gray-600 mt-2">Créez une nouvelle catégorie parent pour organiser vos contenus</p>
+                    <h1 className="text-3xl font-bold text-gray-900">Modifier la catégorie</h1>
+                    <p className="text-gray-600 mt-2">
+                        Modifiez les informations de la catégorie{' '}
+                        <span className="font-medium text-blue-600">{formData.titleFr || '...'}</span>
+                    </p>
                 </div>
 
                 <div className="grid gap-8 w-full relative">
                     {/* Formulaire */}
                     <div className="w-full relative">
                         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-6 w-full">
+                            {/* Information sur la catégorie parent si applicable */}
+                            {formData.parentId && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <div className="flex items-center space-x-2">
+                                        <Folder className="w-5 h-5 text-blue-600" />
+                                        <span className="text-sm font-medium text-blue-900">
+                                            Catégorie parent: {formData.parentId}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Titre en Français */}
                             <div>
                                 <label htmlFor="titleFr" className="block text-sm font-medium text-gray-700 mb-2">
@@ -434,7 +510,7 @@ const AddCategoryPage: React.FC = () => {
                                 {!iconPreview ? (
                                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors duration-200 relative">
                                         <FileImage className="w-10 h-10 text-gray-400 mx-auto mb-3" />
-                                        <p className="text-gray-600 mb-2">Cliquez pour ajouter une icône SVG</p>
+                                        <p className="text-gray-600 mb-2">Cliquez pour changer l'icône SVG</p>
                                         <p className="text-sm text-gray-400">Fichiers SVG uniquement</p>
                                         <input
                                             type="file"
@@ -446,12 +522,22 @@ const AddCategoryPage: React.FC = () => {
                                 ) : (
                                     <div className="relative">
                                         <div className="w-full h-32 relative border border-gray-200 rounded-lg bg-gray-50 flex items-center justify-center overflow-hidden">
-                                            <div
-                                                className="w-32 h-32 flex items-center justify-center"
-                                                dangerouslySetInnerHTML={{
-                                                    __html: atob(iconPreview.split(',')[1])
-                                                }}
-                                            />
+                                            {formData.icon ? (
+                                                // Nouveau fichier uploadé
+                                                <div
+                                                    className="w-32 h-32 flex items-center justify-center"
+                                                    dangerouslySetInnerHTML={{
+                                                        __html: atob(iconPreview.split(',')[1])
+                                                    }}
+                                                />
+                                            ) : (
+                                                // Image existante
+                                                <img
+                                                    src={iconPreview}
+                                                    alt="Icône actuelle"
+                                                    className="w-32 h-32 object-contain"
+                                                />
+                                            )}
                                         </div>
                                         <button
                                             type="button"
@@ -460,6 +546,15 @@ const AddCategoryPage: React.FC = () => {
                                         >
                                             <X className="w-4 h-4" />
                                         </button>
+                                        <div className="mt-2 text-center">
+                                            <input
+                                                type="file"
+                                                accept=".svg,image/svg+xml"
+                                                onChange={handleIconUpload}
+                                                className="text-sm text-blue-600 hover:text-blue-800 cursor-pointer"
+                                            />
+                                            <p className="text-xs text-gray-500 mt-1">Cliquez pour changer l'icône</p>
+                                        </div>
                                     </div>
                                 )}
 
@@ -477,7 +572,7 @@ const AddCategoryPage: React.FC = () => {
                                 {!imagePreview ? (
                                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors duration-200 relative">
                                         <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                                        <p className="text-gray-600 mb-2">Cliquez pour ajouter une image</p>
+                                        <p className="text-gray-600 mb-2">Cliquez pour changer l'image</p>
                                         <p className="text-sm text-gray-400">PNG, JPG (compressé à 0.5MB max)</p>
                                         <input
                                             type="file"
@@ -500,6 +595,15 @@ const AddCategoryPage: React.FC = () => {
                                         >
                                             <X className="w-4 h-4" />
                                         </button>
+                                        <div className="mt-2 text-center">
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handleImageUpload}
+                                                className="text-sm text-blue-600 hover:text-blue-800 cursor-pointer"
+                                            />
+                                            <p className="text-xs text-gray-500 mt-1">Cliquez pour changer l'image</p>
+                                        </div>
                                     </div>
                                 )}
 
@@ -521,11 +625,15 @@ const AddCategoryPage: React.FC = () => {
 
                                 <button
                                     type="submit"
-                                    disabled={isSubmitting}
+                                    disabled={isSubmitting || isUpdateLoading}
                                     className="flex items-center justify-center space-x-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex-1"
                                 >
-                                    <Save className="w-4 h-4" />
-                                    <span>{isSubmitting ? 'Création...' : 'Créer la catégorie'}</span>
+                                    {isSubmitting || isUpdateLoading ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                        <Save className="w-4 h-4" />
+                                    )}
+                                    <span>{isSubmitting || isUpdateLoading ? 'Mise à jour...' : 'Mettre à jour la catégorie'}</span>
                                 </button>
                             </div>
                         </form>
@@ -536,4 +644,4 @@ const AddCategoryPage: React.FC = () => {
     );
 };
 
-export default AddCategoryPage;
+export default EditCategoryPage;

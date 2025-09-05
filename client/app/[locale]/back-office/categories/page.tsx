@@ -1,147 +1,93 @@
 'use client'
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ChevronDown, ChevronRight, Folder, Image, Code, Palette, Database, Globe, Smartphone, Monitor, Edit3, ArrowRightLeft, Trash2, MoreHorizontal, Plus } from 'lucide-react';
+import { useGetCategoriesQuery } from '@/services/api/CategoryApi';
 
-interface SubCategory {
-  id: string;
-  title: string;
+// Interface pour les données de l'API
+interface ApiCategory {
+  id: number;
+  name: string;
   description: string;
-  icon: React.ComponentType<any>;
-  image: string;
-  count: number;
+  image: string | null;
+  icon: string | null;
+  parentId: number | null;
+  gender: 'male' | 'female' | 'mixte';
+  ageMin: number;
+  ageMax: number;
 }
 
 interface Category {
-  id: string;
-  title: string;
+  id: number;
+  name: string;
   description: string;
-  icon: React.ComponentType<any>;
-  image: string;
-  count: number;
-  subCategories: SubCategory[];
+  image: string | null;
+  icon: string | null;
+  parentId: number | null;
+  gender: 'male' | 'female' | 'mixte';
+  ageMin: number;
+  ageMax: number;
+  children: Category[];
+  count?: number;
 }
 
-const categoriesData: Category[] = [
-  {
-    id: 'design',
-    title: 'Design & Créativité',
-    description: 'Outils et ressources pour la création visuelle et l\'expérience utilisateur',
-    icon: Palette,
-    image: 'https://images.pexels.com/photos/196644/pexels-photo-196644.jpeg?auto=compress&cs=tinysrgb&w=400',
-    count: 156,
-    subCategories: [
-      {
-        id: 'ui-ux',
-        title: 'UI/UX Design',
-        description: 'Interface utilisateur et expérience utilisateur',
-        icon: Monitor,
-        image: 'https://images.pexels.com/photos/326508/pexels-photo-326508.jpeg?auto=compress&cs=tinysrgb&w=300',
-        count: 45
-      },
-      {
-        id: 'graphics',
-        title: 'Design Graphique',
-        description: 'Création visuelle et identité de marque',
-        icon: Image,
-        image: 'https://images.pexels.com/photos/1779487/pexels-photo-1779487.jpeg?auto=compress&cs=tinysrgb&w=300',
-        count: 67
-      },
-      {
-        id: 'illustrations',
-        title: 'Illustrations',
-        description: 'Dessins et créations artistiques numériques',
-        icon: Palette,
-        image: 'https://images.pexels.com/photos/1194420/pexels-photo-1194420.jpeg?auto=compress&cs=tinysrgb&w=300',
-        count: 44
+// Fonction pour construire l'arbre des catégories
+const buildCategoryTree = (categories: ApiCategory[]): Category[] => {
+  const categoryMap = new Map<number, Category>();
+  const rootCategories: Category[] = [];
+
+  // Créer un map de toutes les catégories
+  categories.forEach(cat => {
+    categoryMap.set(cat.id, {
+      ...cat,
+      children: [],
+      count: 0 // On peut calculer le nombre de produits plus tard
+    });
+  });
+
+  // Construire l'arbre
+  categories.forEach(cat => {
+    const category = categoryMap.get(cat.id)!;
+    if (cat.parentId === null) {
+      rootCategories.push(category);
+    } else {
+      const parent = categoryMap.get(cat.parentId);
+      if (parent) {
+        parent.children.push(category);
       }
-    ]
-  },
-  {
-    id: 'development',
-    title: 'Développement',
-    description: 'Technologies et frameworks pour le développement d\'applications',
-    icon: Code,
-    image: 'https://images.pexels.com/photos/574071/pexels-photo-574071.jpeg?auto=compress&cs=tinysrgb&w=400',
-    count: 234,
-    subCategories: [
-      {
-        id: 'frontend',
-        title: 'Frontend',
-        description: 'Développement d\'interfaces utilisateur modernes',
-        icon: Globe,
-        image: 'https://images.pexels.com/photos/270348/pexels-photo-270348.jpeg?auto=compress&cs=tinysrgb&w=300',
-        count: 89
-      },
-      {
-        id: 'backend',
-        title: 'Backend',
-        description: 'Serveurs, APIs et logique métier',
-        icon: Database,
-        image: 'https://images.pexels.com/photos/1181675/pexels-photo-1181675.jpeg?auto=compress&cs=tinysrgb&w=300',
-        count: 76
-      },
-      {
-        id: 'mobile',
-        title: 'Mobile',
-        description: 'Applications mobiles iOS et Android',
-        icon: Smartphone,
-        image: 'https://images.pexels.com/photos/607812/pexels-photo-607812.jpeg?auto=compress&cs=tinysrgb&w=300',
-        count: 69
-      }
-    ]
-  },
-  {
-    id: 'resources',
-    title: 'Ressources',
-    description: 'Documentation, guides et outils de productivité',
-    icon: Folder,
-    image: 'https://images.pexels.com/photos/159711/books-bookstore-book-reading-159711.jpeg?auto=compress&cs=tinysrgb&w=400',
-    count: 89,
-    subCategories: [
-      {
-        id: 'documentation',
-        title: 'Documentation',
-        description: 'Guides techniques et manuels d\'utilisation',
-        icon: Folder,
-        image: 'https://images.pexels.com/photos/301926/pexels-photo-301926.jpeg?auto=compress&cs=tinysrgb&w=300',
-        count: 34
-      },
-      {
-        id: 'templates',
-        title: 'Templates',
-        description: 'Modèles et structures réutilisables',
-        icon: Image,
-        image: 'https://images.pexels.com/photos/265087/pexels-photo-265087.jpeg?auto=compress&cs=tinysrgb&w=300',
-        count: 28
-      },
-      {
-        id: 'tools',
-        title: 'Outils',
-        description: 'Utilitaires et applications de productivité',
-        icon: Code,
-        image: 'https://images.pexels.com/photos/574077/pexels-photo-574077.jpeg?auto=compress&cs=tinysrgb&w=300',
-        count: 27
-      }
-    ]
+    }
+  });
+
+  return rootCategories;
+};
+
+// Fonction pour obtenir l'icône par défaut selon le genre
+const getDefaultIcon = (gender: 'male' | 'female' | 'mixte') => {
+  switch (gender) {
+    case 'male':
+      return Database;
+    case 'female':
+      return Palette;
+    default:
+      return Folder;
   }
-];
+};
 
 interface CategoryCardProps {
   category: Category;
   isExpanded: boolean;
   onToggle: () => void;
-  onEdit: (categoryId: string) => void;
-  onTransfer: (categoryId: string) => void;
-  onDelete: (categoryId: string) => void;
-  onAddSubCategory: (categoryId: string) => void;
-  onEditSubCategory: (subCategoryId: string, parentCategoryId: string) => void;
-  onTransferSubCategoryProducts: (subCategoryId: string, parentCategoryId: string) => void;
-  onDeleteSubCategory: (subCategoryId: string, parentCategoryId: string) => void;
+  onEdit: (categoryId: number) => void;
+  onTransfer: (categoryId: number) => void;
+  onDelete: (categoryId: number) => void;
+  onAddSubCategory: (categoryId: number) => void;
+  onEditSubCategory: (subCategoryId: number, parentCategoryId: number) => void;
+  onTransferSubCategoryProducts: (subCategoryId: number, parentCategoryId: number) => void;
+  onDeleteSubCategory: (subCategoryId: number, parentCategoryId: number) => void;
 }
 
 const CategoryCard: React.FC<CategoryCardProps> = ({ category, isExpanded, onToggle, onEdit, onTransfer, onDelete, onAddSubCategory, onEditSubCategory, onTransferSubCategoryProducts, onDeleteSubCategory }) => {
-  const Icon = category.icon;
+  const DefaultIcon = getDefaultIcon(category.gender);
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all duration-300">
@@ -153,15 +99,29 @@ const CategoryCard: React.FC<CategoryCardProps> = ({ category, isExpanded, onTog
         <div className="flex items-start space-x-4">
           {/* Category Image */}
           <div className="relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0">
-            <img 
-              src={category.image} 
-              alt={category.title}
-              className="w-full h-full object-cover"
-            />
+            {category.image ? (
+              <img 
+                src={category.image} 
+                alt={category.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
+                <DefaultIcon className="w-8 h-8 text-gray-400" />
+              </div>
+            )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
             <div className="absolute bottom-1 right-1">
               <div className="w-6 h-6 bg-white/90 backdrop-blur-sm rounded-md flex items-center justify-center">
-                <Icon className="w-3 h-3 text-gray-700" />
+                {category.icon ? (
+                  <img 
+                    src={category.icon} 
+                    alt="icon" 
+                    className="w-3 h-3"
+                  />
+                ) : (
+                  <DefaultIcon className="w-3 h-3 text-gray-700" />
+                )}
               </div>
             </div>
           </div>
@@ -169,10 +129,13 @@ const CategoryCard: React.FC<CategoryCardProps> = ({ category, isExpanded, onTog
           {/* Category Info */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-lg font-semibold text-gray-900 truncate">{category.title}</h3>
+              <h3 className="text-lg font-semibold text-gray-900 truncate">{category.name}</h3>
               <div className="flex items-center space-x-2 flex-shrink-0">
                 <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                  {category.count} éléments
+                  {category.ageMin}-{category.ageMax} ans
+                </span>
+                <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                  {category.gender === 'male' ? 'Homme' : category.gender === 'female' ? 'Femme' : 'Mixte'}
                 </span>
                 
                 {/* Action Buttons */}
@@ -227,7 +190,7 @@ const CategoryCard: React.FC<CategoryCardProps> = ({ category, isExpanded, onTog
                 </div>
               </div>
             </div>
-            <p className="text-sm text-gray-600 leading-relaxed">{category.description}</p>
+            <p className="text-sm text-gray-600 leading-relaxed">{category.description || 'Aucune description disponible'}</p>
           </div>
         </div>
       </div>
@@ -239,8 +202,8 @@ const CategoryCard: React.FC<CategoryCardProps> = ({ category, isExpanded, onTog
       `}>
         <div className="px-6 pb-6 pt-2 bg-gray-50/50">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {category.subCategories.map((subCategory) => {
-              const SubIcon = subCategory.icon;
+            {category.children.map((subCategory) => {
+              const SubDefaultIcon = getDefaultIcon(subCategory.gender);
               return (
                 <div 
                   key={subCategory.id}
@@ -248,22 +211,36 @@ const CategoryCard: React.FC<CategoryCardProps> = ({ category, isExpanded, onTog
                 >
                   <div className="flex items-start space-x-3">
                     <div className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
-                      <img 
-                        src={subCategory.image} 
-                        alt={subCategory.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                      />
+                      {subCategory.image ? (
+                        <img 
+                          src={subCategory.image} 
+                          alt={subCategory.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-green-100 to-blue-100 flex items-center justify-center">
+                          <SubDefaultIcon className="w-6 h-6 text-gray-400" />
+                        </div>
+                      )}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent"></div>
                       <div className="absolute bottom-0.5 right-0.5">
                         <div className="w-4 h-4 bg-white/90 backdrop-blur-sm rounded-sm flex items-center justify-center">
-                          <SubIcon className="w-2 h-2 text-gray-600" />
+                          {subCategory.icon ? (
+                            <img 
+                              src={subCategory.icon} 
+                              alt="icon" 
+                              className="w-2 h-2"
+                            />
+                          ) : (
+                            <SubDefaultIcon className="w-2 h-2 text-gray-600" />
+                          )}
                         </div>
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between mb-1">
                         <h4 className="text-sm font-medium text-gray-900 truncate group-hover:text-blue-600 transition-colors duration-200">
-                          {subCategory.title}
+                          {subCategory.name}
                         </h4>
                         
                         {/* SubCategory Action Buttons */}
@@ -303,11 +280,16 @@ const CategoryCard: React.FC<CategoryCardProps> = ({ category, isExpanded, onTog
                         </div>
                       </div>
                       <p className="text-xs text-gray-500 leading-relaxed line-clamp-2">
-                        {subCategory.description}
+                        {subCategory.description || 'Aucune description disponible'}
                       </p>
-                      <span className="inline-block mt-2 text-xs font-medium text-gray-400">
-                        {subCategory.count} items
-                      </span>
+                      <div className="flex items-center space-x-2 mt-2">
+                        <span className="text-xs font-medium text-gray-400">
+                          {subCategory.ageMin}-{subCategory.ageMax} ans
+                        </span>
+                        <span className="text-xs font-medium text-gray-400">
+                          {subCategory.gender === 'male' ? 'Homme' : subCategory.gender === 'female' ? 'Femme' : 'Mixte'}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -321,9 +303,19 @@ const CategoryCard: React.FC<CategoryCardProps> = ({ category, isExpanded, onTog
 };
 
 const CategoriesContent: React.FC = () => {
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set());
+  const { data: categoriesResponse, isLoading, error } = useGetCategoriesQuery({});
 
-  const toggleCategory = (categoryId: string) => {
+  // Construire l'arbre des catégories à partir des données de l'API
+  const categoriesTree = useMemo(() => {
+    if (!categoriesResponse?.data) return [];
+    return buildCategoryTree(categoriesResponse.data);
+  }, [categoriesResponse]);
+
+  console.log('categoriesResponse', categoriesResponse);
+  console.log('categoriesTree', categoriesTree);
+
+  const toggleCategory = (categoryId: number) => {
     setExpandedCategories(prev => {
       const newSet = new Set(prev);
       if (newSet.has(categoryId)) {
@@ -335,19 +327,18 @@ const CategoriesContent: React.FC = () => {
     });
   };
 
-  const handleEditCategory = (categoryId: string) => {
-    // TODO: Implémenter la logique de modification de catégorie
-    console.log('Modifier la catégorie:', categoryId);
-    // Ouvrir un modal ou naviguer vers une page de modification
+  const handleEditCategory = (categoryId: number) => {
+    // Naviguer vers la page de modification de catégorie
+    window.location.href = `/back-office/categories/edit/${categoryId}`;
   };
 
-  const handleTransferProducts = (categoryId: string) => {
+  const handleTransferProducts = (categoryId: number) => {
     // TODO: Implémenter la logique de transfert de produits
     console.log('Transférer les produits de la catégorie:', categoryId);
     // Ouvrir un modal de sélection de catégorie de destination
   };
 
-  const handleDeleteCategory = (categoryId: string) => {
+  const handleDeleteCategory = (categoryId: number) => {
     // TODO: Implémenter la logique de suppression de catégorie
     console.log('Supprimer la catégorie:', categoryId);
     // Afficher une confirmation avant suppression
@@ -356,24 +347,23 @@ const CategoriesContent: React.FC = () => {
     }
   };
 
-  const handleAddSubCategory = (categoryId: string) => {
+  const handleAddSubCategory = (categoryId: number) => {
     // Redirection vers la page d'ajout de sous-catégorie
     window.location.href = `/back-office/categories/add/${categoryId}`;
   };
 
-  const handleEditSubCategory = (subCategoryId: string, parentCategoryId: string) => {
-    // TODO: Implémenter la logique de modification de sous-catégorie
-    console.log('Modifier la sous-catégorie:', subCategoryId, 'de la catégorie parent:', parentCategoryId);
-    // Ouvrir un modal ou naviguer vers une page de modification
+  const handleEditSubCategory = (subCategoryId: number, parentCategoryId: number) => {
+    // Naviguer vers la page de modification de sous-catégorie
+    window.location.href = `/back-office/categories/edit/${subCategoryId}`;
   };
 
-  const handleTransferSubCategoryProducts = (subCategoryId: string, parentCategoryId: string) => {
+  const handleTransferSubCategoryProducts = (subCategoryId: number, parentCategoryId: number) => {
     // TODO: Implémenter la logique de transfert de produits de sous-catégorie
     console.log('Transférer les produits de la sous-catégorie:', subCategoryId, 'de la catégorie parent:', parentCategoryId);
     // Ouvrir un modal de sélection de catégorie de destination
   };
 
-  const handleDeleteSubCategory = (subCategoryId: string, parentCategoryId: string) => {
+  const handleDeleteSubCategory = (subCategoryId: number, parentCategoryId: number) => {
     // TODO: Implémenter la logique de suppression de sous-catégorie
     console.log('Supprimer la sous-catégorie:', subCategoryId, 'de la catégorie parent:', parentCategoryId);
     // Afficher une confirmation avant suppression
@@ -406,24 +396,73 @@ const CategoriesContent: React.FC = () => {
         </div>
       </div>
 
+      {/* Loading State */}
+      {isLoading && (
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <span className="ml-2 text-gray-600">Chargement des catégories...</span>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">
+                Erreur lors du chargement des catégories
+              </h3>
+              <div className="mt-2 text-sm text-red-700">
+                <p>Impossible de charger les catégories. Veuillez réessayer plus tard.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!isLoading && !error && categoriesTree.length === 0 && (
+        <div className="text-center py-12">
+          <Folder className="mx-auto h-12 w-12 text-gray-400" />
+          <h3 className="mt-2 text-sm font-medium text-gray-900">Aucune catégorie</h3>
+          <p className="mt-1 text-sm text-gray-500">Commencez par créer votre première catégorie.</p>
+          <div className="mt-6">
+            <button
+              onClick={handleAddParentCategory}
+              className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Ajouter une catégorie
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Categories Grid */}
-      <div className="space-y-4">
-        {categoriesData.map((category) => (
-          <CategoryCard
-            key={category.id}
-            category={category}
-            isExpanded={expandedCategories.has(category.id)}
-            onToggle={() => toggleCategory(category.id)}
-            onEdit={handleEditCategory}
-            onTransfer={handleTransferProducts}
-            onDelete={handleDeleteCategory}
-            onAddSubCategory={handleAddSubCategory}
-            onEditSubCategory={handleEditSubCategory}
-            onTransferSubCategoryProducts={handleTransferSubCategoryProducts}
-            onDeleteSubCategory={handleDeleteSubCategory}
-          />
-        ))}
-      </div>
+      {!isLoading && !error && categoriesTree.length > 0 && (
+        <div className="space-y-4">
+          {categoriesTree.map((category) => (
+            <CategoryCard
+              key={category.id}
+              category={category}
+              isExpanded={expandedCategories.has(category.id)}
+              onToggle={() => toggleCategory(category.id)}
+              onEdit={handleEditCategory}
+              onTransfer={handleTransferProducts}
+              onDelete={handleDeleteCategory}
+              onAddSubCategory={handleAddSubCategory}
+              onEditSubCategory={handleEditSubCategory}
+              onTransferSubCategoryProducts={handleTransferSubCategoryProducts}
+              onDeleteSubCategory={handleDeleteSubCategory}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 };

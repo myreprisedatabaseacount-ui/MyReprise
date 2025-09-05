@@ -1,6 +1,6 @@
 const express = require("express");
 const multer = require("multer");
-const { createCategory } = require("../controllers/categoryController.js");
+const { createCategory, getCategories, getCategoryById, updateCategory } = require("../controllers/categoryController.js");
 
 const categoryRoutes = express.Router();
 
@@ -8,7 +8,7 @@ const categoryRoutes = express.Router();
 let upload;
 try {
   const storage = multer.memoryStorage();
-  upload = multer({ 
+  upload = multer({
     storage,
     limits: {
       fileSize: 10 * 1024 * 1024, // 10MB max
@@ -65,14 +65,30 @@ const handleMulterError = (error, req, res, next) => {
   next();
 };
 
+// Route pour récupérer les catégories
+categoryRoutes.get("/", getCategories);
+
+// Route pour récupérer une catégorie par ID
+categoryRoutes.get("/:id", getCategoryById);
+
 // Route pour créer une catégorie avec uploads multiples
-categoryRoutes.post("/create", 
+categoryRoutes.post("/create",
   upload.fields([
     { name: 'image', maxCount: 1 },
     { name: 'icon', maxCount: 1 }
   ]),
   handleMulterError,
   createCategory
+);
+
+// Route pour mettre à jour une catégorie avec uploads multiples
+categoryRoutes.put("/:id",
+  upload.fields([
+    { name: 'image', maxCount: 1 },
+    { name: 'icon', maxCount: 1 }
+  ]),
+  handleMulterError,
+  updateCategory
 );
 
 module.exports = categoryRoutes;

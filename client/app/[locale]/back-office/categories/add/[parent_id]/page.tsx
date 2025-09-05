@@ -459,9 +459,9 @@ const AddSubCategoryPage: React.FC = () => {
                                     </div>
                                 ) : (
                                     <div className="relative">
-                                        <div className="w-full h-32 border border-gray-200 rounded-lg bg-gray-50 flex items-center justify-center">
+                                        <div className="w-full h-32 relative border border-gray-200 rounded-lg bg-gray-50 flex items-center justify-center overflow-hidden">
                                             <div
-                                                className="w-16 h-16"
+                                                className="w-32 h-32 flex items-center justify-center"
                                                 dangerouslySetInnerHTML={{
                                                     __html: atob(iconPreview.split(',')[1])
                                                 }}
