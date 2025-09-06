@@ -12,7 +12,8 @@ import {
   HelpCircle,
   Menu,
   X,
-  FolderOpen
+  FolderOpen,
+  Tag
 } from 'lucide-react';
 
 interface NavItem {
@@ -25,6 +26,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { id: 'dashboard', icon: Home, label: 'Dashboard', href: '/back-office' },
   { id: 'categories', icon: FolderOpen, label: 'Catégories', href: '/back-office/categories' },
+  { id: 'brands', icon: Tag, label: 'Marques', href: '/back-office/brands' },
   { id: 'analytics', icon: BarChart3, label: 'Analytics', href: '/back-office/analytics' },
   { id: 'users', icon: Users, label: 'Utilisateurs', href: '/back-office/users' },
   { id: 'documents', icon: FileText, label: 'Documents', href: '/back-office/documents' },
