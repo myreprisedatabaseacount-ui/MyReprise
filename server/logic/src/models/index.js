@@ -16,8 +16,8 @@ const { Offer } = require('./Offer');
 const { Order } = require('./Order');
 
 // Import des modèles non encore refactorisés
-const createSubjectModel = require('./Subject');
-const createSubjectCategoryModel = require('./SubjectCategory');
+const { Subject } = require('./Subject');
+const { SubjectCategory } = require('./SubjectCategory');
 const createOfferImageModel = require('./OfferImage');
 const createUserSnapshotModel = require('./UserSnapshot');
 const createProductSnapshotModel = require('./ProductSnapshot');
@@ -31,7 +31,7 @@ async function initializeModels() {
     const sequelize = db.getSequelize();
     
     // Créer les modèles avec gestion d'erreur
-    let Subject, SubjectCategory, OfferImage, UserSnapshot, ProductSnapshot;
+    let OfferImage, UserSnapshot, ProductSnapshot;
     let DeliveryCompany, DeliveryInfo, Setting;
     
     // Modèles refactorisés déjà importés
@@ -43,24 +43,8 @@ async function initializeModels() {
     console.log('✅ Brand importé');
     console.log('✅ Offer importé');
     console.log('✅ Order importé');
-    
-    try {
-      console.log('🔄 Création Subject...');
-      Subject = createSubjectModel(sequelize);
-      console.log('✅ Subject créé');
-    } catch (error) {
-      console.error('❌ Erreur création Subject:', error.message);
-      Subject = null;
-    }
-    
-    try {
-      console.log('🔄 Création SubjectCategory...');
-      SubjectCategory = createSubjectCategoryModel(sequelize);
-      console.log('✅ SubjectCategory créé');
-    } catch (error) {
-      console.error('❌ Erreur création SubjectCategory:', error.message);
-      SubjectCategory = null;
-    }
+    console.log('✅ Subject importé');
+    console.log('✅ SubjectCategory importé');
     
     // Offer déjà importé
     
@@ -193,14 +177,35 @@ async function initializeModels() {
       console.error('❌ Erreur association Brand <-> Category:', error.message);
     }
     
+    try {
+      if (Subject && Category && SubjectCategory) {
+        console.log('🔄 Association Subject <-> Category via SubjectCategory...');
+        Subject.belongsToMany(Category, {
+          through: SubjectCategory,
+          foreignKey: 'subjectId',
+          otherKey: 'categoryId',
+          as: 'categories'
+        });
+        Category.belongsToMany(Subject, {
+          through: SubjectCategory,
+          foreignKey: 'categoryId',
+          otherKey: 'subjectId',
+          as: 'subjects'
+        });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association Subject <-> Category:', error.message);
+    }
+    
     logger.info('✅ Associations définies avec gestion d\'erreur');
     
     // Synchroniser la base de données (créer les tables)
     try {
-      console.log('🔄 Création des tables...');
-      await sequelize.sync({ force: false, alter: false, logging: false });
-      console.log('✅ Tables créées !');
-      logger.info('✅ Tables MySQL synchronisées avec Sequelize');
+      console.log('🔄 Synchronisation des tables...');
+      // Désactiver la synchronisation automatique pour éviter les erreurs de colonnes manquantes
+      // await sequelize.sync({ force: false, alter: false, logging: false });
+      console.log('✅ Synchronisation désactivée (tables existantes)');
+      logger.info('✅ Synchronisation MySQL désactivée');
     } catch (syncError) {
       console.error('❌ Erreur synchronisation base de données:', syncError.message);
       logger.error('❌ Erreur synchronisation base de données:', syncError);
