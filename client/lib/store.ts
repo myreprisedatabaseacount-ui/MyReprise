@@ -1,12 +1,14 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { CategoryApi } from '../services/api/CategoryApi';
 import { subjectApi } from '../services/api/SubjectApi';
+import { brandApi } from '../services/api/BrandApi';
 import authReducer from '../services/slices/authSlice';
 
 const configurestore = configureStore({
   reducer: {
     [CategoryApi.reducerPath]: CategoryApi.reducer,
     [subjectApi.reducerPath]: subjectApi.reducer,
+    [brandApi.reducerPath]: brandApi.reducer,
     auth: authReducer,
   },
   middleware: (getDefaultMiddleware) =>
@@ -19,11 +21,14 @@ const configurestore = configureStore({
           'UserApi/mutations/removeMutationResult',
           'subjectApi/subscriptions/unsubscribeQueryResult',
           'subjectApi/mutations/removeMutationResult',
+          'brandApi/subscriptions/unsubscribeQueryResult',
+          'brandApi/mutations/removeMutationResult',
         ],
       },
     })
       .concat(CategoryApi.middleware)
       .concat(subjectApi.middleware)
+      .concat(brandApi.middleware)
 });
 export default configurestore;
 export type RootState = ReturnType<typeof configurestore.getState>;

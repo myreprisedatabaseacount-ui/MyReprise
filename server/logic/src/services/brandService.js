@@ -23,21 +23,48 @@ class BrandService {
             // Créer la marque en base
             const newBrand = await Brand.createBrand(brandData);
             
-            // Synchroniser vers Redis
-            await this.cacheBrand(newBrand);
+            // Récupérer la marque complète avec les catégories pour avoir le bon format
+            const completeBrand = await Brand.findByPk(newBrand.id, {
+                include: [{
+                    model: require('../models/Category').Category,
+                    as: 'categories',
+                    through: { attributes: [] },
+                    attributes: ['id', 'nameFr', 'nameAr', 'image', 'descriptionFr', 'descriptionAr']
+                }]
+            });
+            
+            // Synchroniser vers Redis avec le format correct
+            await this.cacheBrand(completeBrand);
+            
+            // Invalider les caches de listes pour que la nouvelle marque apparaisse
+            await this.invalidateBrandCaches(newBrand.id);
             
             // Synchroniser vers Neo4j (asynchrone, non bloquant)
-            Neo4jSyncService.syncBrand(newBrand, 'CREATE').catch(error => {
+            Neo4jSyncService.syncBrand(completeBrand, 'CREATE').catch(error => {
                 logger.error('Erreur synchronisation Neo4j marque (non bloquant):', error);
             });
             
-            logger.info(`✅ Marque créée avec succès: ${newBrand.nameFr} (ID: ${newBrand.id})`);
+            logger.info(`✅ Marque créée avec succès: ${completeBrand.nameFr} (ID: ${completeBrand.id})`);
             
-            return {
+            // Retourner le format cohérent avec getBrandById
+            const response = {
                 success: true,
-                data: newBrand.getLocalizedData(),
-                message: 'Marque créée avec succès'
+                data: {
+                    brand: {
+                        id: completeBrand.id,
+                        nameFr: completeBrand.nameFr,
+                        nameAr: completeBrand.nameAr,
+                        descriptionFr: completeBrand.descriptionFr,
+                        descriptionAr: completeBrand.descriptionAr,
+                        logo: completeBrand.logo,
+                        createdAt: completeBrand.createdAt,
+                        updatedAt: completeBrand.updatedAt,
+                        categories: completeBrand.categories || []
+                    }
+                }
             };
+            
+            return response;
             
         } catch (error) {
             logger.error('Erreur création marque:', error);
@@ -63,16 +90,59 @@ class BrandService {
                 return cachedData;
             }
             
-            // Récupérer depuis la base de données
-            const result = await Brand.findWithPagination(page, limit, filters, language);
+            // Construire la clause WHERE pour les filtres
+            const whereClause = {};
+            if (filters.search) {
+                const nameField = language === 'ar' ? 'nameAr' : 'nameFr';
+                const descField = language === 'ar' ? 'descriptionAr' : 'descriptionFr';
+                
+                whereClause[require('sequelize').Op.or] = [
+                    { [nameField]: { [require('sequelize').Op.like]: `%${filters.search}%` } },
+                    { [descField]: { [require('sequelize').Op.like]: `%${filters.search}%` } }
+                ];
+            }
+            
+            // Récupérer directement les marques avec leurs catégories en une seule requête optimisée
+            const offset = (page - 1) * limit;
+            const orderField = language === 'ar' ? 'nameAr' : 'nameFr';
+            
+            const { count, rows: brandsWithCategories } = await Brand.findAndCountAll({
+                where: whereClause,
+                include: [{
+                    model: require('../models/Category').Category,
+                    as: 'categories',
+                    through: { attributes: [] },
+                    attributes: ['id', 'nameFr', 'nameAr', 'image', 'descriptionFr', 'descriptionAr']
+                }],
+                order: [[orderField, 'ASC']],
+                limit: limit,
+                offset: offset
+            });
+            
+            const result = {
+                brands: brandsWithCategories,
+                totalCount: count,
+                totalPages: Math.ceil(count / limit),
+                currentPage: page
+            };
             
             // Transformer les données
-            const brands = result.brands.map(brand => brand.getLocalizedData(language));
+            const transformedBrands = brandsWithCategories.map(brand => ({
+                id: brand.id,
+                nameFr: brand.nameFr,
+                nameAr: brand.nameAr,
+                descriptionFr: brand.descriptionFr,
+                descriptionAr: brand.descriptionAr,
+                logo: brand.logo,
+                createdAt: brand.createdAt,
+                updatedAt: brand.updatedAt,
+                categories: brand.categories || []
+            }));
             
             const response = {
                 success: true,
                 data: {
-                    brands,
+                    brands: transformedBrands,
                     pagination: {
                         totalCount: result.totalCount,
                         totalPages: result.totalPages,
@@ -82,8 +152,8 @@ class BrandService {
                 }
             };
             
-            // Mettre en cache (TTL: 5 minutes)
-            await this.setCache(cacheKey, response, 300);
+            // Mettre en cache (TTL: 10 minutes pour les listes)
+            await this.setCache(cacheKey, response, 600);
             
             return response;
             
@@ -103,12 +173,27 @@ class BrandService {
             // Vérifier le cache Redis
             const cachedData = await this.getFromCache(cacheKey);
             if (cachedData) {
-                logger.debug(`📦 Données marque récupérées du cache: ${cacheKey}`);
-                return cachedData;
+                // Vérifier si les données en cache ont le bon format
+                if (cachedData.success && cachedData.data && cachedData.data.brand) {
+                    logger.debug(`📦 Données marque récupérées du cache: ${cacheKey}`);
+                    return cachedData;
+                } else {
+                    // Les données en cache sont dans l'ancien format, les supprimer
+                    logger.warn(`🗑️ Données en cache obsolètes détectées, suppression: ${cacheKey}`);
+                    await this.clearCache(cacheKey);
+                }
             }
             
-            // Récupérer depuis la base de données
-            const brand = await Brand.findByPk(id);
+            // Récupérer depuis la base de données avec les catégories
+            const brand = await Brand.findByPk(id, {
+                include: [{
+                    model: require('../models/Category').Category,
+                    as: 'categories',
+                    through: { attributes: [] },
+                    attributes: ['id', 'nameFr', 'nameAr', 'image', 'descriptionFr', 'descriptionAr']
+                }]
+            });
+            
             if (!brand) {
                 return {
                     success: false,
@@ -119,7 +204,17 @@ class BrandService {
             const response = {
                 success: true,
                 data: {
-                    brand: brand.getLocalizedData(language)
+                    brand: {
+                        id: brand.id,
+                        nameFr: brand.nameFr,
+                        nameAr: brand.nameAr,
+                        descriptionFr: brand.descriptionFr,
+                        descriptionAr: brand.descriptionAr,
+                        logo: brand.logo,
+                        createdAt: brand.createdAt,
+                        updatedAt: brand.updatedAt,
+                        categories: brand.categories || []
+                    }
                 }
             };
             
@@ -253,24 +348,48 @@ class BrandService {
             // Mettre à jour en base
             const updatedBrand = await Brand.updateBrand(id, updateData);
             
-            // Mettre à jour le cache Redis
-            await this.cacheBrand(updatedBrand);
+            // Récupérer la marque complète avec les catégories pour avoir le bon format
+            const completeBrand = await Brand.findByPk(id, {
+                include: [{
+                    model: require('../models/Category').Category,
+                    as: 'categories',
+                    through: { attributes: [] },
+                    attributes: ['id', 'nameFr', 'nameAr', 'image', 'descriptionFr', 'descriptionAr']
+                }]
+            });
+            
+            // Mettre à jour le cache Redis avec le format correct
+            await this.cacheBrand(completeBrand);
             
             // Synchroniser vers Neo4j (asynchrone, non bloquant)
-            Neo4jSyncService.syncBrand(updatedBrand, 'UPDATE').catch(error => {
+            Neo4jSyncService.syncBrand(completeBrand, 'UPDATE').catch(error => {
                 logger.error('Erreur synchronisation Neo4j marque (non bloquant):', error);
             });
             
             // Invalider les caches liés
             await this.invalidateBrandCaches(id);
             
-            logger.info(`✅ Marque mise à jour avec succès: ${updatedBrand.nameFr} (ID: ${id})`);
+            logger.info(`✅ Marque mise à jour avec succès: ${completeBrand.nameFr} (ID: ${id})`);
             
-            return {
+            // Retourner le format cohérent avec getBrandById
+            const response = {
                 success: true,
-                data: updatedBrand.getLocalizedData(),
-                message: 'Marque mise à jour avec succès'
+                data: {
+                    brand: {
+                        id: completeBrand.id,
+                        nameFr: completeBrand.nameFr,
+                        nameAr: completeBrand.nameAr,
+                        descriptionFr: completeBrand.descriptionFr,
+                        descriptionAr: completeBrand.descriptionAr,
+                        logo: completeBrand.logo,
+                        createdAt: completeBrand.createdAt,
+                        updatedAt: completeBrand.updatedAt,
+                        categories: completeBrand.categories || []
+                    }
+                }
             };
+            
+            return response;
             
         } catch (error) {
             logger.error('Erreur mise à jour marque:', error);
@@ -278,73 +397,8 @@ class BrandService {
         }
     }
     
-    /**
-     * Active une marque
-     */
-    static async activateBrand(id) {
-        try {
-            logger.info(`🔄 Activation de la marque ID: ${id}`);
-            
-            const brand = await Brand.activateBrand(id);
-            
-            // Mettre à jour le cache
-            await this.cacheBrand(brand);
-            
-            // Synchroniser vers Neo4j
-            Neo4jSyncService.syncBrand(brand, 'UPDATE').catch(error => {
-                logger.error('Erreur synchronisation Neo4j marque (non bloquant):', error);
-            });
-            
-            // Invalider les caches
-            await this.invalidateBrandCaches(id);
-            
-            logger.info(`✅ Marque activée avec succès: ${brand.nameFr} (ID: ${id})`);
-            
-            return {
-                success: true,
-                data: brand.getLocalizedData(),
-                message: 'Marque activée avec succès'
-            };
-            
-        } catch (error) {
-            logger.error('Erreur activation marque:', error);
-            throw error;
-        }
-    }
-    
-    /**
-     * Désactive une marque
-     */
-    static async deactivateBrand(id) {
-        try {
-            logger.info(`🔄 Désactivation de la marque ID: ${id}`);
-            
-            const brand = await Brand.deactivateBrand(id);
-            
-            // Mettre à jour le cache
-            await this.cacheBrand(brand);
-            
-            // Synchroniser vers Neo4j
-            Neo4jSyncService.syncBrand(brand, 'UPDATE').catch(error => {
-                logger.error('Erreur synchronisation Neo4j marque (non bloquant):', error);
-            });
-            
-            // Invalider les caches
-            await this.invalidateBrandCaches(id);
-            
-            logger.info(`✅ Marque désactivée avec succès: ${brand.nameFr} (ID: ${id})`);
-            
-            return {
-                success: true,
-                data: brand.getLocalizedData(),
-                message: 'Marque désactivée avec succès'
-            };
-            
-        } catch (error) {
-            logger.error('Erreur désactivation marque:', error);
-            throw error;
-        }
-    }
+    // Note: Les méthodes activateBrand et deactivateBrand ont été supprimées
+    // car le champ isActive n'existe pas dans la base de données
     
     // ========================================
     // MÉTHODES DE SUPPRESSION
@@ -442,18 +496,38 @@ class BrandService {
         try {
             const redis = getRedisClient();
             
-            // Cache en français
+            // Format cohérent avec getBrandById - données complètes
+            const brandData = {
+                id: brand.id,
+                nameFr: brand.nameFr,
+                nameAr: brand.nameAr,
+                descriptionFr: brand.descriptionFr,
+                descriptionAr: brand.descriptionAr,
+                logo: brand.logo,
+                createdAt: brand.createdAt,
+                updatedAt: brand.updatedAt,
+                categories: brand.categories || []
+            };
+            
+            const cacheData = {
+                success: true,
+                data: {
+                    brand: brandData
+                }
+            };
+            
+            // Cache en français (même format que getBrandById)
             await redis.setEx(
                 `brand:${brand.id}:fr`,
                 600, // 10 minutes
-                JSON.stringify(brand.getLocalizedData('fr'))
+                JSON.stringify(cacheData)
             );
             
-            // Cache en arabe
+            // Cache en arabe (même format que getBrandById)
             await redis.setEx(
                 `brand:${brand.id}:ar`,
                 600, // 10 minutes
-                JSON.stringify(brand.getLocalizedData('ar'))
+                JSON.stringify(cacheData)
             );
             
             logger.debug(`📦 Marque mise en cache: ${brand.id}`);
@@ -498,6 +572,34 @@ class BrandService {
             await redis.del(key);
         } catch (error) {
             logger.error('Erreur suppression cache:', error);
+        }
+    }
+    
+    /**
+     * Alias pour removeFromCache (pour la compatibilité)
+     */
+    static async clearCache(key) {
+        return this.removeFromCache(key);
+    }
+    
+    /**
+     * Vide tout le cache des marques
+     */
+    static async clearAllBrandsCache() {
+        try {
+            const redis = getRedisClient();
+            const pattern = 'brand*';
+            const keys = await redis.keys(pattern);
+            
+            if (keys.length > 0) {
+                await redis.del(...keys);
+                logger.info(`🗑️ Cache des marques vidé: ${keys.length} clés supprimées`);
+            }
+            
+            return { success: true, clearedKeys: keys.length };
+        } catch (error) {
+            logger.error('Erreur vidage cache marques:', error);
+            return { success: false, error: error.message };
         }
     }
     

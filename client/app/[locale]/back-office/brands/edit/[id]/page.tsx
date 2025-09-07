@@ -1,12 +1,12 @@
 'use client'
 
-import React, { useState, useMemo } from 'react';
-import { ArrowLeft, Upload, X, Save, Eye, FileImage, Award, Tag, ChevronDown, ChevronRight, Folder, Check } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useGetCategoriesQuery } from '../../../../../services/api/CategoryApi';
-import { useCreateBrandMutation } from '../../../../../services/api/BrandApi';
+import React, { useState, useMemo, useEffect } from 'react';
+import { ArrowLeft, Upload, X, Save, Eye, FileImage, ChevronDown, ChevronRight, Folder, Check } from 'lucide-react';
+import { useRouter, useParams } from 'next/navigation';
+import { useUpdateBrandMutation, useGetBrandByIdQuery } from '../../../../../../services/api/BrandApi';
+import { useGetCategoriesQuery } from '../../../../../../services/api/CategoryApi';
 import { toast } from 'sonner';
-import { compressImageByType } from '../../../../../utils/imageCompression';
+import { compressImageByType } from '../../../../../../utils/imageCompression';
 
 interface BrandFormData {
     nameFr: string;
@@ -44,10 +44,16 @@ interface Category {
     isExpanded?: boolean;
 }
 
-const AddBrandPage: React.FC = () => {
+const EditBrandPage: React.FC = () => {
     const router = useRouter();
+    const params = useParams();
+    const brandId = typeof params.id === 'string' ? parseInt(params.id, 10) : undefined;
+
+    const [updateBrand, { isLoading: isUpdateBrandLoading }] = useUpdateBrandMutation();
+    const { data: brandResponse, isLoading: brandLoading, error: brandError } = useGetBrandByIdQuery({ id: brandId! }, {
+        skip: !brandId,
+    });
     const { data: categoriesResponse, isLoading: categoriesLoading } = useGetCategoriesQuery({});
-    const [createBrand, { isLoading: isCreateBrandLoading }] = useCreateBrandMutation();
 
     const [formData, setFormData] = useState<BrandFormData>({
         nameFr: '',
@@ -62,6 +68,26 @@ const AddBrandPage: React.FC = () => {
     const [errors, setErrors] = useState<Partial<BrandFormData>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set());
+    const [hasLogoChanged, setHasLogoChanged] = useState(false);
+
+    // Charger les données de la marque existante
+    useEffect(() => {
+        console.log('🔍 BrandResponse:', brandResponse);
+        if (brandResponse) {
+            const brand = brandResponse.data?.brand;
+            if (brand) {
+                setFormData({
+                    nameFr: brand.nameFr || '',
+                    nameAr: brand.nameAr || '',
+                    descriptionFr: brand.descriptionFr || '',
+                    descriptionAr: brand.descriptionAr || '',
+                    logo: null, // Pas de fichier par défaut
+                    categoryIds: brand.categories?.map(cat => cat.id) || [],
+                });
+                setLogoPreview(brand.logo || '');
+            }
+        }
+    }, [brandResponse]);
 
     // Fonction pour construire l'arbre des catégories
     const buildCategoryTree = (categories: ApiCategory[]): Category[] => {
@@ -100,7 +126,7 @@ const AddBrandPage: React.FC = () => {
         return buildCategoryTree(categoriesResponse.data);
     }, [categoriesResponse, formData.categoryIds, expandedCategories]);
 
-    const handleInputChange = (field: keyof BrandFormData, value: string | boolean | File | null | number[]) => {
+    const handleInputChange = (field: keyof BrandFormData, value: string | number | File | null | number[]) => {
         setFormData(prev => ({ ...prev, [field]: value }));
         // Effacer l'erreur quand l'utilisateur commence à taper
         if (errors[field]) {
@@ -165,6 +191,7 @@ const AddBrandPage: React.FC = () => {
                     const result = e.target?.result as string;
                     setLogoPreview(result);
                     setFormData(prev => ({ ...prev, logo: compressedResult.file }));
+                    setHasLogoChanged(true);
                     // Effacer l'erreur si elle existait
                     if (errors.logo) {
                         setErrors((prev: any) => ({ ...prev, logo: '' as any }));
@@ -185,6 +212,7 @@ const AddBrandPage: React.FC = () => {
     const removeLogo = () => {
         setLogoPreview('');
         setFormData(prev => ({ ...prev, logo: null }));
+        setHasLogoChanged(true);
     };
 
     const validateForm = (): boolean => {
@@ -214,7 +242,7 @@ const AddBrandPage: React.FC = () => {
             newErrors.descriptionAr = 'يجب أن يحتوي الوصف على 10 أحرف على الأقل';
         }
 
-        if (!formData.logo) {
+        if (!formData.logo && !logoPreview) {
             newErrors.logo = 'Un logo est obligatoire' as any;
         }
 
@@ -233,46 +261,49 @@ const AddBrandPage: React.FC = () => {
             return;
         }
 
+        if (!brandId) {
+            toast.error('Erreur', {
+                description: 'ID de la marque manquant',
+                duration: 4000,
+            });
+            return;
+        }
+
         setIsSubmitting(true);
 
         try {
             // Debug: Vérifier les données avant envoi
             console.log('🔍 Debug formData avant envoi:', formData);
             console.log('🔍 Logo file:', formData.logo);
-            console.log('🔍 Logo file type:', formData.logo?.type);
-            console.log('🔍 Logo file size:', formData.logo?.size);
+            console.log('🔍 Has logo changed:', hasLogoChanged);
 
-            // Préparer les données pour l'envoi avec FormData
-            const formDataToSend = new FormData();
-            formDataToSend.append('nameAr', formData.nameAr);
-            formDataToSend.append('nameFr', formData.nameFr);
-            formDataToSend.append('descriptionAr', formData.descriptionAr);
-            formDataToSend.append('descriptionFr', formData.descriptionFr);
-            formDataToSend.append('categoryIds', JSON.stringify(formData.categoryIds));
-            
-            if (formData.logo) {
-                formDataToSend.append('logo', formData.logo);
-            }
+            // Appel API pour mettre à jour la marque
+            const result = await updateBrand({
+                id: brandId,
+                nameAr: formData.nameAr,
+                nameFr: formData.nameFr,
+                descriptionAr: formData.descriptionAr,
+                descriptionFr: formData.descriptionFr,
+                categoryIds: formData.categoryIds,
+                logo: formData.logo && hasLogoChanged ? formData.logo : undefined
+            }).unwrap();
 
-            // Appel API pour créer la marque
-            const result = await createBrand(formDataToSend).unwrap();
+            console.log('✅ Marque mise à jour avec succès:', result);
 
-            console.log('✅ Marque créée avec succès:', result);
-
-            // Toast de succès (le wrapper baseQuery gère déjà la vérification de success)
-            toast.success(result.message || 'Marque créée avec succès', {
-                description: `Nom: ${result.data?.nameFr || formData.nameFr}`,
+            // Toast de succès
+            toast.success(result.message || 'Marque mise à jour avec succès', {
+                description: `Nom: ${result?.nameFr || formData.nameFr}`,
                 duration: 4000,
             });
 
             // Redirection vers la page des marques
             router.push('/back-office/brands');
         } catch (error: any) {
-            console.error('❌ Erreur lors de la création de la marque:', error);
+            console.error('❌ Erreur lors de la mise à jour de la marque:', error);
 
             // Gestion des erreurs avec toast
             if (error?.data?.error) {
-                toast.error('Erreur lors de la création', {
+                toast.error('Erreur lors de la mise à jour', {
                     description: error.data.details || error.data.error,
                     duration: 6000,
                 });
@@ -288,7 +319,7 @@ const AddBrandPage: React.FC = () => {
                 });
             } else {
                 toast.error('Erreur inattendue', {
-                    description: 'Une erreur est survenue lors de la création de la marque',
+                    description: 'Une erreur est survenue lors de la mise à jour de la marque',
                     duration: 6000,
                 });
             }
@@ -389,6 +420,54 @@ const AddBrandPage: React.FC = () => {
         );
     };
 
+    // États de chargement et d'erreur
+    if (brandLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Chargement de la marque...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (brandError) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                    <div className="text-red-500 text-6xl mb-4">⚠️</div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Erreur de chargement</h2>
+                    <p className="text-gray-600 mb-4">Impossible de charger les données de la marque</p>
+                    <button
+                        onClick={() => router.push('/back-office/brands')}
+                        className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors duration-200"
+                    >
+                        Retour aux marques
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (!brandResponse) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                    <div className="text-gray-400 text-6xl mb-4">🏷️</div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Marque non trouvée</h2>
+                    <p className="text-gray-600 mb-4">La marque demandée n'existe pas</p>
+                    <button
+                        onClick={() => router.push('/back-office/brands')}
+                        className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors duration-200"
+                    >
+                        Retour aux marques
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen relative flex justify-center">
             <div className="w-full relative mx-auto">
@@ -402,8 +481,8 @@ const AddBrandPage: React.FC = () => {
                         <span>Retour aux marques</span>
                     </button>
 
-                    <h1 className="text-3xl font-bold text-gray-900">Ajouter une marque</h1>
-                    <p className="text-gray-600 mt-2">Créez une nouvelle marque pour votre catalogue</p>
+                    <h1 className="text-3xl font-bold text-gray-900">Modifier la marque</h1>
+                    <p className="text-gray-600 mt-2">Modifiez les informations de la marque</p>
                 </div>
 
                 <div className="grid gap-8 w-full relative">
@@ -533,8 +612,6 @@ const AddBrandPage: React.FC = () => {
                                 )}
                             </div>
 
-                            {/* Note: Le statut isActive a été supprimé car le champ n'existe pas dans la base de données */}
-
                             {/* Upload de logo */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -569,6 +646,11 @@ const AddBrandPage: React.FC = () => {
                                         >
                                             <X className="w-4 h-4" />
                                         </button>
+                                        {hasLogoChanged && (
+                                            <div className="absolute top-2 left-2 bg-yellow-500 text-white text-xs px-2 py-1 rounded">
+                                                Nouveau logo
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
@@ -590,11 +672,11 @@ const AddBrandPage: React.FC = () => {
 
                                 <button
                                     type="submit"
-                                    disabled={isSubmitting || isCreateBrandLoading}
+                                    disabled={isSubmitting || isUpdateBrandLoading}
                                     className="flex items-center justify-center space-x-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex-1"
                                 >
                                     <Save className="w-4 h-4" />
-                                    <span>{isSubmitting || isCreateBrandLoading ? 'Création...' : 'Créer la marque'}</span>
+                                    <span>{isSubmitting || isUpdateBrandLoading ? 'Mise à jour...' : 'Mettre à jour la marque'}</span>
                                 </button>
                             </div>
                         </form>
@@ -605,4 +687,4 @@ const AddBrandPage: React.FC = () => {
     );
 };
 
-export default AddBrandPage;
+export default EditBrandPage;

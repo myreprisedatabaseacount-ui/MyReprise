@@ -7,10 +7,9 @@ const multer = require("multer");
 const { Op } = require("sequelize");
 const dotenv = require("dotenv");
 const bcrypt = require("bcrypt");
-const { sequelize } = require('./config/db.js');
-dotenv.config();
-
 const db = require("./config/db.js");
+const sequelize = db.getSequelize();
+dotenv.config();
 const fs = require('fs');
 
 // Import de l'initialisation des modèles
