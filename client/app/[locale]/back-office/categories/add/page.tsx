@@ -19,6 +19,7 @@ interface CategoryFormData {
     targetGender: 'homme' | 'femme' | 'mixte';
     ageRangeMin: number;
     ageRangeMax: number;
+    listingType: 'item' | 'vehicle' | 'property' | '';
 }
 
 const AddCategoryPage: React.FC = () => {
@@ -36,6 +37,7 @@ const AddCategoryPage: React.FC = () => {
         targetGender: 'mixte',
         ageRangeMin: 0,
         ageRangeMax: 100,
+        listingType: '',
     });
 
     const [imagePreview, setImagePreview] = useState<string>('');
@@ -211,9 +213,19 @@ const AddCategoryPage: React.FC = () => {
         try {
             // Appel API pour créer la catégorie
             const categoryData = {
-                ...formData,
-                parentId: null
+                nameAr: formData.titleAr,
+                nameFr: formData.titleFr,
+                descriptionAr: formData.descriptionAr,
+                descriptionFr: formData.descriptionFr,
+                gender: formData.targetGender,
+                ageMin: formData.ageRangeMin,
+                ageMax: formData.ageRangeMax,
+                parentId: null,
+                listingType: formData.listingType || null,
+                image: formData.image,
+                icon: formData.icon
             };
+            console.log('📤 Données envoyées au backend:', categoryData);
             const result = await insertCategory(categoryData).unwrap();
 
             console.log('Catégorie créée avec succès:', result);
@@ -371,6 +383,24 @@ const AddCategoryPage: React.FC = () => {
                                     <option value="mixte">Mixte (Hommes et Femmes)</option>
                                     <option value="homme">Hommes uniquement</option>
                                     <option value="femme">Femmes uniquement</option>
+                                </select>
+                            </div>
+
+                            {/* Type de Listing */}
+                            <div>
+                                <label htmlFor="listingType" className="block text-sm font-medium text-gray-700 mb-2">
+                                    Type de Listing
+                                </label>
+                                <select
+                                    id="listingType"
+                                    value={formData.listingType}
+                                    onChange={(e) => handleInputChange('listingType', e.target.value)}
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-200"
+                                >
+                                    <option value="">Sélectionner un type (optionnel)</option>
+                                    <option value="item">Article</option>
+                                    <option value="vehicle">Véhicule</option>
+                                    <option value="property">Propriété</option>
                                 </select>
                             </div>
 

@@ -65,7 +65,20 @@ const createCategory = async (req, res) => {
       ageMin,
       ageMax,
       parentId,
+      listingType,
     } = req.body;
+
+    console.log('📥 Données reçues pour création:', {
+      nameAr,
+      nameFr,
+      descriptionAr,
+      descriptionFr,
+      gender,
+      ageMin,
+      ageMax,
+      parentId,
+      listingType
+    });
 
     // ✅ Vérification des fichiers
     const imageFile = req.files?.image?.[0];
@@ -198,6 +211,7 @@ const createCategory = async (req, res) => {
         parentId: parentId ? parseInt(parentId) : null,
         image: imageUrl,
         icon: iconUrl,
+        listingType: listingType || null,
         isActive: true,
       });
 
@@ -327,7 +341,21 @@ const updateCategory = async (req, res) => {
       ageMin,
       ageMax,
       parentId,
+      listingType,
     } = req.body;
+
+    console.log('📥 Données reçues pour mise à jour:', {
+      categoryId,
+      nameAr,
+      nameFr,
+      descriptionAr,
+      descriptionFr,
+      gender,
+      ageMin,
+      ageMax,
+      parentId,
+      listingType
+    });
 
     // Vérifier que la catégorie existe
     const existingCategory = await Category.findByPk(categoryId);
@@ -456,6 +484,7 @@ const updateCategory = async (req, res) => {
         ageMin: ageMinNum,
         ageMax: ageMaxNum,
         parentId: parentId ? parseInt(parentId) : null,
+        listingType: listingType || null,
         isActive: true,
       };
 
@@ -562,6 +591,7 @@ const getCategoryById = async (req, res) => {
         gender: category.gender,
         ageMin: category.ageMin,
         ageMax: category.ageMax,
+        listingType: category.listingType,
         isActive: category.isActive,
         createdAt: category.createdAt,
         updatedAt: category.updatedAt
