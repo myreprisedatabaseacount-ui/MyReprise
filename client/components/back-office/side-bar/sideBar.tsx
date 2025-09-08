@@ -19,7 +19,7 @@ import {
 
 interface NavItem {
   id: string;
-  icon: React.ComponentType<any>;
+  icon: React.ComponentType<{ className?: string }>;
   label: string;
   href: string;
 }

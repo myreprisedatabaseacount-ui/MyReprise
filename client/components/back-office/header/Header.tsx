@@ -4,7 +4,7 @@ import { Search, Bell, X, Calendar, Home, FolderOpen, Tag, Book, Users, FileText
 interface SearchResult {
   id: string;
   label: string;
-  icon: React.ComponentType<any>;
+  icon: React.ComponentType<{ className?: string }>;
   href: string;
 }
 
