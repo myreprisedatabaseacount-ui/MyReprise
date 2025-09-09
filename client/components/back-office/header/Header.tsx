@@ -1,22 +1,26 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Bell, X, Calendar } from 'lucide-react';
+import { Search, Bell, X, Calendar, Home, FolderOpen, Tag, Book, Users, FileText, Settings, HelpCircle, Plus } from 'lucide-react';
 
 interface SearchResult {
   id: string;
   label: string;
-  icon: React.ComponentType<any>;
+  icon: React.ComponentType<{ className?: string }>;
   href: string;
 }
 
 const searchableItems: SearchResult[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: () => <span>🏠</span>, href: '#' },
-  { id: 'analytics', label: 'Analytics', icon: () => <span>📊</span>, href: '#' },
-  { id: 'users', label: 'Users', icon: () => <span>👥</span>, href: '#' },
-  { id: 'documents', label: 'Documents', icon: () => <span>📄</span>, href: '#' },
-  { id: 'calendar', label: 'Calendar', icon: () => <span>📅</span>, href: '#' },
-  { id: 'notifications', label: 'Notifications', icon: () => <span>🔔</span>, href: '#' },
-  { id: 'settings', label: 'Settings', icon: () => <span>⚙️</span>, href: '#' },
-  { id: 'help', label: 'Help', icon: () => <span>❓</span>, href: '#' },
+  { id: 'dashboard', label: 'Dashboard', icon: Home, href: '/back-office' },
+  { id: 'categories', label: 'Catégories', icon: FolderOpen, href: '/back-office/categories' },
+  { id: 'ajoutcategories', label: 'Ajouter une catégorie', icon: Plus, href: '/back-office/categories/add' },
+  { id: 'brands', label: 'Marques', icon: Tag, href: '/back-office/brands' },
+  { id: 'ajoutbrands', label: 'Ajouter une marque', icon: Plus, href: '/back-office/brands/add' },
+  { id: 'subjects', label: 'Matières', icon: Book, href: '/back-office/subjects' },
+  { id: 'ajoutsubjects', label: 'Ajouter une matière', icon: Plus, href: '/back-office/subjects/add' },
+  { id: 'users', label: 'Utilisateurs', icon: Users, href: '/back-office/users' },
+  { id: 'documents', label: 'Documents', icon: FileText, href: '/back-office/documents' },
+  { id: 'notifications', label: 'Notifications', icon: Bell, href: '/back-office/notifications' },
+  { id: 'settings', label: 'Paramètres', icon: Settings, href: '/back-office/settings' },
+  { id: 'help', label: 'Aide', icon: HelpCircle, href: '/back-office/help' },
 ];
 
 export const TopBar: React.FC = () => {
@@ -105,7 +109,7 @@ export const TopBar: React.FC = () => {
                             setIsSearchFocused(false);
                           }}
                         >
-                          <span className="text-lg mr-3">{React.createElement(result.icon)}</span>
+                          <result.icon className="w-4 h-4 mr-3 text-gray-500" />
                           <span className="text-sm font-medium text-gray-700">{result.label}</span>
                         </a>
                       ))}
@@ -204,7 +208,7 @@ export const TopBar: React.FC = () => {
                           setSearchQuery('');
                         }}
                       >
-                        <span className="text-lg mr-3">{React.createElement(result.icon)}</span>
+                        <result.icon className="w-4 h-4 mr-3 text-gray-500" />
                         <span className="text-sm font-medium text-gray-700">{result.label}</span>
                       </a>
                     ))}

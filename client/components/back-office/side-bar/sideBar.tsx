@@ -13,12 +13,13 @@ import {
   Menu,
   X,
   FolderOpen,
-  Tag
+  Tag,
+  Book
 } from 'lucide-react';
 
 interface NavItem {
   id: string;
-  icon: React.ComponentType<any>;
+  icon: React.ComponentType<{ className?: string }>;
   label: string;
   href: string;
 }
@@ -27,10 +28,9 @@ const navItems: NavItem[] = [
   { id: 'dashboard', icon: Home, label: 'Dashboard', href: '/back-office' },
   { id: 'categories', icon: FolderOpen, label: 'Catégories', href: '/back-office/categories' },
   { id: 'brands', icon: Tag, label: 'Marques', href: '/back-office/brands' },
-  { id: 'analytics', icon: BarChart3, label: 'Analytics', href: '/back-office/analytics' },
+  { id: 'subjects', icon: Book, label: 'Matières', href: '/back-office/subjects' },
   { id: 'users', icon: Users, label: 'Utilisateurs', href: '/back-office/users' },
   { id: 'documents', icon: FileText, label: 'Documents', href: '/back-office/documents' },
-  { id: 'calendar', icon: Calendar, label: 'Calendrier', href: '/back-office/calendar' },
   { id: 'notifications', icon: Bell, label: 'Notifications', href: '/back-office/notifications' },
   { id: 'settings', icon: Settings, label: 'Paramètres', href: '/back-office/settings' },
   { id: 'help', icon: HelpCircle, label: 'Aide', href: '/back-office/help' },

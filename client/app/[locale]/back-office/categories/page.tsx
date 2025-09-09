@@ -15,6 +15,7 @@ interface ApiCategory {
   gender: 'male' | 'female' | 'mixte';
   ageMin: number;
   ageMax: number;
+  listingType: 'item' | 'vehicle' | 'property' | null;
 }
 
 interface Category {
@@ -27,6 +28,7 @@ interface Category {
   gender: 'male' | 'female' | 'mixte';
   ageMin: number;
   ageMax: number;
+  listingType: 'item' | 'vehicle' | 'property' | null;
   children: Category[];
   count?: number;
 }
@@ -73,6 +75,20 @@ const getDefaultIcon = (gender: 'male' | 'female' | 'mixte') => {
   }
 };
 
+// Fonction pour obtenir l'icône et le texte du type de listing
+const getListingTypeInfo = (listingType: 'item' | 'vehicle' | 'property' | null) => {
+  switch (listingType) {
+    case 'item':
+      return { icon: Code, text: 'Article', color: 'bg-blue-100 text-blue-800' };
+    case 'vehicle':
+      return { icon: Smartphone, text: 'Véhicule', color: 'bg-green-100 text-green-800' };
+    case 'property':
+      return { icon: Monitor, text: 'Propriété', color: 'bg-purple-100 text-purple-800' };
+    default:
+      return { icon: Globe, text: 'Non défini', color: 'bg-gray-100 text-gray-800' };
+  }
+};
+
 interface CategoryCardProps {
   category: Category;
   isExpanded: boolean;
@@ -88,6 +104,8 @@ interface CategoryCardProps {
 
 const CategoryCard: React.FC<CategoryCardProps> = ({ category, isExpanded, onToggle, onEdit, onTransfer, onDelete, onAddSubCategory, onEditSubCategory, onTransferSubCategoryProducts, onDeleteSubCategory }) => {
   const DefaultIcon = getDefaultIcon(category.gender);
+  const listingTypeInfo = getListingTypeInfo(category.listingType);
+  const ListingTypeIcon = listingTypeInfo.icon;
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all duration-300">
@@ -136,6 +154,10 @@ const CategoryCard: React.FC<CategoryCardProps> = ({ category, isExpanded, onTog
                 </span>
                 <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
                   {category.gender === 'male' ? 'Homme' : category.gender === 'female' ? 'Femme' : 'Mixte'}
+                </span>
+                <span className={`text-xs font-medium px-2 py-1 rounded-full flex items-center space-x-1 ${listingTypeInfo.color}`}>
+                  <ListingTypeIcon className="w-3 h-3" />
+                  <span>{listingTypeInfo.text}</span>
                 </span>
                 
                 {/* Action Buttons */}
@@ -204,6 +226,8 @@ const CategoryCard: React.FC<CategoryCardProps> = ({ category, isExpanded, onTog
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {category.children.map((subCategory) => {
               const SubDefaultIcon = getDefaultIcon(subCategory.gender);
+              const subListingTypeInfo = getListingTypeInfo(subCategory.listingType);
+              const SubListingTypeIcon = subListingTypeInfo.icon;
               return (
                 <div 
                   key={subCategory.id}
@@ -289,6 +313,10 @@ const CategoryCard: React.FC<CategoryCardProps> = ({ category, isExpanded, onTog
                         <span className="text-xs font-medium text-gray-400">
                           {subCategory.gender === 'male' ? 'Homme' : subCategory.gender === 'female' ? 'Femme' : 'Mixte'}
                         </span>
+                        <span className={`text-xs font-medium px-2 py-1 rounded-full flex items-center space-x-1 ${subListingTypeInfo.color}`}>
+                          <SubListingTypeIcon className="w-3 h-3" />
+                          <span>{subListingTypeInfo.text}</span>
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -311,9 +339,6 @@ const CategoriesContent: React.FC = () => {
     if (!categoriesResponse?.data) return [];
     return buildCategoryTree(categoriesResponse.data);
   }, [categoriesResponse]);
-
-  console.log('categoriesResponse', categoriesResponse);
-  console.log('categoriesTree', categoriesTree);
 
   const toggleCategory = (categoryId: number) => {
     setExpandedCategories(prev => {

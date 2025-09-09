@@ -136,7 +136,7 @@ export const SidebarMenuButton = React.forwardRef<
   }
 >(({ className, asChild = false, ...props }, ref) => {
   if (asChild) {
-    return <div className={className} {...(props as any)} />
+    return <div className={className} {...(props as unknown as React.HTMLAttributes<HTMLDivElement>)} />
   }
   
   return (

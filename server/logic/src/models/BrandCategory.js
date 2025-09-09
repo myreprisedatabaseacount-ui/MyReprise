@@ -3,19 +3,19 @@ const db = require('../config/db');
 
 const sequelize = db.getSequelize();
 
-const SubjectCategory = sequelize.define('SubjectCategory', {
+const BrandCategory = sequelize.define('BrandCategory', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
     autoIncrement: true,
     allowNull: false
   },
-  subjectId: {
+  brandId: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    field: 'subject_id',
+    field: 'brand_id',
     references: {
-      model: 'subjects',
+      model: 'brands',
       key: 'id'
     }
   },
@@ -41,10 +41,22 @@ const SubjectCategory = sequelize.define('SubjectCategory', {
     defaultValue: DataTypes.NOW
   }
 }, {
-  tableName: 'subject_categories',
+  tableName: 'brand_categories',
   timestamps: true,
   createdAt: 'created_at',
-  updatedAt: 'updated_at'
+  updatedAt: 'updated_at',
+  indexes: [
+    {
+      unique: true,
+      fields: ['brand_id', 'category_id']
+    },
+    {
+      fields: ['brand_id']
+    },
+    {
+      fields: ['category_id']
+    }
+  ]
 });
 
-module.exports = { SubjectCategory };
+module.exports = { BrandCategory };

@@ -1,4 +1,4 @@
-const { Sequelize } = require("sequelize");
+const { Sequelize, Op } = require("sequelize");
 require("dotenv").config();
 
 // Créer une seule instance de Sequelize pour garantir une connexion unique
@@ -132,4 +132,10 @@ class Database {
   }
 }
 
-module.exports = new Database();
+const dbInstance = new Database();
+
+// Ajouter Sequelize et Op à l'instance pour compatibilité
+dbInstance.Sequelize = Sequelize;
+dbInstance.Op = Op;
+
+module.exports = dbInstance;

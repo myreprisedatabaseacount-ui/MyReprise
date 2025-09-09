@@ -18,6 +18,7 @@ interface CategoryFormData {
     targetGender: 'homme' | 'femme' | 'mixte';
     ageRangeMin: number;
     ageRangeMax: number;
+    listingType: 'item' | 'vehicle' | 'property' | '';
 }
 
 const EditCategoryPage: React.FC = () => {
@@ -39,6 +40,7 @@ const EditCategoryPage: React.FC = () => {
         targetGender: 'mixte',
         ageRangeMin: 0,
         ageRangeMax: 100,
+        listingType: '',
     });
 
     const [imagePreview, setImagePreview] = useState<string>('');
@@ -62,6 +64,7 @@ const EditCategoryPage: React.FC = () => {
                              category.gender === 'female' ? 'femme' : 'mixte',
                 ageRangeMin: category.ageMin || 0,
                 ageRangeMax: category.ageMax || 100,
+                listingType: category.listingType || '',
             });
 
             // Charger les aperçus des images existantes
@@ -244,9 +247,33 @@ const EditCategoryPage: React.FC = () => {
             // Appel API pour mettre à jour la catégorie
             const result = await updateCategory({
                 id: categoryId,
-                ...formData
+                nameAr: formData.titleAr,
+                nameFr: formData.titleFr,
+                descriptionAr: formData.descriptionAr,
+                descriptionFr: formData.descriptionFr,
+                gender: formData.targetGender,
+                ageMin: formData.ageRangeMin,
+                ageMax: formData.ageRangeMax,
+                parentId: formData.parentId,
+                listingType: formData.listingType || null,
+                image: formData.image,
+                icon: formData.icon
             }).unwrap();
             
+            console.log('📤 Données envoyées au backend pour mise à jour:', {
+                id: categoryId,
+                nameAr: formData.titleAr,
+                nameFr: formData.titleFr,
+                descriptionAr: formData.descriptionAr,
+                descriptionFr: formData.descriptionFr,
+                gender: formData.targetGender,
+                ageMin: formData.ageRangeMin,
+                ageMax: formData.ageRangeMax,
+                parentId: formData.parentId,
+                listingType: formData.listingType || null,
+                image: formData.image,
+                icon: formData.icon
+            });
             console.log('Catégorie mise à jour avec succès:', result);
             
             // Toast de succès
@@ -447,6 +474,24 @@ const EditCategoryPage: React.FC = () => {
                                     <option value="mixte">Mixte (Hommes et Femmes)</option>
                                     <option value="homme">Hommes uniquement</option>
                                     <option value="femme">Femmes uniquement</option>
+                                </select>
+                            </div>
+
+                            {/* Type de Listing */}
+                            <div>
+                                <label htmlFor="listingType" className="block text-sm font-medium text-gray-700 mb-2">
+                                    Type de Listing
+                                </label>
+                                <select
+                                    id="listingType"
+                                    value={formData.listingType}
+                                    onChange={(e) => handleInputChange('listingType', e.target.value)}
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-200"
+                                >
+                                    <option value="">Sélectionner un type (optionnel)</option>
+                                    <option value="item">Article</option>
+                                    <option value="vehicle">Véhicule</option>
+                                    <option value="property">Propriété</option>
                                 </select>
                             </div>
 

@@ -11,20 +11,14 @@ const { sequelize } = require('./config/db.js');
 dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const db = require("./config/db.js");
+const sequelize = db.getSequelize();
 const fs = require('fs');
 
-// Import des modèles refactorisés
-const { User } = require('./models/User');
-const { Address } = require('./models/Address');
-const { Store } = require('./models/Store');
-const { Product } = require('./models/Product');
-const { Category } = require('./models/Category');
-const { Brand } = require('./models/Brand');
-const { Offer } = require('./models/Offer');
-const { Order } = require('./models/Order');
+// Import de l'initialisation des modèles
+const { initializeModels } = require('./models');
 
 // Import des routes
-const { categoryRoutes, userRoutes, brandRoutes, whatsappRoutes } = require('./routes');
+const { categoryRoutes, userRoutes, brandRoutes, whatsappRoutes, subjectRoutes } = require('./routes');
 
 // Import Redis
 const { connectToRedis } = require('./config/redis');
@@ -90,6 +84,7 @@ app.use(limiter);
 // Routes
 app.use("/api/categories", categoryRoutes);
 app.use("/api/brands", brandRoutes);
+app.use("/api/subjects", subjectRoutes);
 app.use("/api/auth", userRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
@@ -108,6 +103,11 @@ app.get('/api/health', (req, res) => {
 // Fonction pour démarrer le serveur
 async function startServer() {
   try {
+    // Initialiser les modèles avec leurs associations
+    console.log('🔄 Initialisation des modèles...');
+    await initializeModels();
+    console.log('✅ Modèles initialisés avec succès');
+    
     // Initialiser Redis
     await connectToRedis();
     console.log('✅ Redis initialisé avec succès');
@@ -116,11 +116,8 @@ async function startServer() {
       console.log(`🚀 Serveur MyReprise démarré sur le port ${PORT}`);
     });
   } catch (error) {
-    console.error('❌ Erreur lors de l\'initialisation de Redis:', error);
-    // Continuer sans Redis si ce n'est pas critique
-    app.listen(PORT, () => {
-      console.log(`🚀 Serveur MyReprise démarré sur le port ${PORT} (sans Redis)`);
-    });
+    console.error('❌ Erreur lors de l\'initialisation:', error);
+    process.exit(1);
   }
 }
 

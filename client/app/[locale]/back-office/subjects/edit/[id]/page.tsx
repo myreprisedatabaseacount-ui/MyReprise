@@ -1,19 +1,19 @@
 'use client'
 
-import React, { useState, useMemo } from 'react';
-import { ArrowLeft, Upload, X, Save, Eye, FileImage, Award, Tag, ChevronDown, ChevronRight, Folder, Check } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useGetCategoriesQuery } from '../../../../../services/api/CategoryApi';
-import { useCreateBrandMutation } from '../../../../../services/api/BrandApi';
+import React, { useState, useMemo, useEffect } from 'react';
+import { ArrowLeft, Upload, X, Save, Eye, FileImage, ChevronDown, ChevronRight, Folder, Check } from 'lucide-react';
+import { useRouter, useParams } from 'next/navigation';
+import { useUpdateSubjectMutation, useGetSubjectByIdQuery } from '../../../../../../services/api/SubjectApi';
+import { useGetCategoriesQuery } from '../../../../../../services/api/CategoryApi';
 import { toast } from 'sonner';
-import { compressImageByType } from '../../../../../utils/imageCompression';
+import { compressImageByType } from '../../../../../../utils/imageCompression';
 
-interface BrandFormData {
+interface SubjectFormData {
     nameFr: string;
     nameAr: string;
     descriptionFr: string;
     descriptionAr: string;
-    logo: File | null;
+    image: File | null;
     categoryIds: number[];
 }
 
@@ -44,24 +44,48 @@ interface Category {
     isExpanded?: boolean;
 }
 
-const AddBrandPage: React.FC = () => {
+const EditSubjectPage: React.FC = () => {
     const router = useRouter();
-    const { data: categoriesResponse, isLoading: categoriesLoading } = useGetCategoriesQuery({});
-    const [createBrand, { isLoading: isCreateBrandLoading }] = useCreateBrandMutation();
+    const params = useParams();
+    const subjectId = typeof params.id === 'string' ? parseInt(params.id, 10) : undefined;
 
-    const [formData, setFormData] = useState<BrandFormData>({
+    const [updateSubject, { isLoading: isUpdateSubjectLoading }] = useUpdateSubjectMutation();
+    const { data: subjectResponse, isLoading: subjectLoading, error: subjectError } = useGetSubjectByIdQuery(subjectId!, {
+        skip: !subjectId,
+    });
+    const { data: categoriesResponse, isLoading: categoriesLoading } = useGetCategoriesQuery({});
+
+    const [formData, setFormData] = useState<SubjectFormData>({
         nameFr: '',
         nameAr: '',
         descriptionFr: '',
         descriptionAr: '',
-        logo: null,
+        image: null,
         categoryIds: [],
     });
 
-    const [logoPreview, setLogoPreview] = useState<string>('');
-    const [errors, setErrors] = useState<Partial<BrandFormData>>({});
+    const [imagePreview, setImagePreview] = useState<string>('');
+    const [errors, setErrors] = useState<Partial<SubjectFormData>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set());
+    const [hasImageChanged, setHasImageChanged] = useState(false);
+
+    // Charger les données du sujet existant
+    useEffect(() => {
+        console.log('🔍 SubjectResponse:', subjectResponse);
+        if (subjectResponse) {
+            const subject = subjectResponse;
+            setFormData({
+                nameFr: subject.nameFr || '',
+                nameAr: subject.nameAr || '',
+                descriptionFr: subject.descriptionFr || '',
+                descriptionAr: subject.descriptionAr || '',
+                image: null, // Pas de fichier par défaut
+                categoryIds: subject.categories?.map(cat => cat.id) || [],
+            });
+            setImagePreview(subject.image || '');
+        }
+    }, [subjectResponse]);
 
     // Fonction pour construire l'arbre des catégories
     const buildCategoryTree = (categories: ApiCategory[]): Category[] => {
@@ -100,7 +124,7 @@ const AddBrandPage: React.FC = () => {
         return buildCategoryTree(categoriesResponse.data);
     }, [categoriesResponse, formData.categoryIds, expandedCategories]);
 
-    const handleInputChange = (field: keyof BrandFormData, value: string | boolean | File | null | number[]) => {
+    const handleInputChange = (field: keyof SubjectFormData, value: string | number | File | null | number[]) => {
         setFormData(prev => ({ ...prev, [field]: value }));
         // Effacer l'erreur quand l'utilisateur commence à taper
         if (errors[field]) {
@@ -131,30 +155,30 @@ const AddBrandPage: React.FC = () => {
         });
     };
 
-    // Gestion de l'upload de logo avec compression
-    const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    // Gestion de l'upload d'image avec compression
+    const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
             // Vérifier que c'est une image
             if (!file.type.startsWith('image/')) {
-                setErrors((prev: any) => ({ ...prev, logo: 'Veuillez sélectionner un fichier image valide' }));
+                setErrors((prev: any) => ({ ...prev, image: 'Veuillez sélectionner un fichier image valide' }));
                 return;
             }
 
             try {
                 // Compresser l'image si nécessaire
                 const compressedResult = await compressImageByType(file, {
-                    maxSizeKB: 256, // 0.25MB max pour les logos
-                    maxWidth: 800,
-                    maxHeight: 800,
-                    quality: 0.9
+                    maxSizeKB: 512, // 0.5MB max
+                    maxWidth: 1920,
+                    maxHeight: 1920,
+                    quality: 0.85
                 });
 
                 // Toast informatif si compression effectuée
                 if (compressedResult.compressionRatio < 1) {
                     const originalSizeKB = Math.round(file.size / 1024);
                     const compressedSizeKB = Math.round(compressedResult.compressedSize / 1024);
-                    toast.info('Logo compressé', {
+                    toast.info('Image compressée', {
                         description: `Taille réduite de ${originalSizeKB}KB à ${compressedSizeKB}KB`,
                         duration: 3000,
                     });
@@ -163,32 +187,34 @@ const AddBrandPage: React.FC = () => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     const result = e.target?.result as string;
-                    setLogoPreview(result);
-                    setFormData(prev => ({ ...prev, logo: compressedResult.file }));
+                    setImagePreview(result);
+                    setFormData(prev => ({ ...prev, image: compressedResult.file }));
+                    setHasImageChanged(true);
                     // Effacer l'erreur si elle existait
-                    if (errors.logo) {
-                        setErrors((prev: any) => ({ ...prev, logo: '' as any }));
+                    if (errors.image) {
+                        setErrors((prev: any) => ({ ...prev, image: '' as any }));
                     }
                 };
                 reader.readAsDataURL(compressedResult.file);
             } catch (error) {
-                console.error('Erreur lors de la compression du logo:', error);
-                setErrors((prev: any) => ({ ...prev, logo: 'Erreur lors de la compression du logo' }));
+                console.error('Erreur lors de la compression de l\'image:', error);
+                setErrors((prev: any) => ({ ...prev, image: 'Erreur lors de la compression de l\'image' }));
                 toast.error('Erreur de compression', {
-                    description: 'Impossible de compresser le logo. Veuillez réessayer.',
+                    description: 'Impossible de compresser l\'image. Veuillez réessayer.',
                     duration: 4000,
                 });
             }
         }
     };
 
-    const removeLogo = () => {
-        setLogoPreview('');
-        setFormData(prev => ({ ...prev, logo: null }));
+    const removeImage = () => {
+        setImagePreview('');
+        setFormData(prev => ({ ...prev, image: null }));
+        setHasImageChanged(true);
     };
 
     const validateForm = (): boolean => {
-        const newErrors: Partial<BrandFormData> = {};
+        const newErrors: Partial<SubjectFormData> = {};
 
         if (!formData.nameFr.trim()) {
             newErrors.nameFr = 'Le nom en français est obligatoire';
@@ -214,8 +240,8 @@ const AddBrandPage: React.FC = () => {
             newErrors.descriptionAr = 'يجب أن يحتوي الوصف على 10 أحرف على الأقل';
         }
 
-        if (!formData.logo) {
-            newErrors.logo = 'Un logo est obligatoire' as any;
+        if (!formData.image && !imagePreview) {
+            newErrors.image = 'Une image est obligatoire' as any;
         }
 
         if (formData.categoryIds.length === 0) {
@@ -233,38 +259,45 @@ const AddBrandPage: React.FC = () => {
             return;
         }
 
+        if (!subjectId) {
+            toast.error('Erreur', {
+                description: 'ID du sujet manquant',
+                duration: 4000,
+            });
+            return;
+        }
+
         setIsSubmitting(true);
 
         try {
-            // Préparer les données pour l'envoi avec FormData
-            const formDataToSend = new FormData();
-            formDataToSend.append('nameAr', formData.nameAr);
-            formDataToSend.append('nameFr', formData.nameFr);
-            formDataToSend.append('descriptionAr', formData.descriptionAr);
-            formDataToSend.append('descriptionFr', formData.descriptionFr);
-            formDataToSend.append('categoryIds', JSON.stringify(formData.categoryIds));
-            
-            if (formData.logo) {
-                formDataToSend.append('logo', formData.logo);
-            }
+            // Debug: Vérifier les données avant envoi
+            console.log('🔍 Debug formData avant envoi:', formData);
+            console.log('🔍 Image file:', formData.image);
+            console.log('🔍 Has image changed:', hasImageChanged);
 
-            // Appel API pour créer la marque
-            const result = await createBrand(formDataToSend).unwrap();
+            // Appel API pour mettre à jour le sujet
+            const result = await updateSubject({
+                id: subjectId,
+                data: formData,
+                hasImageChanged
+            }).unwrap();
 
-            // Toast de succès (le wrapper baseQuery gère déjà la vérification de success)
-            toast.success(result.message || 'Marque créée avec succès', {
-                description: `Nom: ${result.data?.nameFr || formData.nameFr}`,
+            console.log('✅ Sujet mis à jour avec succès:', result);
+
+            // Toast de succès
+            toast.success(result.message || 'Sujet mis à jour avec succès', {
+                description: `Nom: ${result?.nameFr || formData.nameFr}`,
                 duration: 4000,
             });
 
-            // Redirection vers la page des marques
-            router.push('/back-office/brands');
+            // Redirection vers la page des sujets
+            router.push('/back-office/subjects');
         } catch (error: any) {
-            console.error('❌ Erreur lors de la création de la marque:', error);
+            console.error('❌ Erreur lors de la mise à jour du sujet:', error);
 
             // Gestion des erreurs avec toast
             if (error?.data?.error) {
-                toast.error('Erreur lors de la création', {
+                toast.error('Erreur lors de la mise à jour', {
                     description: error.data.details || error.data.error,
                     duration: 6000,
                 });
@@ -280,13 +313,17 @@ const AddBrandPage: React.FC = () => {
                 });
             } else {
                 toast.error('Erreur inattendue', {
-                    description: 'Une erreur est survenue lors de la création de la marque',
+                    description: 'Une erreur est survenue lors de la mise à jour du sujet',
                     duration: 6000,
                 });
             }
         } finally {
             setIsSubmitting(false);
         }
+    };
+
+    const handlePreview = () => {
+        console.log('Aperçu du sujet:', formData);
     };
 
     // Composant pour afficher une catégorie dans l'arbre
@@ -377,6 +414,54 @@ const AddBrandPage: React.FC = () => {
         );
     };
 
+    // États de chargement et d'erreur
+    if (subjectLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Chargement du sujet...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (subjectError) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                    <div className="text-red-500 text-6xl mb-4">⚠️</div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Erreur de chargement</h2>
+                    <p className="text-gray-600 mb-4">Impossible de charger les données du sujet</p>
+                    <button
+                        onClick={() => router.push('/back-office/subjects')}
+                        className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors duration-200"
+                    >
+                        Retour aux sujets
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (!subjectResponse) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                    <div className="text-gray-400 text-6xl mb-4">📝</div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Sujet non trouvé</h2>
+                    <p className="text-gray-600 mb-4">Le sujet demandé n'existe pas</p>
+                    <button
+                        onClick={() => router.push('/back-office/subjects')}
+                        className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors duration-200"
+                    >
+                        Retour aux sujets
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen relative flex justify-center">
             <div className="w-full relative mx-auto">
@@ -387,11 +472,11 @@ const AddBrandPage: React.FC = () => {
                         className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors duration-200"
                     >
                         <ArrowLeft className="w-4 h-4" />
-                        <span>Retour aux marques</span>
+                        <span>Retour aux sujets</span>
                     </button>
 
-                    <h1 className="text-3xl font-bold text-gray-900">Ajouter une marque</h1>
-                    <p className="text-gray-600 mt-2">Créez une nouvelle marque pour votre catalogue</p>
+                    <h1 className="text-3xl font-bold text-gray-900">Modifier le sujet</h1>
+                    <p className="text-gray-600 mt-2">Modifiez les informations du sujet</p>
                 </div>
 
                 <div className="grid gap-8 w-full relative">
@@ -410,7 +495,7 @@ const AddBrandPage: React.FC = () => {
                                     onChange={(e) => handleInputChange('nameFr', e.target.value)}
                                     className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-200 ${errors.nameFr ? 'border-red-300 bg-red-50' : 'border-gray-200'
                                         }`}
-                                    placeholder="Ex: Adidas"
+                                    placeholder="Ex: Mathématiques"
                                     dir="ltr"
                                 />
                                 {errors.nameFr && (
@@ -430,7 +515,7 @@ const AddBrandPage: React.FC = () => {
                                     onChange={(e) => handleInputChange('nameAr', e.target.value)}
                                     className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-200 ${errors.nameAr ? 'border-red-300 bg-red-50' : 'border-gray-200'
                                         }`}
-                                    placeholder="مثال: أديداس"
+                                    placeholder="مثال: الرياضيات"
                                     dir="rtl"
                                 />
                                 {errors.nameAr && (
@@ -450,7 +535,7 @@ const AddBrandPage: React.FC = () => {
                                     onChange={(e) => handleInputChange('descriptionFr', e.target.value)}
                                     className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-200 resize-none ${errors.descriptionFr ? 'border-red-300 bg-red-50' : 'border-gray-200'
                                         }`}
-                                    placeholder="Description de la marque en français"
+                                    placeholder="Description du sujet en français"
                                     dir="ltr"
                                 />
                                 {errors.descriptionFr && (
@@ -470,7 +555,7 @@ const AddBrandPage: React.FC = () => {
                                     onChange={(e) => handleInputChange('descriptionAr', e.target.value)}
                                     className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-200 resize-none ${errors.descriptionAr ? 'border-red-300 bg-red-50' : 'border-gray-200'
                                         }`}
-                                    placeholder="وصف العلامة التجارية بالعربية"
+                                    placeholder="وصف المادة بالعربية"
                                     dir="rtl"
                                 />
                                 {errors.descriptionAr && (
@@ -521,59 +606,69 @@ const AddBrandPage: React.FC = () => {
                                 )}
                             </div>
 
-                            {/* Note: Le statut isActive a été supprimé car le champ n'existe pas dans la base de données */}
-
-                            {/* Upload de logo */}
+                            {/* Upload d'image */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Logo de la marque *
+                                    Image du sujet *
                                 </label>
 
-                                {!logoPreview ? (
+                                {!imagePreview ? (
                                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors duration-200 relative">
-                                        <FileImage className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                                        <p className="text-gray-600 mb-2">Cliquez pour ajouter un logo</p>
-                                        <p className="text-sm text-gray-400">PNG, JPG (compressé à 0.25MB max)</p>
+                                        <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                                        <p className="text-gray-600 mb-2">Cliquez pour ajouter une image</p>
+                                        <p className="text-sm text-gray-400">PNG, JPG (compressé à 0.5MB max)</p>
                                         <input
                                             type="file"
                                             accept="image/*"
-                                            onChange={handleLogoUpload}
+                                            onChange={handleImageUpload}
                                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                                         />
                                     </div>
                                 ) : (
                                     <div className="relative">
-                                        <div className="w-full h-48 relative border border-gray-200 rounded-lg bg-gray-50 flex items-center justify-center overflow-hidden">
-                                            <img
-                                                src={logoPreview}
-                                                alt="Aperçu du logo"
-                                                className="max-w-full max-h-full object-contain"
-                                            />
-                                        </div>
+                                        <img
+                                            src={imagePreview}
+                                            alt="Aperçu"
+                                            className="w-full h-48 object-cover rounded-lg border border-gray-200"
+                                        />
                                         <button
                                             type="button"
-                                            onClick={removeLogo}
+                                            onClick={removeImage}
                                             className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors duration-200"
                                         >
                                             <X className="w-4 h-4" />
                                         </button>
+                                        {hasImageChanged && (
+                                            <div className="absolute top-2 left-2 bg-yellow-500 text-white text-xs px-2 py-1 rounded">
+                                                Nouvelle image
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
-                                {errors.logo && (
-                                    <p className="mt-1 text-sm text-red-600">{errors.logo as unknown as string}</p>
+                                {errors.image && (
+                                    <p className="mt-1 text-sm text-red-600">{errors.image as unknown as string}</p>
                                 )}
                             </div>
 
                             {/* Boutons d'action */}
                             <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-gray-100">
                                 <button
+                                    type="button"
+                                    onClick={handlePreview}
+                                    className="flex items-center justify-center space-x-2 px-6 py-3 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200"
+                                >
+                                    <Eye className="w-4 h-4" />
+                                    <span>Aperçu</span>
+                                </button>
+
+                                <button
                                     type="submit"
-                                    disabled={isSubmitting || isCreateBrandLoading}
+                                    disabled={isSubmitting}
                                     className="flex items-center justify-center space-x-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex-1"
                                 >
                                     <Save className="w-4 h-4" />
-                                    <span>{isSubmitting || isCreateBrandLoading ? 'Création...' : 'Créer la marque'}</span>
+                                    <span>{isSubmitting ? 'Mise à jour...' : 'Mettre à jour le sujet'}</span>
                                 </button>
                             </div>
                         </form>
@@ -584,4 +679,4 @@ const AddBrandPage: React.FC = () => {
     );
 };
 
-export default AddBrandPage;
+export default EditSubjectPage;

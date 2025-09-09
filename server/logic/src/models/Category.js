@@ -91,6 +91,12 @@ const Category = sequelize.define('Category', {
       max: 120
     }
   },
+  listingType: {
+    type: DataTypes.ENUM('item', 'vehicle', 'property'),
+    allowNull: true,
+    field: 'listing_type',
+    defaultValue: null
+  },
   createdAt: {
     type: DataTypes.DATE,
     allowNull: false,
@@ -132,7 +138,8 @@ Category.prototype.getLocalizedData = function (language = 'fr') {
     parentId: this.parentId,
     gender: this.gender,
     ageMin: this.ageMin,
-    ageMax: this.ageMax
+    ageMax: this.ageMax,
+    listingType: this.listingType
   };
 };
 

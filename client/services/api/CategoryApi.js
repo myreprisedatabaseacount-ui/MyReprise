@@ -12,13 +12,14 @@ export const CategoryApi = createApi({
         const formData = new FormData();
         
         // Ajouter les données textuelles
-        formData.append('nameAr', categoryData.titleAr);
-        formData.append('nameFr', categoryData.titleFr);
+        formData.append('nameAr', categoryData.nameAr);
+        formData.append('nameFr', categoryData.nameFr);
         formData.append('descriptionAr', categoryData.descriptionAr);
         formData.append('descriptionFr', categoryData.descriptionFr);
-        formData.append('gender', categoryData.targetGender);
-        formData.append('ageMin', categoryData.ageRangeMin.toString());
-        formData.append('ageMax', categoryData.ageRangeMax.toString());
+        formData.append('gender', categoryData.gender);
+        formData.append('ageMin', categoryData.ageMin.toString());
+        formData.append('ageMax', categoryData.ageMax.toString());
+        formData.append('listingType', categoryData.listingType || '');
         
         if (categoryData.parentId) {
           formData.append('parentId', categoryData.parentId);
@@ -48,14 +49,15 @@ export const CategoryApi = createApi({
         url: '/api/categories/create-with-urls',
         method: 'POST',
         body: {
-          nameAr: categoryData.titleAr,
-          nameFr: categoryData.titleFr,
+          nameAr: categoryData.nameAr,
+          nameFr: categoryData.nameFr,
           descriptionAr: categoryData.descriptionAr,
           descriptionFr: categoryData.descriptionFr,
-          gender: categoryData.targetGender,
-          ageMin: categoryData.ageRangeMin,
-          ageMax: categoryData.ageRangeMax,
+          gender: categoryData.gender,
+          ageMin: categoryData.ageMin,
+          ageMax: categoryData.ageMax,
           parentId: categoryData.parentId || null,
+          listingType: categoryData.listingType || null,
           image: categoryData.image, // URL Cloudinary
           icon: categoryData.icon,   // URL Cloudinary
         },
@@ -93,13 +95,14 @@ export const CategoryApi = createApi({
         const formData = new FormData();
         
         // Ajouter les données textuelles
-        formData.append('nameAr', categoryData.titleAr);
-        formData.append('nameFr', categoryData.titleFr);
+        formData.append('nameAr', categoryData.nameAr);
+        formData.append('nameFr', categoryData.nameFr);
         formData.append('descriptionAr', categoryData.descriptionAr);
         formData.append('descriptionFr', categoryData.descriptionFr);
-        formData.append('gender', categoryData.targetGender);
-        formData.append('ageMin', categoryData.ageRangeMin.toString());
-        formData.append('ageMax', categoryData.ageRangeMax.toString());
+        formData.append('gender', categoryData.gender);
+        formData.append('ageMin', categoryData.ageMin.toString());
+        formData.append('ageMax', categoryData.ageMax.toString());
+        formData.append('listingType', categoryData.listingType || '');
         
         if (categoryData.parentId) {
           formData.append('parentId', categoryData.parentId);
@@ -129,14 +132,15 @@ export const CategoryApi = createApi({
         url: `/api/categories/${id}/urls`,
         method: 'PUT',
         body: {
-          nameAr: categoryData.titleAr,
-          nameFr: categoryData.titleFr,
+          nameAr: categoryData.nameAr,
+          nameFr: categoryData.nameFr,
           descriptionAr: categoryData.descriptionAr,
           descriptionFr: categoryData.descriptionFr,
-          gender: categoryData.targetGender,
-          ageMin: categoryData.ageRangeMin,
-          ageMax: categoryData.ageRangeMax,
+          gender: categoryData.gender,
+          ageMin: categoryData.ageMin,
+          ageMax: categoryData.ageMax,
           parentId: categoryData.parentId || null,
+          listingType: categoryData.listingType || null,
           image: categoryData.image, // URL Cloudinary
           icon: categoryData.icon,   // URL Cloudinary
         },

@@ -51,21 +51,6 @@ const Brand = sequelize.define('Brand', {
             len: [0, 1000]
         }
     },
-    categoryId: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-        field: 'category_id',
-        references: {
-            model: 'categories',
-            key: 'id'
-        }
-    },
-    isActive: {
-        type: DataTypes.BOOLEAN,
-        allowNull: false,
-        defaultValue: true,
-        field: 'is_active'
-    },
     createdAt: {
         type: DataTypes.DATE,
         allowNull: false,
@@ -86,9 +71,6 @@ const Brand = sequelize.define('Brand', {
     indexes: [
         {
             fields: ['category_id']
-        },
-        {
-            fields: ['is_active']
         },
         {
             unique: true,
@@ -119,23 +101,12 @@ Brand.prototype.getLocalizedData = function(language = 'fr') {
         name: this.getName(language),
         description: this.getDescription(language),
         logo: this.logo,
-        categoryId: this.categoryId,
-        isActive: this.isActive,
         createdAt: this.createdAt
     };
 };
 
-Brand.prototype.activate = async function() {
-    return await this.update({ isActive: true });
-};
-
-Brand.prototype.deactivate = async function() {
-    return await this.update({ isActive: false });
-};
-
-Brand.prototype.isBrandActive = function() {
-    return this.isActive;
-};
+// Note: Les méthodes activate/deactivate ne sont plus nécessaires 
+// car isActive n'existe pas dans la base de données
 
 // ========================================
 // MÉTHODES STATIQUES
@@ -146,17 +117,21 @@ Brand.prototype.isBrandActive = function() {
  */
 Brand.findByCategory = function(categoryId) {
     return this.findAll({
-        where: { categoryId: categoryId },
+        include: [{
+            model: sequelize.models.Category,
+            as: 'categories',
+            where: { id: categoryId },
+            through: { attributes: [] }
+        }],
         order: [['nameFr', 'ASC']]
     });
 };
 
 /**
- * Trouve les marques actives
+ * Trouve les marques actives (toutes les marques car pas de champ isActive)
  */
 Brand.findActiveBrands = function() {
     return this.findAll({
-        where: { isActive: true },
         order: [['nameFr', 'ASC']]
     });
 };
@@ -208,7 +183,6 @@ Brand.getPopularBrands = async function(limit = 10) {
                         as: 'Products',
                         attributes: []
                     }],
-                    where: { isActive: true },
                     group: ['Brand.id'],
                     order: [[sequelize.fn('COUNT', sequelize.col('Products.id')), 'DESC']],
                     limit
@@ -222,7 +196,6 @@ Brand.getPopularBrands = async function(limit = 10) {
                     as: 'Offers',
                     attributes: []
                 }],
-                where: { isActive: true },
                 group: ['Brand.id'],
                 order: [[sequelize.fn('COUNT', sequelize.col('Offers.id')), 'DESC']],
                 limit
@@ -257,13 +230,25 @@ Brand.createBrand = async function(brandData) {
         throw new Error('Une marque avec ce nom français existe déjà');
     }
     
+    // Extraire les catégories des données
+    const categoryIds = brandData.categoryIds || [];
+    delete brandData.categoryIds;
+    
     // Normalisation des données
     brandData.nameAr = brandData.nameAr.trim();
     brandData.nameFr = brandData.nameFr.trim();
     if (brandData.descriptionAr) brandData.descriptionAr = brandData.descriptionAr.trim();
     if (brandData.descriptionFr) brandData.descriptionFr = brandData.descriptionFr.trim();
     
-    return await Brand.create(brandData);
+    // Créer la marque
+    const brand = await Brand.create(brandData);
+    
+    // Associer les catégories si fournies
+    if (categoryIds.length > 0) {
+        await brand.setCategories(categoryIds);
+    }
+    
+    return brand;
 };
 
 /**
@@ -273,6 +258,12 @@ Brand.updateBrand = async function(id, updateData) {
     const brand = await Brand.findByPk(id);
     if (!brand) {
         throw new Error('Marque non trouvée');
+    }
+    
+    // Extraire les catégories des données
+    const categoryIds = updateData.categoryIds;
+    if (categoryIds !== undefined) {
+        delete updateData.categoryIds;
     }
     
     // Validation des noms si fournis
@@ -308,7 +299,15 @@ Brand.updateBrand = async function(id, updateData) {
     if (updateData.descriptionAr) updateData.descriptionAr = updateData.descriptionAr.trim();
     if (updateData.descriptionFr) updateData.descriptionFr = updateData.descriptionFr.trim();
     
-    return await brand.update(updateData);
+    // Mettre à jour la marque
+    const updatedBrand = await brand.update(updateData);
+    
+    // Mettre à jour les catégories si fournies
+    if (categoryIds !== undefined) {
+        await brand.setCategories(categoryIds);
+    }
+    
+    return updatedBrand;
 };
 
 /**
@@ -363,8 +362,8 @@ Brand.searchBrands = async function(searchTerm, filters = {}, language = 'fr') {
         ];
     }
     
-    if (filters.categoryId) whereClause.categoryId = filters.categoryId;
-    if (filters.isActive !== undefined) whereClause.isActive = filters.isActive;
+    // Note: categoryId filter will be handled in the include clause
+    // Note: isActive filter supprimé car le champ n'existe pas dans la base de données
     
     const orderField = language === 'ar' ? 'nameAr' : 'nameFr';
     
@@ -381,8 +380,8 @@ Brand.findWithPagination = async function(page = 1, limit = 10, filters = {}, la
     const offset = (page - 1) * limit;
     
     const whereClause = {};
-    if (filters.categoryId) whereClause.categoryId = filters.categoryId;
-    if (filters.isActive !== undefined) whereClause.isActive = filters.isActive;
+    // Note: categoryId filter will be handled in the include clause
+    // Note: isActive filter supprimé car le champ n'existe pas dans la base de données
     if (filters.search) {
         const nameField = language === 'ar' ? 'nameAr' : 'nameFr';
         const descField = language === 'ar' ? 'descriptionAr' : 'descriptionFr';
@@ -415,14 +414,12 @@ Brand.findWithPagination = async function(page = 1, limit = 10, filters = {}, la
  */
 Brand.getBrandStats = async function() {
     const totalBrands = await Brand.count();
-    const activeBrands = await Brand.count({ where: { isActive: true } });
-    const inactiveBrands = await Brand.count({ where: { isActive: false } });
     
     return {
         total: totalBrands,
-        active: activeBrands,
-        inactive: inactiveBrands,
-        activePercentage: totalBrands > 0 ? Math.round((activeBrands / totalBrands) * 100) : 0
+        active: totalBrands, // Toutes les marques sont considérées comme actives
+        inactive: 0, // Pas de champ isActive dans la base de données
+        activePercentage: 100 // Toutes les marques sont actives
     };
 };
 
