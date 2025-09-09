@@ -225,10 +225,7 @@ const AddCategoryPage: React.FC = () => {
                 image: formData.image,
                 icon: formData.icon
             };
-            console.log('📤 Données envoyées au backend:', categoryData);
             const result = await insertCategory(categoryData).unwrap();
-
-            console.log('Catégorie créée avec succès:', result);
 
             // Toast de succès
             toast.success(result.message || 'Catégorie créée avec succès', {
@@ -261,10 +258,6 @@ const AddCategoryPage: React.FC = () => {
         } finally {
             setIsSubmitting(false);
         }
-    };
-
-    const handlePreview = () => {
-        console.log('Aperçu de la catégorie:', formData);
     };
 
     return (
@@ -540,15 +533,6 @@ const AddCategoryPage: React.FC = () => {
 
                             {/* Boutons d'action */}
                             <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-gray-100">
-                                <button
-                                    type="button"
-                                    onClick={handlePreview}
-                                    className="flex items-center justify-center space-x-2 px-6 py-3 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200"
-                                >
-                                    <Eye className="w-4 h-4" />
-                                    <span>Aperçu</span>
-                                </button>
-
                                 <button
                                     type="submit"
                                     disabled={isSubmitting}

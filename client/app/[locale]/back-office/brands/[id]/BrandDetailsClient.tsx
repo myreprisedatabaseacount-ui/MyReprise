@@ -37,8 +37,6 @@ const BrandDetailsClient: React.FC<BrandDetailsClientProps> = ({ brandId }) => {
     router.push(`/back-office/brands/edit/${brandId}`);
   };
 
-  console.log('brand', brandData);
-
   const handleDelete = () => {
     if (window.confirm('Êtes-vous sûr de vouloir supprimer cette marque ?')) {
       // TODO: Implémenter la suppression

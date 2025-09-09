@@ -72,7 +72,6 @@ const EditBrandPage: React.FC = () => {
 
     // Charger les données de la marque existante
     useEffect(() => {
-        console.log('🔍 BrandResponse:', brandResponse);
         if (brandResponse) {
             const brand = brandResponse.data?.brand;
             if (brand) {
@@ -272,10 +271,6 @@ const EditBrandPage: React.FC = () => {
         setIsSubmitting(true);
 
         try {
-            // Debug: Vérifier les données avant envoi
-            console.log('🔍 Debug formData avant envoi:', formData);
-            console.log('🔍 Logo file:', formData.logo);
-            console.log('🔍 Has logo changed:', hasLogoChanged);
 
             // Appel API pour mettre à jour la marque
             const result = await updateBrand({
@@ -287,8 +282,6 @@ const EditBrandPage: React.FC = () => {
                 categoryIds: formData.categoryIds,
                 logo: formData.logo && hasLogoChanged ? formData.logo : undefined
             }).unwrap();
-
-            console.log('✅ Marque mise à jour avec succès:', result);
 
             // Toast de succès
             toast.success(result.message || 'Marque mise à jour avec succès', {
@@ -326,10 +319,6 @@ const EditBrandPage: React.FC = () => {
         } finally {
             setIsSubmitting(false);
         }
-    };
-
-    const handlePreview = () => {
-        console.log('Aperçu de la marque:', formData);
     };
 
     // Composant pour afficher une catégorie dans l'arbre
@@ -661,15 +650,6 @@ const EditBrandPage: React.FC = () => {
 
                             {/* Boutons d'action */}
                             <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-gray-100">
-                                <button
-                                    type="button"
-                                    onClick={handlePreview}
-                                    className="flex items-center justify-center space-x-2 px-6 py-3 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200"
-                                >
-                                    <Eye className="w-4 h-4" />
-                                    <span>Aperçu</span>
-                                </button>
-
                                 <button
                                     type="submit"
                                     disabled={isSubmitting || isUpdateBrandLoading}

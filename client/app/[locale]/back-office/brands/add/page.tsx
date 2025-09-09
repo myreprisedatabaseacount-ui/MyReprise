@@ -236,12 +236,6 @@ const AddBrandPage: React.FC = () => {
         setIsSubmitting(true);
 
         try {
-            // Debug: Vérifier les données avant envoi
-            console.log('🔍 Debug formData avant envoi:', formData);
-            console.log('🔍 Logo file:', formData.logo);
-            console.log('🔍 Logo file type:', formData.logo?.type);
-            console.log('🔍 Logo file size:', formData.logo?.size);
-
             // Préparer les données pour l'envoi avec FormData
             const formDataToSend = new FormData();
             formDataToSend.append('nameAr', formData.nameAr);
@@ -256,8 +250,6 @@ const AddBrandPage: React.FC = () => {
 
             // Appel API pour créer la marque
             const result = await createBrand(formDataToSend).unwrap();
-
-            console.log('✅ Marque créée avec succès:', result);
 
             // Toast de succès (le wrapper baseQuery gère déjà la vérification de success)
             toast.success(result.message || 'Marque créée avec succès', {
@@ -295,10 +287,6 @@ const AddBrandPage: React.FC = () => {
         } finally {
             setIsSubmitting(false);
         }
-    };
-
-    const handlePreview = () => {
-        console.log('Aperçu de la marque:', formData);
     };
 
     // Composant pour afficher une catégorie dans l'arbre
@@ -579,15 +567,6 @@ const AddBrandPage: React.FC = () => {
 
                             {/* Boutons d'action */}
                             <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-gray-100">
-                                <button
-                                    type="button"
-                                    onClick={handlePreview}
-                                    className="flex items-center justify-center space-x-2 px-6 py-3 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200"
-                                >
-                                    <Eye className="w-4 h-4" />
-                                    <span>Aperçu</span>
-                                </button>
-
                                 <button
                                     type="submit"
                                     disabled={isSubmitting || isCreateBrandLoading}

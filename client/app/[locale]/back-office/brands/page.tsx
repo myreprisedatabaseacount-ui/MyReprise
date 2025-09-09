@@ -56,8 +56,6 @@ const BrandsPage: React.FC = () => {
     refetchOnFocus: false,
     refetchOnReconnect: true
   });
-
-  console.log('🔍 BrandsResponse:', brandsResponse);
   
   // Transformation des données
   const brands: Brand[] = useMemo(() => {

@@ -340,9 +340,6 @@ const CategoriesContent: React.FC = () => {
     return buildCategoryTree(categoriesResponse.data);
   }, [categoriesResponse]);
 
-  console.log('categoriesResponse', categoriesResponse);
-  console.log('categoriesTree', categoriesTree);
-
   const toggleCategory = (categoryId: number) => {
     setExpandedCategories(prev => {
       const newSet = new Set(prev);
