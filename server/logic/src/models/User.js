@@ -473,4 +473,24 @@ User.findWithPagination = async function(page = 1, limit = 10, filters = {}) {
     };
 };
 
+/**
+ * Mettre à jour le statut de vérification d'un utilisateur
+ */
+User.updateVerificationStatus = async (userId, isVerified) => {
+    try {
+        const user = await User.findByPk(userId);
+        if (!user) {
+            return null;
+        }
+
+        user.isVerified = isVerified;
+        await user.save();
+
+        return user;
+    } catch (error) {
+        console.error('Erreur lors de la mise à jour du statut de vérification:', error);
+        throw error;
+    }
+};
+
 module.exports = { User };

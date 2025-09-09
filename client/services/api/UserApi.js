@@ -217,15 +217,25 @@ export const userApi = createApi({
       }),
     }),
 
+    // Récupérer l'utilisateur actuel connecté
+    getCurrentUser: builder.query({
+      query: () => ({
+        url: "/api/auth/me",
+        credentials: "include",
+      }),
+      providesTags: ['CurrentUser'],
+    }),
+
     // ========================================
     // OTP (TODO - À IMPLÉMENTER)
     // ========================================
 
     // Envoyer le code OTP pour vérification du téléphone
     sendOTP: builder.mutation({
-      query: () => ({
+      query: (otpData) => ({
         url: "/api/users/send-otp",
         method: "POST",
+        body: otpData,
       }),
     }),
 
@@ -235,6 +245,16 @@ export const userApi = createApi({
         url: "/api/users/verify-otp",
         method: "POST",
         body: otpData,
+      }),
+      invalidatesTags: ['User'],
+    }),
+
+    // Mettre à jour le statut de vérification
+    updateVerificationStatus: builder.mutation({
+      query: (verificationData) => ({
+        url: "/api/users/verify-status",
+        method: "PUT",
+        body: verificationData,
       }),
       invalidatesTags: ['User'],
     }),
@@ -269,10 +289,12 @@ export const {
   useGetUnverifiedUsersQuery,
   useGetUsersByRoleQuery,
   useGetUserStatsQuery,
+  useGetCurrentUserQuery,
   
   // OTP (TODO)
   useSendOTPMutation,
   useVerifyOTPMutation,
+  useUpdateVerificationStatusMutation,
 } = userApi;
 
 // Export de l'API pour l'utiliser dans le store

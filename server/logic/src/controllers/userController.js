@@ -4,6 +4,7 @@ const { User } = require('../models/User.js');
 const { validationResult } = require('express-validator');
 const logger = require('../utils/logger.js');
 const AuthService = require('../services/authService.js');
+const OTPService = require('../services/otpService.js');
 
 // ========================================
 // CONFIGURATION JWT
@@ -177,7 +178,7 @@ const loginWithFacebook = async (req, res) => {
  */
 const logout = async (req, res) => {
     try {
-        const result = await AuthService.logout(req.user);
+        const result = await AuthService.logout(req, res);
         res.json(result);
 
     } catch (error) {
@@ -551,27 +552,67 @@ const changeUserRole = async (req, res) => {
 
 /**
  * 📱 Envoyer le code OTP pour vérification du téléphone
- * TODO: Implémenter l'envoi SMS/WhatsApp
  */
 const sendOTP = async (req, res) => {
     try {
-        // TODO: Implémenter l'envoi d'OTP
-        // 1. Générer un code OTP (6 chiffres)
-        // 2. Sauvegarder le code avec expiration (5 minutes)
-        // 3. Envoyer via SMS ou WhatsApp
-        // 4. Retourner un message de succès
+        // Validation des données
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                success: false,
+                error: 'Données invalides',
+                details: errors.array()
+            });
+        }
 
-        res.status(501).json({
-            success: false,
-            error: 'Fonctionnalité OTP non implémentée',
-            message: 'Cette fonctionnalité sera disponible prochainement'
-        });
+        const { phone, country, purpose } = req.body;
+
+        // Validation du numéro de téléphone
+        if (!phone || phone.length < 8) {
+            return res.status(400).json({
+                success: false,
+                error: 'Numéro de téléphone invalide'
+            });
+        }
+
+        // Envoyer l'OTP via WhatsApp
+        const result = await OTPService.sendOTP(phone, country || 'MA', purpose || 'verification');
+        logger.info(`OTP envoyé avec succès vers ${phone}`);
+        if (result.success) {
+            res.json({
+                success: true,
+                message: 'Code de vérification envoyé avec succès',
+                data: {
+                    phone: result.phone,
+                    expiresAt: result.expiresAt,
+                    purpose: result.purpose,
+                    deliveryMethod: result.deliveryMethod
+                }
+            });
+        }else{
+            res.status(400).json({
+                success: false,
+                error: 'Erreur lors de l\'envoi du code de vérification',
+                code: 'OTP_SEND_ERROR',
+                remainingAttempts: 0
+            });
+        }
 
     } catch (error) {
         logger.error('Erreur lors de l\'envoi OTP:', error);
+
+        // Gestion des erreurs spécifiques
+        if (error.message.includes('Trop de tentatives')) {
+            return res.status(429).json({
+                success: false,
+                error: error.message,
+                code: 'TOO_MANY_ATTEMPTS'
+            });
+        }
+
         res.status(500).json({
             success: false,
-            error: 'Erreur interne du serveur',
+            error: 'Erreur lors de l\'envoi du code de vérification',
             details: error.message
         });
     }
@@ -579,20 +620,51 @@ const sendOTP = async (req, res) => {
 
 /**
  * ✅ Vérifier le code OTP
- * TODO: Implémenter la vérification OTP
  */
 const verifyOTP = async (req, res) => {
     try {
-        // TODO: Implémenter la vérification OTP
-        // 1. Récupérer le code OTP saisi
-        // 2. Vérifier le code et l'expiration
-        // 3. Marquer l'utilisateur comme vérifié
-        // 4. Retourner un message de succès
+        // Validation des données
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                success: false,
+                error: 'Données invalides',
+                details: errors.array()
+            });
+        }
 
-        res.status(501).json({
-            success: false,
-            error: 'Fonctionnalité OTP non implémentée',
-            message: 'Cette fonctionnalité sera disponible prochainement'
+        const { phone, otpCode, purpose } = req.body;
+
+        // Validation des paramètres
+        if (!phone || !otpCode) {
+            return res.status(400).json({
+                success: false,
+                error: 'Numéro de téléphone et code OTP requis'
+            });
+        }
+
+        // Vérifier l'OTP
+        const result = await OTPService.verifyOTP(phone, otpCode, purpose || 'verification');
+
+        if (!result.success) {
+            return res.status(400).json({
+                success: false,
+                error: result.error,
+                code: result.code,
+                remainingAttempts: result.remainingAttempts
+            });
+        }
+
+        logger.info(`OTP vérifié avec succès pour ${phone}`);
+
+        res.json({
+            success: true,
+            message: 'Code de vérification validé avec succès',
+            data: {
+                phone: result.phone,
+                purpose: result.purpose,
+                verifiedAt: result.verifiedAt
+            }
         });
 
     } catch (error) {
@@ -605,6 +677,103 @@ const verifyOTP = async (req, res) => {
     }
 };
 
+/**
+ * 🔐 Mettre à jour le statut de vérification d'un utilisateur
+ */
+const updateVerificationStatus = async (req, res) => {
+    try {
+        const { isVerified, phone, country } = req.body;
+
+        // Validation des données
+        if (typeof isVerified !== 'boolean') {
+            return res.status(400).json({
+                success: false,
+                error: 'Le statut de vérification doit être un booléen'
+            });
+        }
+
+        if (!phone || !country) {
+            return res.status(400).json({
+                success: false,
+                error: 'Le numéro de téléphone et le pays sont requis'
+            });
+        }
+
+        // Construire le numéro complet avec le pays
+        const fullPhone = `${country}-${phone}`;
+        
+        // Trouver l'utilisateur par téléphone
+        const user = await User.findByPhone(fullPhone);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                error: 'Utilisateur non trouvé'
+            });
+        }
+
+        // Mettre à jour l'utilisateur
+        const updatedUser = await User.updateVerificationStatus(user.id, isVerified);
+
+        if (!updatedUser) {
+            return res.status(404).json({
+                success: false,
+                error: 'Utilisateur non trouvé'
+            });
+        }
+
+        logger.info(`Statut de vérification mis à jour pour l'utilisateur ${user.id}: ${isVerified}`);
+
+        // Si l'utilisateur est vérifié, générer et stocker les tokens
+        if (isVerified) {
+            AuthService.generateAndSetTokens(updatedUser, res);
+        }
+
+        res.json({
+            success: true,
+            message: `Utilisateur ${isVerified ? 'vérifié' : 'non vérifié'} avec succès`,
+            data: {
+                user: updatedUser.getPublicData()
+            }
+        });
+
+    } catch (error) {
+        logger.error('Erreur lors de la mise à jour du statut de vérification:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur interne du serveur'
+        });
+    }
+};
+
+/**
+ * Récupère l'utilisateur actuel connecté
+ */
+const getCurrentUser = async (req, res) => {
+    try {
+        const user = await AuthService.findCurrentClient(req);
+        
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                error: 'Utilisateur non connecté',
+                code: 'NOT_AUTHENTICATED'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: { user }
+        });
+
+    } catch (error) {
+        logger.error('Erreur lors de la récupération de l\'utilisateur actuel:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur interne du serveur'
+        });
+    }
+};
+
 module.exports = {
     // Authentification
     register,
@@ -613,7 +782,8 @@ module.exports = {
     loginWithFacebook,
     refreshToken,
     logout,
-    
+    getCurrentUser,
+
     // CRUD Utilisateur
     getAllUsers,
     getUserById,
@@ -624,8 +794,9 @@ module.exports = {
     deleteUser,
     verifyUser,
     changeUserRole,
-    
+
     // OTP (TODO)
     sendOTP,
-    verifyOTP
+    verifyOTP,
+    updateVerificationStatus
 };
