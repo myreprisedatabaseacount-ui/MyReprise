@@ -36,24 +36,11 @@ async function initializeModels() {
     let DeliveryCompany, DeliveryInfo, Setting;
     
     // Modèles refactorisés déjà importés
-    console.log('✅ User importé');
-    console.log('✅ Address importé');
-    console.log('✅ Store importé');
-    console.log('✅ Product importé');
-    console.log('✅ Category importé');
-    console.log('✅ Brand importé');
-    console.log('✅ Offer importé');
-    console.log('✅ Order importé');
-    console.log('✅ Subject importé');
-    console.log('✅ SubjectCategory importé');
-    console.log('✅ BrandCategory importé');
     
     // Offer déjà importé
     
     try {
-      console.log('🔄 Création OfferImage...');
       OfferImage = createOfferImageModel(sequelize);
-      console.log('✅ OfferImage créé');
     } catch (error) {
       console.error('❌ Erreur création OfferImage:', error.message);
       OfferImage = null;
@@ -62,45 +49,35 @@ async function initializeModels() {
     // Order déjà importé
     
     try {
-      console.log('🔄 Création UserSnapshot...');
       UserSnapshot = createUserSnapshotModel(sequelize);
-      console.log('✅ UserSnapshot créé');
     } catch (error) {
       console.error('❌ Erreur création UserSnapshot:', error.message);
       UserSnapshot = null;
     }
     
     try {
-      console.log('🔄 Création ProductSnapshot...');
       ProductSnapshot = createProductSnapshotModel(sequelize);
-      console.log('✅ ProductSnapshot créé');
     } catch (error) {
       console.error('❌ Erreur création ProductSnapshot:', error.message);
       ProductSnapshot = null;
     }
     
     try {
-      console.log('🔄 Création DeliveryCompany...');
       DeliveryCompany = createDeliveryCompanyModel(sequelize);
-      console.log('✅ DeliveryCompany créé');
     } catch (error) {
       console.error('❌ Erreur création DeliveryCompany:', error.message);
       DeliveryCompany = null;
     }
     
     try {
-      console.log('🔄 Création DeliveryInfo...');
       DeliveryInfo = createDeliveryInfoModel(sequelize);
-      console.log('✅ DeliveryInfo créé');
     } catch (error) {
       console.error('❌ Erreur création DeliveryInfo:', error.message);
       DeliveryInfo = null;
     }
     
     try {
-      console.log('🔄 Création Setting...');
       Setting = createSettingModel(sequelize);
-      console.log('✅ Setting créé');
     } catch (error) {
       console.error('❌ Erreur création Setting:', error.message);
       Setting = null;
@@ -110,29 +87,10 @@ async function initializeModels() {
     logger.info('🔄 Définition des associations...');
     
     // Vérifier que tous les modèles sont définis
-    console.log('🔄 Vérification des modèles...');
-    console.log('  - User:', typeof User);
-    console.log('  - Address:', typeof Address);
-    console.log('  - Store:', typeof Store);
-    console.log('  - Product:', typeof Product);
-    console.log('  - Category:', typeof Category);
-    console.log('  - Brand:', typeof Brand);
-    console.log('  - Subject:', typeof Subject);
-    console.log('  - SubjectCategory:', typeof SubjectCategory);
-    console.log('  - BrandCategory:', typeof BrandCategory);
-    console.log('  - Offer:', typeof Offer);
-    console.log('  - OfferImage:', typeof OfferImage);
-    console.log('  - Order:', typeof Order);
-    console.log('  - UserSnapshot:', typeof UserSnapshot);
-    console.log('  - ProductSnapshot:', typeof ProductSnapshot);
-    console.log('  - DeliveryCompany:', typeof DeliveryCompany);
-    console.log('  - DeliveryInfo:', typeof DeliveryInfo);
-    console.log('  - Setting:', typeof Setting);
     
     // Associations avec try-catch
     try {
       if (User && Address) {
-        console.log('🔄 Association User <-> Address...');
         User.belongsTo(Address, { foreignKey: 'addressId', as: 'Address' });
         Address.hasMany(User, { foreignKey: 'addressId', as: 'Users' });
       }
@@ -142,7 +100,6 @@ async function initializeModels() {
     
     try {
       if (User && Store) {
-        console.log('🔄 Association User <-> Store...');
         User.hasOne(Store, { foreignKey: 'userId', as: 'Store' });
         Store.belongsTo(User, { foreignKey: 'userId', as: 'User' });
       }
@@ -152,7 +109,6 @@ async function initializeModels() {
     
     try {
       if (Product && User) {
-        console.log('🔄 Association User <-> Product...');
         Product.belongsTo(User, { foreignKey: 'createdBy', as: 'Creator' });
         User.hasMany(Product, { foreignKey: 'createdBy', as: 'Products' });
       }
@@ -162,7 +118,6 @@ async function initializeModels() {
     
     try {
       if (Category) {
-        console.log('🔄 Association Category self-reference...');
         Category.belongsTo(Category, { foreignKey: 'parentId', as: 'Parent' });
         Category.hasMany(Category, { foreignKey: 'parentId', as: 'Children' });
       }
@@ -172,7 +127,6 @@ async function initializeModels() {
     
     try {
       if (Brand && Category && BrandCategory) {
-        console.log('🔄 Association Brand <-> Category via BrandCategory...');
         Brand.belongsToMany(Category, {
           through: BrandCategory,
           foreignKey: 'brandId',
@@ -192,7 +146,6 @@ async function initializeModels() {
     
     try {
       if (Subject && Category && SubjectCategory) {
-        console.log('🔄 Association Subject <-> Category via SubjectCategory...');
         Subject.belongsToMany(Category, {
           through: SubjectCategory,
           foreignKey: 'subjectId',
@@ -214,10 +167,8 @@ async function initializeModels() {
     
     // Synchroniser la base de données (créer les tables)
     try {
-      console.log('🔄 Synchronisation des tables...');
       // Désactiver la synchronisation automatique pour éviter les erreurs de colonnes manquantes
       // await sequelize.sync({ force: false, alter: false, logging: false });
-      console.log('✅ Synchronisation désactivée (tables existantes)');
       logger.info('✅ Synchronisation MySQL désactivée');
     } catch (syncError) {
       console.error('❌ Erreur synchronisation base de données:', syncError.message);

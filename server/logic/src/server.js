@@ -11,7 +11,7 @@ const { sequelize } = require('./config/db.js');
 dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const db = require("./config/db.js");
-const sequelize = db.getSequelize();
+// const sequelize = db.getSequelize();
 const fs = require('fs');
 
 // Import de l'initialisation des modèles
@@ -105,12 +105,21 @@ async function startServer() {
   try {
     // Initialiser les modèles avec leurs associations
     console.log('🔄 Initialisation des modèles...');
-    await initializeModels();
-    console.log('✅ Modèles initialisés avec succès');
+    try {
+      await initializeModels();
+      console.log('✅ Modèles initialisés avec succès');
+    } catch (modelError) {
+      console.error('❌ Erreur lors de l\'initialisation des modèles:', modelError.message);
+      // Continuer même si les modèles échouent
+    }
     
-    // Initialiser Redis
-    await connectToRedis();
-    console.log('✅ Redis initialisé avec succès');
+    // Initialiser Redis (optionnel)
+    try {
+      await connectToRedis();
+      console.log('✅ Redis initialisé avec succès');
+    } catch (redisError) {
+      console.warn('⚠️ Redis non disponible, continuation sans cache:', redisError.message);
+    }
     
     app.listen(PORT, () => {
       console.log(`🚀 Serveur MyReprise démarré sur le port ${PORT}`);
@@ -121,16 +130,5 @@ async function startServer() {
   }
 }
 
-db.initializeDatabase()
-  .then(() => startServer())
-  .catch((error) => {
-    console.error("Erreur lors de l'initialisation de l'application :", error);
-    process.exit(1); // Arrêter l'application en cas d'échec critique
-  });
-
-// db.syncModels()
-//   .then(() => startServer())
-//   .catch((error) => {
-//     console.error("Erreur lors de la synchronisation des modèles :", error);
-//     process.exit(1); // Arrêter l'application en cas d'échec critique
-//   });
+// Démarrer le serveur
+startServer();
