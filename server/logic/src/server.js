@@ -7,16 +7,18 @@ const multer = require("multer");
 const { Op } = require("sequelize");
 const dotenv = require("dotenv");
 const bcrypt = require("bcrypt");
+const { sequelize } = require('./config/db.js');
+dotenv.config({ path: path.join(__dirname, '../../.env') });
+
 const db = require("./config/db.js");
 const sequelize = db.getSequelize();
-dotenv.config();
 const fs = require('fs');
 
 // Import de l'initialisation des modèles
 const { initializeModels } = require('./models');
 
 // Import des routes
-const { categoryRoutes, userRoutes, brandRoutes, subjectRoutes } = require('./routes');
+const { categoryRoutes, userRoutes, brandRoutes, whatsappRoutes, subjectRoutes } = require('./routes');
 
 // Import Redis
 const { connectToRedis } = require('./config/redis');
@@ -46,55 +48,6 @@ const PORT = process.env.PORT || 3001;
 // Middleware pour parser les données JSON et multipart
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Middleware de nettoyage JSON personnalisé (pour les requêtes JSON uniquement)
-app.use((req, res, next) => {
-  if (req.is('application/json') && !req.is('multipart/form-data')) {
-    let data = '';
-    req.setEncoding('utf8');
-    
-    req.on('data', (chunk) => {
-      data += chunk;
-    });
-    
-    req.on('end', () => {
-      try {
-        // Nettoyer le JSON des caractères invisibles
-        const cleanData = data
-          .replace(/\r\n/g, '')  // Supprimer les retours à la ligne Windows
-          .replace(/\n/g, '')    // Supprimer les retours à la ligne Unix
-          .replace(/\r/g, '')    // Supprimer les retours chariot
-          .replace(/\s+/g, ' ')  // Remplacer les espaces multiples par un seul
-          .trim();               // Supprimer les espaces en début/fin
-        
-        // Parser le JSON nettoyé
-        req.body = JSON.parse(cleanData);
-        next();
-        
-      } catch (e) {
-        res.status(400).json({
-          error: 'JSON invalide',
-          message: 'Le format JSON de la requête est incorrect',
-          details: e.message
-        });
-      }
-    });
-  } else {
-    next();
-  }
-});
-
-// Middleware de gestion d'erreur JSON
-app.use((error, req, res, next) => {
-  if (error instanceof SyntaxError && error.status === 400 && 'body' in error) {
-    return res.status(400).json({
-      error: 'JSON invalide',
-      message: 'Le format JSON de la requête est incorrect',
-      details: error.message
-    });
-  }
-  next(error);
-});
 
 app.use(cors({
   origin: ["http://localhost:3000", "http://localhost:3001"],
@@ -134,6 +87,7 @@ app.use("/api/brands", brandRoutes);
 app.use("/api/subjects", subjectRoutes);
 app.use("/api/auth", userRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/whatsapp", whatsappRoutes);
 
 // Route de santé
 app.get('/api/health', (req, res) => {

@@ -1,9 +1,10 @@
 const jwt = require('jsonwebtoken');
 const { User } = require('../models/User.js');
 const logger = require('../utils/logger.js');
+require('dotenv').config({ path: require('path').join(__dirname, '../../../server/.env') });
 
 // Configuration JWT
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // ========================================
 // MIDDLEWARE D'AUTHENTIFICATION
@@ -11,13 +12,12 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-i
 
 /**
  * 🔐 Middleware d'authentification JWT
- * Vérifie la présence et la validité du token JWT
+ * Vérifie la présence et la validité du token JWT depuis les cookies
  */
 const authenticateToken = async (req, res, next) => {
     try {
-        // Récupération du token depuis l'en-tête Authorization
-        const authHeader = req.headers['authorization'];
-        const token = authHeader && authHeader.split(' ')[1]; // Format: "Bearer TOKEN"
+        // Récupération du token depuis le cookie
+        const token = req.cookies.tk;
 
         if (!token) {
             return res.status(401).json({
@@ -44,7 +44,9 @@ const authenticateToken = async (req, res, next) => {
         req.user = {
             userId: decoded.userId,
             email: decoded.email,
-            role: decoded.role
+            role: decoded.role,
+            primaryIdentifier: decoded.primaryIdentifier,
+            authProvider: decoded.authProvider
         };
 
         next();
@@ -178,8 +180,7 @@ const requireVerified = async (req, res, next) => {
  */
 const optionalAuth = async (req, res, next) => {
     try {
-        const authHeader = req.headers['authorization'];
-        const token = authHeader && authHeader.split(' ')[1];
+        const token = req.cookies.tk;
 
         if (token) {
             try {
@@ -190,7 +191,9 @@ const optionalAuth = async (req, res, next) => {
                     req.user = {
                         userId: decoded.userId,
                         email: decoded.email,
-                        role: decoded.role
+                        role: decoded.role,
+                        primaryIdentifier: decoded.primaryIdentifier,
+                        authProvider: decoded.authProvider
                     };
                 }
             } catch (tokenError) {
@@ -301,8 +304,9 @@ const logAccess = (req, res, next) => {
 /**
  * 🛡️ Middleware de rate limiting par utilisateur
  * Limite le nombre de requêtes par utilisateur
+ * le nombre des requêtes est de 1000 par minute
  */
-const rateLimitByUser = (maxRequests = 100, windowMs = 15 * 60 * 1000) => {
+const rateLimitByUser = (maxRequests = 1000, windowMs = 1 * 60 * 1000) => {
     const userRequests = new Map();
 
     return (req, res, next) => {

@@ -6,6 +6,7 @@ const {
     requireAdmin, 
     requireModerator,
     requireVerified,
+    requireOwnershipOrAdmin,
     logAccess,
     rateLimitByUser
 } = require('../middleware/auth.js');
@@ -27,16 +28,16 @@ const registerValidator = [
         .isLength({ min: 2, max: 100 })
         .withMessage('Le nom doit contenir entre 2 et 100 caractères'),
     body('phone')
-        .isMobilePhone('ar-MA')
-        .withMessage('Numéro de téléphone invalide'),
+        .matches(/^\d{8,10}$/)
+        .withMessage('Numéro de téléphone invalide (8-10 chiffres)'),
     body('country')
         .matches(/^\+\d{1,4}$/)
         .withMessage('Code pays invalide (format: +212, +33, etc.)'),
     body('password')
         .isLength({ min: 8 })
         .withMessage('Le mot de passe doit contenir au moins 8 caractères')
-        .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
-        .withMessage('Le mot de passe doit contenir au moins une minuscule, une majuscule et un chiffre')
+        .matches(/\d/)
+        .withMessage('Le mot de passe doit contenir au moins un chiffre')
 ];
 
 // Validateur pour la connexion par téléphone
@@ -163,6 +164,36 @@ const changeRoleValidator = [
         .withMessage('Rôle invalide')
 ];
 
+// Validateur pour l'envoi d'OTP
+const sendOTPValidator = [
+    body('phone')
+        .isMobilePhone('any')
+        .withMessage('Numéro de téléphone invalide'),
+    body('country')
+        .optional()
+        .matches(/^\+\d{1,4}$/)
+        .withMessage('Code pays invalide (format: +212, +33, etc.)'),
+    body('purpose')
+        .optional()
+        .isIn(['verification', 'reset_password', 'login'])
+        .withMessage('Objectif OTP invalide')
+];
+
+// Validateur pour la vérification d'OTP
+const verifyOTPValidator = [
+    body('phone')
+        .isMobilePhone('any')
+        .withMessage('Numéro de téléphone invalide'),
+    body('otpCode')
+        .isLength({ min: 4, max: 8 })
+        .isNumeric()
+        .withMessage('Code OTP invalide (4-8 chiffres)'),
+    body('purpose')
+        .optional()
+        .isIn(['verification', 'reset_password', 'login'])
+        .withMessage('Objectif OTP invalide')
+];
+
 // Validateur pour les paramètres d'ID
 const idValidator = [
     param('id')
@@ -269,6 +300,16 @@ router.post('/logout',
     userController.logout
 );
 
+/**
+ * @route   GET /api/auth/me
+ * @desc    Récupérer l'utilisateur actuel connecté
+ * @access  Private
+ */
+router.get('/me',
+    logAccess,
+    userController.getCurrentUser
+);
+
 // ========================================
 // ROUTES DE PROFIL UTILISATEUR
 // ========================================
@@ -315,11 +356,11 @@ router.put('/change-password',
 /**
  * @route   POST /api/users/send-otp
  * @desc    Envoyer le code OTP pour vérification du téléphone
- * @access  Private
+ * @access  Public (pour permettre l'envoi avant connexion)
  */
 router.post('/send-otp',
-    authenticateToken,
-    rateLimitByUser(3, 5 * 60 * 1000), // 3 tentatives par 5 minutes
+    rateLimitByUser(3, 5 * 60 * 1000),
+    sendOTPValidator,
     logAccess,
     userController.sendOTP
 );
@@ -327,13 +368,22 @@ router.post('/send-otp',
 /**
  * @route   POST /api/users/verify-otp
  * @desc    Vérifier le code OTP
- * @access  Private
+ * @access  Public (pour permettre la vérification avant connexion)
  */
 router.post('/verify-otp',
-    authenticateToken,
     rateLimitByUser(5, 5 * 60 * 1000), // 5 tentatives par 5 minutes
+    verifyOTPValidator,
     logAccess,
     userController.verifyOTP
+);
+
+/**
+ * @route   PUT /api/users/verify-status
+ * @desc    Mettre à jour le statut de vérification d'un utilisateur
+ * @access  Public (pour permettre la vérification après OTP)
+ */
+router.put('/verify-status',
+    userController.updateVerificationStatus
 );
 
 // ========================================
@@ -356,11 +406,11 @@ router.get('/',
 /**
  * @route   GET /api/users/:id
  * @desc    Récupérer un utilisateur par ID
- * @access  Private (Admin/Moderator)
+ * @access  Private (profile owner or admin)
  */
 router.get('/:id',
     authenticateToken,
-    requireModerator,
+    requireOwnershipOrAdmin('id'),
     idValidator,
     logAccess,
     userController.getUserById

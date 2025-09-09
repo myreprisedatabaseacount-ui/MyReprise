@@ -4,7 +4,7 @@ import React from 'react';
 import { useDispatch } from 'react-redux';
 import { closeAllModals, switchToSignUp, switchToLogin, switchToForgotPassword } from '../../services/slices/authSlice';
 import { useAuthUrlSync } from '../../services/hooks/useAuthUrlSync';
-import Login from './Login';
+import Login from './login';
 import SignUp from './SignUp';
 import ForgotPassword from './ForgotPassword';
 

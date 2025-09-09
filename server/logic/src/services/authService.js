@@ -4,6 +4,7 @@ const { User } = require('../models/User.js');
 const db = require('../config/db');
 const logger = require('../utils/logger.js');
 const Neo4jSyncService = require('./neo4jSyncService.js');
+require('dotenv').config({ path: require('path').join(__dirname, '../../../server/.env') });
 
 // ========================================
 // CONFIGURATION JWT
@@ -43,6 +44,73 @@ class AuthService {
     }
 
     /**
+     * Génère et stocke les tokens dans des cookies HTTPOnly
+     */
+    static generateAndSetTokens(user, res) {
+        const tokens = this.generateTokens(user);
+        
+        // Cookie pour le token d'accès (tk)
+        res.cookie("tk", tokens.token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production', // HTTPS en production
+            sameSite: "Lax",
+            maxAge: 24 * 60 * 60 * 1000, // 24 heures
+            path: "/",
+        });
+
+        // Cookie pour le refresh token
+        res.cookie("refreshToken", tokens.refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production', // HTTPS en production
+            sameSite: "Lax",
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
+            path: "/",
+        });
+
+        return tokens;
+    }
+
+    /**
+     * Récupère l'utilisateur actuel depuis le token JWT
+     */
+    static async findCurrentClient(req) {
+        try {
+            // Récupération du token depuis le cookie
+            const token = req.cookies.tk;
+            
+            if (!token) {
+                return null;
+            }
+
+            // Vérification du token
+            const decoded = jwt.verify(token, JWT_SECRET);
+            
+            // Récupération de l'utilisateur
+            const user = await User.findByPk(decoded.userId);
+            if (!user) {
+                return null;
+            }
+
+            return {
+                id: user.id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                phone: user.phone,
+                primaryIdentifier: user.primaryIdentifier,
+                authProvider: user.authProvider,
+                role: user.role,
+                isVerified: user.isVerified,
+                createdAt: user.createdAt,
+                updatedAt: user.updatedAt
+            };
+        } catch (error) {
+            logger.error('Erreur lors de la récupération de l\'utilisateur actuel:', error);
+            return null;
+        }
+    }
+
+    /**
      * Authentification par téléphone avec mot de passe
      */
     static async authenticateWithPhone(phone, country, password) {
@@ -69,7 +137,7 @@ class AuthService {
                 throw new Error('Numéro de téléphone ou mot de passe incorrect');
             }
 
-            const tokens = this.generateTokens(user);
+            const tokens = this.generateAndSetTokens(user);
             
             logger.info(`Utilisateur connecté par téléphone: ${user.phone}`);
             
@@ -242,7 +310,7 @@ class AuthService {
                 password: hashedPassword,
                 authProvider: 'phone',
                 primaryIdentifier: fullPhone,
-                isVerified: false, // TODO: Implémenter la vérification OTP
+                isVerified: false,
                 role: 'user'
             };
 
@@ -308,10 +376,44 @@ class AuthService {
     /**
      * Déconnexion
      */
-    static async logout(user) {
+    static async logout(req, res) {
         try {
-            // TODO: Implémenter la blacklist des tokens
-            logger.info(`Utilisateur déconnecté: ${user.primaryIdentifier}`);
+            // Récupérer l'utilisateur actuel pour le log (optionnel)
+            let userInfo = null;
+            try {
+                const token = req.cookies.tk;
+                if (token) {
+                    const decoded = jwt.verify(token, JWT_SECRET);
+                    const user = await User.findByPk(decoded.userId);
+                    if (user) {
+                        userInfo = user.primaryIdentifier;
+                    }
+                }
+            } catch (tokenError) {
+                // Token invalide, on continue quand même la déconnexion
+                logger.warn('Token invalide lors de la déconnexion:', tokenError.message);
+            }
+            
+            // Suppression des cookies d'authentification
+            res.clearCookie('tk', {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: "Lax",
+                path: "/"
+            });
+            
+            res.clearCookie('refreshToken', {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: "Lax",
+                path: "/"
+            });
+
+            if (userInfo) {
+                logger.info(`Utilisateur déconnecté: ${userInfo}`);
+            } else {
+                logger.info('Déconnexion effectuée (utilisateur non identifié)');
+            }
             
             return {
                 success: true,
@@ -320,7 +422,7 @@ class AuthService {
 
         } catch (error) {
             logger.error('Erreur lors de la déconnexion:', error);
-            throw new Error('Erreur interne du serveur');
+            throw new Error(`Erreur lors de la déconnexion: ${error.message}`);
         }
     }
 

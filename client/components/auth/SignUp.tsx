@@ -29,6 +29,8 @@ import {
   signUpStep2Schema, 
   signUpStep3Schema 
 } from '../../lib/validationSchemas';
+import {useSendOTPMutation, useVerifyOTPMutation, useRegisterUserMutation, useUpdateVerificationStatusMutation} from "../../services/api/UserApi";
+import { toast } from 'sonner';
 
 interface SignUpProps {
   onClose?: () => void;
@@ -40,7 +42,20 @@ const SignUp: React.FC<SignUpProps> = ({ onClose, onSwitchToLogin }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [sendOTP, {isLoading: isSendingOTP}] = useSendOTPMutation();
+  const [verifyOTP, {isLoading: isVerifyingOTP}] = useVerifyOTPMutation();
+  const [registerUser, {isLoading: isRegistering}] = useRegisterUserMutation();
+  const [updateVerificationStatus, {isLoading: isUpdatingVerification}] = useUpdateVerificationStatusMutation();
   const [selectedCountry, setSelectedCountry] = useState(countriesData.find(c => c.dial_code === '+212') || countriesData[0]);
+  
+  // Stocker les données de l'utilisateur pour l'inscription
+  const [userData, setUserData] = useState({
+    firstName: '',
+    lastName: '',
+    phone: '',
+    country: '',
+    password: ''
+  });
 
   // Valeurs initiales pour Formik
   const initialValues = {
@@ -69,21 +84,158 @@ const SignUp: React.FC<SignUpProps> = ({ onClose, onSwitchToLogin }) => {
 
   const handleStep2Submit = async (values: typeof initialValues) => {
     setIsLoading(true);
-    // Simulation de validation
-    setTimeout(() => {
+    
+
+    try {
+      // Nettoyer le numéro de téléphone
+      let cleanPhoneNumber = values.phoneNumber;
+      if(cleanPhoneNumber.startsWith(selectedCountry.dial_code)){
+        cleanPhoneNumber = cleanPhoneNumber.slice(selectedCountry.dial_code.length);
+      }
+      if(cleanPhoneNumber.startsWith('0')){
+        cleanPhoneNumber = cleanPhoneNumber.slice(1);
+      }
+
+      // Sauvegarder les données de l'utilisateur pour l'inscription
+      setUserData({
+        firstName: values.firstName,
+        lastName: values.lastName,
+        phone: cleanPhoneNumber, // Numéro sans code pays (ex: 688675687)
+        country: selectedCountry.dial_code, // Code pays avec le + (ex: +212)
+        password: values.password
+      });
+
+      // Envoyer le code OTP
+      const result = await sendOTP({
+        phone: cleanPhoneNumber, // Numéro sans code pays (ex: 688675687)
+        country: selectedCountry.dial_code, // Code pays avec + (ex: +212)
+        purpose: 'verification'
+      }).unwrap();
+
+
+      // Traiter la réponse
+      if (result.success) {
+        toast.success('Code de vérification envoyé avec succès !');
+        
+        // Créer l'utilisateur maintenant (non vérifié)
+        try {
+          const registrationResult = await registerUser({
+            firstName: values.firstName,
+            lastName: values.lastName,
+            phone: cleanPhoneNumber, // Numéro sans code pays (ex: 688675687)
+            country: selectedCountry.dial_code, // Code pays avec le + (ex: +212)
+            password: values.password
+          }).unwrap();
+
+          setStep(3); // Passer à l'étape de vérification
+        } catch (registrationError: any) {
+          console.error('Erreur lors de l\'inscription:', registrationError);
+          const errorMessage = registrationError?.data?.error || registrationError?.data?.message || registrationError?.message || 'Erreur lors de la création du compte';
+          toast.error(errorMessage);
+        }
+      } else {
+        toast.error('Erreur lors de l\'envoi du code. Veuillez réessayer.');
+      }
+    } catch (error: any) {
+      console.error('Erreur lors de l\'envoi OTP:', error);
+      // RTK Query structure les erreurs différemment
+      const errorMessage = error?.data?.error || error?.data?.message || error?.message || 'Erreur lors de l\'envoi du code de vérification';
+      toast.error(errorMessage);
+    } finally {
       setIsLoading(false);
-      setStep(3);
-    }, 1000);
+    }
   };
 
   const handleStep3Submit = async (values: typeof initialValues) => {
     setIsLoading(true);
-    // Simulation d'inscription
-    setTimeout(() => {
-      console.log('Inscription réussie:', values);
+    
+    try {
+      // Nettoyer le numéro de téléphone
+      let cleanPhoneNumber = values.phoneNumber;
+      if(cleanPhoneNumber.startsWith(selectedCountry.dial_code)){
+        cleanPhoneNumber = cleanPhoneNumber.slice(selectedCountry.dial_code.length);
+      }
+      if(cleanPhoneNumber.startsWith('0')){
+        cleanPhoneNumber = cleanPhoneNumber.slice(1);
+      }
+
+      // Vérifier le code OTP
+      const result = await verifyOTP({
+        phone: cleanPhoneNumber, // Numéro sans code pays (ex: 688675687)
+        country: selectedCountry.dial_code, // Code pays avec + (ex: +212)
+        otpCode: values.otpCode,
+        purpose: 'verification'
+      }).unwrap();
+
+      console.log('Résultat vérification OTP:', result);
+
+      // Traiter la réponse
+      if (result.success) {
+        toast.success('Code de vérification validé avec succès !');
+        
+        // Marquer l'utilisateur comme vérifié
+        try {
+          // Nettoyer le numéro de téléphone
+          let cleanPhoneNumber = values.phoneNumber;
+          if(cleanPhoneNumber.startsWith(selectedCountry.dial_code)){
+            cleanPhoneNumber = cleanPhoneNumber.slice(selectedCountry.dial_code.length);
+          }
+          if(cleanPhoneNumber.startsWith('0')){
+            cleanPhoneNumber = cleanPhoneNumber.slice(1);
+          }
+
+          const updateResult = await updateVerificationStatus({
+            isVerified: true,
+            phone: cleanPhoneNumber, // Numéro sans code pays (ex: 688675687)
+            country: selectedCountry.dial_code // Code pays avec + (ex: +212)
+          }).unwrap();
+
+          toast.success('Compte créé et vérifié avec succès !');
+          onClose?.();
+        } catch (updateError: any) {
+          console.error('Erreur lors de la mise à jour du statut:', updateError);
+          const errorMessage = updateError?.data?.error || updateError?.data?.message || updateError?.message || 'Erreur lors de la vérification du compte';
+          toast.error(errorMessage);
+        }
+      } else {
+        toast.error('Code de vérification incorrect. Veuillez réessayer.');
+      }
+    } catch (error: any) {
+      console.error('Erreur lors de la vérification OTP:', error);
+      const errorMessage = error?.data?.error || error?.data?.message || error?.message || 'Erreur lors de la vérification du code';
+      toast.error(errorMessage);
+    } finally {
       setIsLoading(false);
-      onClose?.();
-    }, 2000);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    try {
+      // Nettoyer le numéro de téléphone
+      let cleanPhoneNumber = initialValues.phoneNumber;
+      if(cleanPhoneNumber.startsWith(selectedCountry.dial_code)){
+        cleanPhoneNumber = cleanPhoneNumber.slice(selectedCountry.dial_code.length);
+      }
+      if(cleanPhoneNumber.startsWith('0')){
+        cleanPhoneNumber = cleanPhoneNumber.slice(1);
+      }
+
+      const result = await sendOTP({
+        phone: cleanPhoneNumber, // Numéro sans code pays (ex: 688675687)
+        country: selectedCountry.dial_code, // Code pays avec + (ex: +212)
+        purpose: 'verification'
+      }).unwrap();
+
+      if (result.success) {
+        toast.success('Code de vérification renvoyé avec succès !');
+      } else {
+        toast.error('Erreur lors du renvoi du code. Veuillez réessayer.');
+      }
+    } catch (error: any) {
+      console.error('Erreur lors du renvoi OTP:', error);
+      const errorMessage = error?.data?.error || error?.data?.message || error?.message || 'Erreur lors du renvoi du code de vérification';
+      toast.error(errorMessage);
+    }
   };
 
   const handleSocialSignUp = (provider: string) => {
@@ -297,6 +449,9 @@ const SignUp: React.FC<SignUpProps> = ({ onClose, onSwitchToLogin }) => {
                           </button>
                         </div>
                         <ErrorMessage name="password" component="p" className="text-xs text-red-500" />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Le mot de passe doit contenir au moins 8 caractères avec des chiffres
+                        </p>
                       </div>
 
                       {/* Confirmation mot de passe */}
@@ -387,28 +542,30 @@ const SignUp: React.FC<SignUpProps> = ({ onClose, onSwitchToLogin }) => {
                       <div className="text-center">
                         <button
                           type="button"
-                          className="text-sm text-yellow-600 hover:text-yellow-700 font-medium"
+                          onClick={handleResendOTP}
+                          disabled={isSendingOTP}
+                          className="text-sm text-yellow-600 hover:text-yellow-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <RefreshCw className="w-4 h-4 inline mr-1" />
-                          Renvoyer le code
+                          <RefreshCw className={`w-4 h-4 inline mr-1 ${isSendingOTP ? 'animate-spin' : ''}`} />
+                          {isSendingOTP ? 'Envoi...' : 'Renvoyer le code'}
                         </button>
                       </div>
 
                       {/* Submit Button */}
                       <Button
                         type="submit"
-                        disabled={isLoading}
+                        disabled={isLoading || isVerifyingOTP || isUpdatingVerification}
                         className="w-full h-12 bg-gradient-to-r from-yellow-600 to-yellow-600 hover:from-yellow-700 hover:to-yellow-500 text-white font-medium rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 mt-6"
                       >
-                        {isLoading ? (
+                        {(isLoading || isVerifyingOTP || isUpdatingVerification) ? (
                           <div className="flex items-center">
                             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
-                            Création du compte...
+                            {isUpdatingVerification ? 'Finalisation...' : 'Vérification...'}
                           </div>
                         ) : (
                           <div className="flex items-center justify-center">
                             <UserCheck className="w-5 h-5 mr-2" />
-                            Créer mon compte
+                            Vérifier et finaliser
                             <ArrowRight className="w-4 h-4 ml-2" />
                           </div>
                         )}
