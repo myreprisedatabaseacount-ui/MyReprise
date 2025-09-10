@@ -15,6 +15,13 @@ const { Brand } = require('./Brand');
 const { Offer } = require('./Offer');
 const { Order } = require('./Order');
 
+// Import des nouveaux modèles de conversation
+const { Conversation } = require('./Conversation');
+const { Message } = require('./Message');
+const { Delta } = require('./Delta');
+const { ConversationParticipants } = require('./ConversationParticipants');
+const { MessageReads } = require('./MessageReads');
+
 // Import des modèles non encore refactorisés
 const { Subject } = require('./Subject');
 const { SubjectCategory } = require('./SubjectCategory');
@@ -47,6 +54,13 @@ async function initializeModels() {
     console.log('✅ Subject importé');
     console.log('✅ SubjectCategory importé');
     console.log('✅ BrandCategory importé');
+    
+    // Nouveaux modèles de conversation
+    console.log('✅ Conversation importé');
+    console.log('✅ Message importé');
+    console.log('✅ Delta importé');
+    console.log('✅ ConversationParticipants importé');
+    console.log('✅ MessageReads importé');
     
     // Offer déjà importé
     
@@ -128,6 +142,11 @@ async function initializeModels() {
     console.log('  - DeliveryCompany:', typeof DeliveryCompany);
     console.log('  - DeliveryInfo:', typeof DeliveryInfo);
     console.log('  - Setting:', typeof Setting);
+    console.log('  - Conversation:', typeof Conversation);
+    console.log('  - Message:', typeof Message);
+    console.log('  - Delta:', typeof Delta);
+    console.log('  - ConversationParticipants:', typeof ConversationParticipants);
+    console.log('  - MessageReads:', typeof MessageReads);
     
     // Associations avec try-catch
     try {
@@ -210,6 +229,129 @@ async function initializeModels() {
       console.error('❌ Erreur association Subject <-> Category:', error.message);
     }
     
+    // Associations pour les modèles de conversation
+    try {
+      if (Conversation && Message) {
+        console.log('🔄 Association Conversation <-> Message...');
+        Conversation.hasMany(Message, { foreignKey: 'conversation_id', as: 'Messages' });
+        Message.belongsTo(Conversation, { foreignKey: 'conversation_id', as: 'Conversation' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association Conversation <-> Message:', error.message);
+    }
+    
+    try {
+      if (User && Message) {
+        console.log('🔄 Association User <-> Message (sender)...');
+        User.hasMany(Message, { foreignKey: 'sender_id', as: 'SentMessages' });
+        Message.belongsTo(User, { foreignKey: 'sender_id', as: 'Sender' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association User <-> Message (sender):', error.message);
+    }
+    
+    try {
+      if (Message) {
+        console.log('🔄 Association Message self-reference (reply)...');
+        Message.belongsTo(Message, { foreignKey: 'reply_to_message_id', as: 'ReplyToMessage' });
+        Message.hasMany(Message, { foreignKey: 'reply_to_message_id', as: 'Replies' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association Message self-reference:', error.message);
+    }
+    
+    try {
+      if (Offer && Message) {
+        console.log('🔄 Association Offer <-> Message...');
+        Offer.hasMany(Message, { foreignKey: 'offer_id', as: 'Messages' });
+        Message.belongsTo(Offer, { foreignKey: 'offer_id', as: 'Offer' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association Offer <-> Message:', error.message);
+    }
+    
+    try {
+      if (Offer && Delta) {
+        console.log('🔄 Association Offer <-> Delta...');
+        Offer.hasMany(Delta, { foreignKey: 'offer_id', as: 'Deltas' });
+        Delta.belongsTo(Offer, { foreignKey: 'offer_id', as: 'Offer' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association Offer <-> Delta:', error.message);
+    }
+    
+    try {
+      if (User && Delta) {
+        console.log('🔄 Association User <-> Delta (sender/receiver)...');
+        User.hasMany(Delta, { foreignKey: 'sender_id', as: 'SentDeltas' });
+        User.hasMany(Delta, { foreignKey: 'receiver_id', as: 'ReceivedDeltas' });
+        Delta.belongsTo(User, { foreignKey: 'sender_id', as: 'Sender' });
+        Delta.belongsTo(User, { foreignKey: 'receiver_id', as: 'Receiver' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association User <-> Delta:', error.message);
+    }
+    
+    try {
+      if (Conversation && Delta) {
+        console.log('🔄 Association Conversation <-> Delta...');
+        Conversation.hasMany(Delta, { foreignKey: 'conversation_id', as: 'Deltas' });
+        Delta.belongsTo(Conversation, { foreignKey: 'conversation_id', as: 'Conversation' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association Conversation <-> Delta:', error.message);
+    }
+    
+    try {
+      if (Order && Delta) {
+        console.log('🔄 Association Order <-> Delta...');
+        Order.hasMany(Delta, { foreignKey: 'order_id', as: 'Deltas' });
+        Delta.belongsTo(Order, { foreignKey: 'order_id', as: 'Order' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association Order <-> Delta:', error.message);
+    }
+    
+    try {
+      if (Conversation && ConversationParticipants) {
+        console.log('🔄 Association Conversation <-> ConversationParticipants...');
+        Conversation.hasMany(ConversationParticipants, { foreignKey: 'conversation_id', as: 'Participants' });
+        ConversationParticipants.belongsTo(Conversation, { foreignKey: 'conversation_id', as: 'Conversation' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association Conversation <-> ConversationParticipants:', error.message);
+    }
+    
+    try {
+      if (User && ConversationParticipants) {
+        console.log('🔄 Association User <-> ConversationParticipants...');
+        User.hasMany(ConversationParticipants, { foreignKey: 'user_id', as: 'ConversationParticipations' });
+        ConversationParticipants.belongsTo(User, { foreignKey: 'user_id', as: 'User' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association User <-> ConversationParticipants:', error.message);
+    }
+    
+    try {
+      if (Message && MessageReads) {
+        console.log('🔄 Association Message <-> MessageReads...');
+        Message.hasMany(MessageReads, { foreignKey: 'message_id', as: 'Reads' });
+        MessageReads.belongsTo(Message, { foreignKey: 'message_id', as: 'Message' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association Message <-> MessageReads:', error.message);
+    }
+    
+    try {
+      if (User && MessageReads) {
+        console.log('🔄 Association User <-> MessageReads...');
+        User.hasMany(MessageReads, { foreignKey: 'user_id', as: 'MessageReads' });
+        MessageReads.belongsTo(User, { foreignKey: 'user_id', as: 'User' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association User <-> MessageReads:', error.message);
+    }
+    
     logger.info('✅ Associations définies avec gestion d\'erreur');
     
     // Synchroniser la base de données (créer les tables)
@@ -255,7 +397,13 @@ async function initializeModels() {
       // Exchange supprimé
       DeliveryCompany,
       DeliveryInfo,
-      Setting 
+      Setting,
+      // Nouveaux modèles de conversation
+      Conversation,
+      Message,
+      Delta,
+      ConversationParticipants,
+      MessageReads
     };
     
   } catch (error) {

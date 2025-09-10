@@ -7,7 +7,6 @@ const multer = require("multer");
 const { Op } = require("sequelize");
 const dotenv = require("dotenv");
 const bcrypt = require("bcrypt");
-const { sequelize } = require('./config/db.js');
 dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const db = require("./config/db.js");
