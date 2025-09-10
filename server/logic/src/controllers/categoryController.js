@@ -104,7 +104,7 @@ const createCategory = async (req, res) => {
               }
             ],
           }
-        );        
+        );
         imageUrl = imageUploadResult.secure_url;
         imagePublicId = imageUploadResult.public_id;
       } catch (uploadError) {

@@ -5,6 +5,7 @@ import { brandApi } from '../services/api/BrandApi';
 import userApi from '../services/api/UserApi';
 import authReducer from '../services/slices/authSlice';
 import userReducer from '../services/slices/userSlice';
+import productReducer from '../services/slices/productSlice';
 
 const configurestore = configureStore({
   reducer: {
@@ -14,6 +15,7 @@ const configurestore = configureStore({
     [userApi.reducerPath]: userApi.reducer,
     auth: authReducer,
     user: userReducer,
+    product: productReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
