@@ -73,17 +73,6 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
     scrollToBottom();
   }, [messages]);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (reactionMenuRef.current && !reactionMenuRef.current.contains(event.target as Node)) {
-        setShowReactionMenu(null);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
   const handleSendMessage = () => {
     if (newMessage.trim()) {
       const message: Message = {
@@ -157,9 +146,7 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
   }
 
   return (
-    <div className={`fixed right-0 top-0 h-full bg-white shadow-2xl border-l border-gray-200 transition-all duration-300 ease-in-out z-40 ${
-      isMinimized ? 'w-16' : 'w-80 sm:w-96'
-    }`}>
+    <div className={`fixed right-0 top-0 h-full bg-white shadow-2xl border-l border-gray-200 transition-all duration-300 ease-in-out z-40 ${isMinimized ? 'w-16' : 'w-80 sm:w-96'}`} onClick={() => setShowReactionMenu(null)}>
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
         {!isMinimized && (
@@ -178,7 +165,7 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
             </div>
           </div>
         )}
-        
+
         <div className="flex items-center space-x-2">
           <button
             onClick={() => setIsMinimized(!isMinimized)}
@@ -198,41 +185,30 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
       {!isMinimized && (
         <>
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 h-[calc(100vh-140px)]">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 h-[calc(100vh-140px)]"  >
             {messages.map((message) => (
               <div
                 key={message.id}
-                className={`group relative ${
-                  message.sender === 'me' ? 'flex justify-end' : 'flex justify-start'
-                }`}
-                onMouseEnter={() => setShowReactionMenu(null)}
+                className={`group relative ${message.sender === 'me' ? 'flex justify-end' : 'flex justify-start'}`}
               >
                 <div className="relative max-w-[80%]">
                   {/* Message bubble */}
                   <div
-                    className={`relative px-4 py-2 rounded-2xl ${
-                      message.sender === 'me'
-                        ? 'bg-blue-600 text-white rounded-br-sm'
-                        : 'bg-gray-100 text-gray-900 rounded-bl-sm'
-                    } shadow-sm hover:shadow-md transition-shadow duration-200`}
-                    onMouseEnter={(e) => {
-                      e.stopPropagation();
-                      // Show reaction menu on hover after delay
-                      setTimeout(() => {
-                        if (showReactionMenu !== message.id) {
-                          setShowReactionMenu(message.id);
-                        }
-                      }, 500);
-                    }}
+                    className={`relative px-4 py-2 rounded-2xl ${message.sender === 'me'
+                      ? 'bg-blue-600 text-white rounded-br-sm'
+                      : 'bg-gray-100 text-gray-900 rounded-bl-sm'
+                      } shadow-sm hover:shadow-md transition-shadow duration-200`}
                   >
                     <p className="text-sm leading-relaxed">{message.text}</p>
-                    
+
                     {/* Reaction button */}
                     <button
-                      onClick={() => setShowReactionMenu(showReactionMenu === message.id ? null : message.id)}
-                      className={`absolute -top-2 ${
-                        message.sender === 'me' ? '-left-2' : '-right-2'
-                      } w-6 h-6 bg-white border-2 border-gray-200 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-gray-50`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowReactionMenu(showReactionMenu === message.id ? null : message.id);
+                      }}
+                      className={`absolute -top-2 ${message.sender === 'me' ? '-left-2' : '-right-2'
+                        } w-6 h-6 bg-white border-2 border-gray-200 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-gray-50`}
                     >
                       <Smile size={12} className="text-gray-600" />
                     </button>
@@ -240,18 +216,19 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
 
                   {/* Reactions */}
                   {message.reactions.length > 0 && (
-                    <div className={`flex flex-wrap gap-1 mt-2 ${
-                      message.sender === 'me' ? 'justify-end' : 'justify-start'
-                    }`}>
+                    <div className={`flex flex-wrap gap-1 mt-2 ${message.sender === 'me' ? 'justify-end' : 'justify-start'
+                      }`}>
                       {message.reactions.map((reaction, index) => (
                         <button
                           key={index}
-                          onClick={() => addReaction(message.id, reaction.emoji)}
-                          className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs transition-all duration-200 ${
-                            reaction.userReacted
-                              ? 'bg-blue-100 border border-blue-300 text-blue-700'
-                              : 'bg-gray-100 border border-gray-200 text-gray-600 hover:bg-gray-200'
-                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            addReaction(message.id, reaction.emoji);
+                          }}
+                          className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs transition-all duration-200 ${reaction.userReacted
+                            ? 'bg-blue-100 border border-blue-300 text-blue-700'
+                            : 'bg-gray-100 border border-gray-200 text-gray-600 hover:bg-gray-200'
+                            }`}
                         >
                           <span>{reaction.emoji}</span>
                           <span className="font-medium">{reaction.count}</span>
@@ -261,9 +238,8 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
                   )}
 
                   {/* Timestamp */}
-                  <p className={`text-xs text-gray-500 mt-1 ${
-                    message.sender === 'me' ? 'text-right' : 'text-left'
-                  }`}>
+                  <p className={`text-xs text-gray-500 mt-1 ${message.sender === 'me' ? 'text-right' : 'text-left'
+                    }`}>
                     {formatTime(message.timestamp)}
                   </p>
                 </div>
@@ -272,14 +248,17 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
                 {showReactionMenu === message.id && (
                   <div
                     ref={reactionMenuRef}
-                    className={`absolute z-50 ${
-                      message.sender === 'me' ? 'right-0' : 'left-0'
-                    } -top-12 bg-white rounded-lg shadow-xl border border-gray-200 p-2 flex space-x-1`}
+                    onClick={(e) => e.stopPropagation()}
+                    className={`absolute z-50 ${message.sender === 'me' ? 'right-0' : 'left-0'
+                      } -top-14 bg-white rounded-lg shadow-xl border border-gray-200 p-2 flex space-x-1`}
                   >
                     {REACTION_EMOJIS.map((emoji) => (
                       <button
                         key={emoji}
-                        onClick={() => addReaction(message.id, emoji)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          addReaction(message.id, emoji);
+                        }}
                         className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-lg transition-all duration-200 hover:scale-110"
                       >
                         {emoji}

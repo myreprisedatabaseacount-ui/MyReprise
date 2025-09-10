@@ -7,6 +7,8 @@ const multer = require("multer");
 const { Op } = require("sequelize");
 const dotenv = require("dotenv");
 const bcrypt = require("bcrypt");
+const { createServer } = require("http");
+const { Server } = require("socket.io");
 dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const db = require("./config/db.js");
@@ -19,10 +21,21 @@ const { initializeModels } = require('./models');
 // Import des routes
 const { categoryRoutes, userRoutes, brandRoutes, whatsappRoutes, subjectRoutes } = require('./routes');
 
+// Import des sockets
+const { initializeSockets } = require('./sockets');
+
 // Import Redis
 const { connectToRedis } = require('./config/redis');
 
 const app = express();
+const server = createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: ["http://localhost:3000", "http://localhost:3001"],
+    credentials: true,
+    methods: ["GET", "POST"]
+  }
+});
 const rateLimit = require('express-rate-limit');
 
 // Configuration de multer pour gérer les fichiers multipart
@@ -106,6 +119,7 @@ async function startServer() {
     console.log('🔄 Initialisation des modèles...');
     try {
       await initializeModels();
+      // await db.syncModels();
       console.log('✅ Modèles initialisés avec succès');
     } catch (modelError) {
       console.error('❌ Erreur lors de l\'initialisation des modèles:', modelError.message);
@@ -120,8 +134,12 @@ async function startServer() {
       console.warn('⚠️ Redis non disponible, continuation sans cache:', redisError.message);
     }
     
-    app.listen(PORT, () => {
+    // Initialiser les sockets
+    initializeSockets(io);
+    
+    server.listen(PORT, () => {
       console.log(`🚀 Serveur MyReprise démarré sur le port ${PORT}`);
+      console.log(`🔌 Socket.IO activé sur le port ${PORT}`);
     });
   } catch (error) {
     console.error('❌ Erreur lors de l\'initialisation:', error);
