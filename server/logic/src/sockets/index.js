@@ -1,9 +1,17 @@
 const { authenticateSocket } = require('../middleware/socketAuth');
 const ConversationService = require('../services/conversationService');
 const MessageService = require('../services/messageService');
+// ContactsService supprimé - maintenant géré par ConversationController
 const logger = require('../utils/logger');
 
+// Variable globale pour stocker l'instance Socket.IO
+let globalIO = null;
+
+
 const initializeSockets = (io) => {
+    // Stocker l'instance Socket.IO globalement
+    globalIO = io;
+    
     // Middleware d'authentification pour tous les sockets
     io.use(authenticateSocket);
 
@@ -15,6 +23,9 @@ const initializeSockets = (io) => {
 
         // Stocker l'ID utilisateur dans le socket pour faciliter l'accès
         socket.userId = userId;
+
+        // Rejoindre la room utilisateur pour les notifications personnalisées
+        socket.join(`user_${userId}`);
 
         socket.on('join_conversation', async (data) => {
             try {
@@ -138,6 +149,9 @@ const initializeSockets = (io) => {
                     logger.info(`💬 Message envoyé par ${userEmail} dans conversation ${conversationId}`);
                 }
 
+                // TODO: Mettre à jour la liste des conversations pour tous les participants
+                // await broadcastContactsUpdate(io, conversationId);
+
             } catch (error) {
                 logger.error('Erreur send_message:', error);
                 socket.emit('error', { message: 'Erreur lors de l\'envoi du message' });
@@ -163,6 +177,12 @@ const initializeSockets = (io) => {
                 });
 
                 logger.info(`👁️ Message ${messageId} marqué comme lu par ${userEmail}`);
+
+                // TODO: Mettre à jour la liste des conversations pour tous les participants
+                // const message = await Message.findByPk(messageId);
+                // if (message) {
+                //     await broadcastContactsUpdate(io, message.conversation_id);
+                // }
 
             } catch (error) {
                 logger.error('Erreur mark_message_read:', error);
@@ -222,4 +242,36 @@ const initializeSockets = (io) => {
     logger.info('✅ Sockets initialisés avec succès');
 };
 
-module.exports = { initializeSockets };
+/**
+ * Diffuser la mise à jour de la liste des conversations à tous les participants
+ * @param {number} conversationId - ID de la conversation
+ */
+const broadcastConversationsUpdate = async (conversationId) => {
+    try {
+        if (!globalIO) {
+            logger.warn('Instance Socket.IO non disponible pour le broadcast');
+            return;
+        }
+
+        // Récupérer les participants de la conversation
+        const participants = await ConversationService.getConversationParticipants(conversationId);
+        
+        // Pour chaque participant, envoyer la mise à jour
+        for (const participant of participants) {
+            const userId = participant.User.id;
+            
+            // Envoyer la mise à jour à l'utilisateur
+            globalIO.to(`user_${userId}`).emit('conversations:update', {
+                conversationId: conversationId,
+                timestamp: new Date(),
+                message: 'Nouvelle conversation créée'
+            });
+        }
+        
+        logger.info(`📋 Liste des conversations mise à jour pour la conversation ${conversationId}`);
+    } catch (error) {
+        logger.error('Erreur lors de la mise à jour des conversations:', error);
+    }
+};
+
+module.exports = { initializeSockets, broadcastConversationsUpdate };

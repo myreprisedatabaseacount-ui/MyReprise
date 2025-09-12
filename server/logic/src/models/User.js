@@ -96,6 +96,14 @@ const User = sequelize.define('User', {
         type: DataTypes.ENUM('user', 'admin', 'moderator'),
         defaultValue: 'user'
     },
+    profileImage: {
+        type: DataTypes.STRING(500),
+        allowNull: true,
+        field: 'profile_image',
+        validate: {
+            isUrl: true
+        }
+    },
     addressId: {
         type: DataTypes.INTEGER,
         allowNull: true,
@@ -166,6 +174,7 @@ User.prototype.getPublicData = function() {
         lastName: this.lastName,
         email: this.email,
         phone: this.phone,
+        profileImage: this.profileImage,
         isVerified: this.isVerified,
         role: this.role,
         createdAt: this.createdAt

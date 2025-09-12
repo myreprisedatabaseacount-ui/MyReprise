@@ -226,6 +226,17 @@ export const userApi = createApi({
       providesTags: ['CurrentUser'],
     }),
 
+    // Rechercher des utilisateurs pour créer une conversation
+    searchUsers: builder.query({
+      query: ({ query, limit = 10 }) => ({
+        url: `/api/users/search?query=${encodeURIComponent(query)}&limit=${limit}`,
+        credentials: "include",
+      }),
+      providesTags: ['Users'],
+      // Ne pas mettre en cache les résultats de recherche
+      keepUnusedDataFor: 0,
+    }),
+
     // ========================================
     // OTP (TODO - À IMPLÉMENTER)
     // ========================================
@@ -290,6 +301,7 @@ export const {
   useGetUsersByRoleQuery,
   useGetUserStatsQuery,
   useGetCurrentUserQuery,
+  useSearchUsersQuery,
   
   // OTP (TODO)
   useSendOTPMutation,

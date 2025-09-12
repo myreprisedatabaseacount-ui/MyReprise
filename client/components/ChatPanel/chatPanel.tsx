@@ -1,7 +1,12 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Minimize2, Send, Smile, MoreHorizontal } from 'lucide-react';
+import { MessageCircle, X, Minimize2, Send, Smile, MoreHorizontal, Users, Search } from 'lucide-react';
+import { useCurrentUser } from '@/services/hooks/useCurrentUser';
+import { useSocket } from '@/services/hooks/useSocket';
+import { useCreateConversationMutation, useMarkConversationAsReadMutation } from '@/services/api/ConversationsApi';
+import ContactsList from './ContactsList';
+import UserSearch from './UserSearch';
 
 interface Reaction {
   emoji: string;
@@ -17,6 +22,25 @@ interface Message {
   reactions: Reaction[];
 }
 
+interface Contact {
+  conversationId: number;
+  friendId: number;
+  friendName: string;
+  friendImage: string | null;
+  friendEmail: string;
+  friendPhone: string;
+  lastMessage: {
+    text: string;
+    type: 'text' | 'audio' | 'other';
+    senderId: number | null;
+    senderName: string | null;
+    timestamp: string;
+  };
+  unreadCount: number;
+  conversationType: 'chat' | 'negotiation';
+  lastActivity: string;
+}
+
 interface ChatPanelProps {
   isOpen: boolean;
   onToggle: () => void;
@@ -25,40 +49,19 @@ interface ChatPanelProps {
 const REACTION_EMOJIS = ['👍', '😂', '😍', '👎', '😮', '😢', '🔥', '❤️'];
 
 export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      text: 'Salut ! Comment ça va ?',
-      sender: 'friend',
-      timestamp: new Date(Date.now() - 300000),
-      reactions: [{ emoji: '👍', count: 1, userReacted: false }]
-    },
-    {
-      id: '2',
-      text: 'Ça va super bien ! Et toi ?',
-      sender: 'me',
-      timestamp: new Date(Date.now() - 240000),
-      reactions: []
-    },
-    {
-      id: '3',
-      text: 'Parfait ! Tu veux qu\'on se voit ce weekend ?',
-      sender: 'friend',
-      timestamp: new Date(Date.now() - 180000),
-      reactions: [
-        { emoji: '😍', count: 1, userReacted: true },
-        { emoji: '👍', count: 2, userReacted: false }
-      ]
-    },
-    {
-      id: '4',
-      text: 'Excellente idée ! Je suis libre samedi après-midi 🎉',
-      sender: 'me',
-      timestamp: new Date(Date.now() - 120000),
-      reactions: [{ emoji: '🔥', count: 1, userReacted: false }]
-    }
-  ]);
+  const { currentUser } = useCurrentUser();
+  const { socket, isConnected, joinConversation, leaveConversation, sendMessage: socketSendMessage, on, off } = useSocket();
+  const [createConversation] = useCreateConversationMutation();
+  const [markConversationAsRead] = useMarkConversationAsReadMutation();
 
+  // État pour la gestion des contacts et conversations
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
+  const [showContactsList, setShowContactsList] = useState(true);
+  const [showUserSearch, setShowUserSearch] = useState(false);
+
+  // État pour les messages (maintenant basé sur la conversation sélectionnée)
+  const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [showReactionMenu, setShowReactionMenu] = useState<string | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -73,8 +76,87 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
     scrollToBottom();
   }, [messages]);
 
+  // Gestion de la sélection de contact
+  const handleContactSelect = async (contact: Contact) => {
+    try {
+      setSelectedContact(contact);
+      setCurrentConversationId(contact.conversationId);
+      setShowContactsList(false);
+      setShowUserSearch(false);
+      
+      // Rejoindre la conversation via socket
+      if (isConnected) {
+        joinConversation(contact.conversationId);
+      }
+      
+      // Marquer les messages comme lus
+      await markConversationAsRead(contact.conversationId);
+      
+      // TODO: Charger les messages de la conversation
+      // Pour l'instant, on utilise des messages mockés
+      setMessages([
+        {
+          id: '1',
+          text: `Conversation avec ${contact.friendName}`,
+          sender: 'friend',
+          timestamp: new Date(Date.now() - 300000),
+          reactions: []
+        }
+      ]);
+    } catch (error) {
+      console.error('Erreur lors de la sélection du contact:', error);
+    }
+  };
+
+  // Gestion de la création d'une nouvelle conversation
+  const handleConversationCreated = (conversationId: number) => {
+    setShowUserSearch(false);
+    setShowContactsList(true);
+    // TODO: Actualiser la liste des contacts ou naviguer vers la nouvelle conversation
+  };
+
+  // Gestion des événements socket
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+
+    // Écouter les nouveaux messages
+    const handleNewMessage = (data: any) => {
+      if (data.conversationId === currentConversationId) {
+        const newMsg: Message = {
+          id: data.message.id.toString(),
+          text: data.message.text || '',
+          sender: data.message.sender.id === currentUser?.id ? 'me' : 'friend',
+          timestamp: new Date(data.message.createdAt),
+          reactions: []
+        };
+        setMessages(prev => [...prev, newMsg]);
+      }
+    };
+
+    // Écouter les messages marqués comme lus
+    const handleMessageRead = (data: any) => {
+      // Mettre à jour l'état des messages si nécessaire
+      console.log('Message lu:', data);
+    };
+
+    on('new_message', handleNewMessage);
+    on('message_read', handleMessageRead);
+
+    return () => {
+      off('new_message', handleNewMessage);
+      off('message_read', handleMessageRead);
+    };
+  }, [socket, isConnected, currentConversationId, currentUser, on, off]);
+
   const handleSendMessage = () => {
-    if (newMessage.trim()) {
+    if (newMessage.trim() && currentConversationId && isConnected) {
+      // Envoyer le message via socket
+      socketSendMessage({
+        conversationId: currentConversationId,
+        text: newMessage.trim()
+      });
+      
+      // Ajouter le message localement pour un feedback immédiat
       const message: Message = {
         id: Date.now().toString(),
         text: newMessage.trim(),
@@ -151,22 +233,76 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
       <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
         {!isMinimized && (
           <div className="flex items-center space-x-3">
-            <div className="relative">
-              <img
-                src="https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2"
-                alt="Sarah"
-                className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
-              />
-              <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-900">Sarah Martin</h3>
-              <p className="text-xs text-green-600">En ligne</p>
-            </div>
+            {selectedContact ? (
+              <>
+                <div className="relative">
+                  <img
+                    src={selectedContact.friendImage || "https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2"}
+                    alt={selectedContact.friendName}
+                    className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
+                  />
+                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">{selectedContact.friendName}</h3>
+                  <p className="text-xs text-green-600">En ligne</p>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center space-x-3">
+                <Users className="w-10 h-10 text-blue-600" />
+                <div>
+                  <h3 className="font-semibold text-gray-900">Conversations</h3>
+                  <p className="text-xs text-gray-600">Sélectionnez une conversation</p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         <div className="flex items-center space-x-2">
+          {selectedContact && (
+            <button
+              onClick={() => {
+                setShowContactsList(true);
+                setShowUserSearch(false);
+                setSelectedContact(null);
+                setCurrentConversationId(null);
+                setMessages([]);
+                if (currentConversationId && isConnected) {
+                  leaveConversation(currentConversationId);
+                }
+              }}
+              className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
+              title="Retour à la liste des conversations"
+            >
+              <Users size={18} className="text-gray-600" />
+            </button>
+          )}
+          {!selectedContact && !showUserSearch && (
+            <button
+              onClick={() => {
+                setShowUserSearch(true);
+                setShowContactsList(false);
+              }}
+              className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
+              title="Rechercher un utilisateur"
+            >
+              <Search size={18} className="text-gray-600" />
+            </button>
+          )}
+          {showUserSearch && (
+            <button
+              onClick={() => {
+                setShowUserSearch(false);
+                setShowContactsList(true);
+              }}
+              className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
+              title="Retour aux conversations"
+            >
+              <Users size={18} className="text-gray-600" />
+            </button>
+          )}
           <button
             onClick={() => setIsMinimized(!isMinimized)}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
@@ -184,8 +320,24 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
 
       {!isMinimized && (
         <>
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 h-[calc(100vh-140px)]"  >
+          {showUserSearch ? (
+            /* Recherche d'utilisateurs */
+            <div className="p-4 h-[calc(100vh-80px)] overflow-y-auto">
+              <UserSearch 
+                onConversationCreated={handleConversationCreated}
+              />
+            </div>
+          ) : showContactsList ? (
+            /* Liste des contacts */
+            <ContactsList 
+              onContactSelect={handleContactSelect}
+              selectedContactId={selectedContact?.friendId}
+            />
+          ) : (
+            /* Conversation */
+            <>
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 h-[calc(100vh-140px)]"  >
             {messages.map((message) => (
               <div
                 key={message.id}
@@ -279,8 +431,9 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyDown={handleKeyPress}
-                  placeholder="Tapez votre message..."
-                  className="w-full px-4 py-2 pr-12 bg-white border border-gray-200 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  placeholder={currentConversationId ? "Tapez votre message..." : "Sélectionnez une conversation..."}
+                  disabled={!currentConversationId || !isConnected}
+                  className="w-full px-4 py-2 pr-12 bg-white border border-gray-200 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   rows={1}
                   style={{ minHeight: '40px', maxHeight: '120px' }}
                 />
@@ -290,13 +443,15 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
               </div>
               <button
                 onClick={handleSendMessage}
-                disabled={!newMessage.trim()}
+                disabled={!newMessage.trim() || !currentConversationId || !isConnected}
                 className="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 disabled:scale-100"
               >
                 <Send size={18} />
               </button>
             </div>
           </div>
+            </>
+          )}
         </>
       )}
     </div>

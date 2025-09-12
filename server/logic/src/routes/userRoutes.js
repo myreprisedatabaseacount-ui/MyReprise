@@ -226,6 +226,18 @@ const queryValidator = [
         .withMessage('Recherche doit contenir entre 2 et 100 caractères')
 ];
 
+// Validateur pour la recherche d'utilisateurs
+const searchUsersValidator = [
+    query('query')
+        .trim()
+        .isLength({ min: 2, max: 100 })
+        .withMessage('La requête de recherche doit contenir entre 2 et 100 caractères'),
+    query('limit')
+        .optional()
+        .isInt({ min: 1, max: 20 })
+        .withMessage('La limite doit être entre 1 et 20')
+];
+
 // ========================================
 // ROUTES D'AUTHENTIFICATION
 // ========================================
@@ -401,6 +413,18 @@ router.get('/',
     queryValidator,
     logAccess,
     userController.getAllUsers
+);
+
+/**
+ * @route   GET /api/users/search
+ * @desc    Rechercher des utilisateurs pour créer une conversation
+ * @access  Private
+ */
+router.get('/search',
+    authenticateToken,
+    searchUsersValidator,
+    logAccess,
+    userController.searchUsers
 );
 
 /**

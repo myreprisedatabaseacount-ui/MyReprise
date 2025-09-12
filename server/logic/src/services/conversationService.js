@@ -1,5 +1,12 @@
-const { Conversation, ConversationParticipants, User } = require('../models');
 const logger = require('../utils/logger');
+
+// Fonction pour obtenir les modèles de manière dynamique
+const getModels = () => {
+    const { Conversation } = require('../models/Conversation');
+    const { ConversationParticipants } = require('../models/ConversationParticipants');
+    const { User } = require('../models/User');
+    return { Conversation, ConversationParticipants, User };
+};
 
 /**
  * Service pour gérer les conversations
@@ -14,6 +21,7 @@ class ConversationService {
      */
     static async createConversation(type = 'chat', participantIds = []) {
         try {
+            const { Conversation, ConversationParticipants } = getModels();
             const conversation = await Conversation.create({
                 type: type
             });
@@ -43,6 +51,7 @@ class ConversationService {
      */
     static async joinConversation(conversationId, userId) {
         try {
+            const { Conversation, ConversationParticipants, User } = getModels();
             // Vérifier que la conversation existe
             const conversation = await Conversation.findByPk(conversationId);
             if (!conversation) {
@@ -101,6 +110,7 @@ class ConversationService {
      */
     static async leaveConversation(conversationId, userId) {
         try {
+            const { ConversationParticipants } = getModels();
             const participation = await ConversationParticipants.findOne({
                 where: {
                     conversation_id: conversationId,
@@ -131,6 +141,7 @@ class ConversationService {
      */
     static async canAccessConversation(conversationId, userId) {
         try {
+            const { ConversationParticipants } = getModels();
             const participation = await ConversationParticipants.findOne({
                 where: {
                     conversation_id: conversationId,
@@ -153,6 +164,7 @@ class ConversationService {
      */
     static async getConversationParticipants(conversationId) {
         try {
+            const { ConversationParticipants, User } = getModels();
             const participants = await ConversationParticipants.findAll({
                 where: {
                     conversation_id: conversationId,

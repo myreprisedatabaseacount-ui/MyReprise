@@ -774,6 +774,98 @@ const getCurrentUser = async (req, res) => {
     }
 };
 
+/**
+ * 🔍 Rechercher des utilisateurs pour créer une conversation
+ */
+const searchUsers = async (req, res) => {
+    try {
+        const { query, limit = 10 } = req.query;
+        const currentUserId = req.user.userId;
+
+        // Validation de la requête
+        if (!query || query.trim().length < 2) {
+            return res.status(400).json({
+                success: false,
+                error: 'La requête de recherche doit contenir au moins 2 caractères',
+                code: 'SEARCH_QUERY_TOO_SHORT'
+            });
+        }
+
+        const searchTerm = query.trim();
+        const searchLimit = Math.min(parseInt(limit) || 10, 20); // Maximum 20 résultats
+
+        logger.info(`Recherche d'utilisateurs: "${searchTerm}" par l'utilisateur ${currentUserId}`);
+
+        // Recherche dans la base de données
+        const users = await User.findAll({
+            where: {
+                id: { [require('sequelize').Op.ne]: currentUserId }, // Exclure l'utilisateur actuel
+                [require('sequelize').Op.or]: [
+                    { firstName: { [require('sequelize').Op.like]: `%${searchTerm}%` } },
+                    { lastName: { [require('sequelize').Op.like]: `%${searchTerm}%` } },
+                    // Recherche par nom complet
+                    require('sequelize').where(
+                        require('sequelize').fn('CONCAT', 
+                            require('sequelize').col('first_name'), 
+                            ' ', 
+                            require('sequelize').col('last_name')
+                        ),
+                        { [require('sequelize').Op.like]: `%${searchTerm}%` }
+                    )
+                ],
+                isVerified: true, // Seulement les utilisateurs vérifiés
+                role: 'user'
+            },
+            attributes: ['id', 'firstName', 'lastName', 'profileImage', 'createdAt'],
+            limit: searchLimit,
+            order: [
+                // Prioriser les correspondances exactes
+                [require('sequelize').literal(`CASE 
+                    WHEN first_name = '${searchTerm}' THEN 1
+                    WHEN last_name = '${searchTerm}' THEN 2
+                    WHEN email = '${searchTerm}' THEN 3
+                    WHEN phone = '${searchTerm}' THEN 4
+                    WHEN first_name LIKE '${searchTerm}%' THEN 5
+                    WHEN last_name LIKE '${searchTerm}%' THEN 6
+                    ELSE 7
+                END`), 'ASC'],
+                ['firstName', 'ASC'],
+                ['lastName', 'ASC']
+            ]
+        });
+
+        // Formater les résultats
+        const searchResults = users.map(user => ({
+            id: user.id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            fullName: `${user.firstName} ${user.lastName}`,
+            profileImage: user.profileImage,
+        }));
+
+        logger.info(`${searchResults.length} utilisateurs trouvés pour la recherche "${searchTerm}"`);
+
+        res.json({
+            success: true,
+            data: {
+                users: searchResults,
+                totalCount: searchResults.length,
+                searchTerm: searchTerm,
+                hasResults: searchResults.length > 0
+            },
+            message: `${searchResults.length} utilisateur(s) trouvé(s)`
+        });
+
+    } catch (error) {
+        logger.error('Erreur lors de la recherche d\'utilisateurs:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur lors de la recherche d\'utilisateurs',
+            code: 'SEARCH_ERROR'
+        });
+    }
+};
+
 module.exports = {
     // Authentification
     register,
@@ -794,6 +886,9 @@ module.exports = {
     deleteUser,
     verifyUser,
     changeUserRole,
+
+    // Recherche
+    searchUsers,
 
     // OTP (TODO)
     sendOTP,
