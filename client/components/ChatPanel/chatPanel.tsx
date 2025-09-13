@@ -1,25 +1,57 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Minimize2, Send, Smile, MoreHorizontal, Users, Search } from 'lucide-react';
+import { MessageCircle, X, Minimize2, Send, Smile, MoreHorizontal, Users, Search, Check, CheckCheck } from 'lucide-react';
 import { useCurrentUser } from '@/services/hooks/useCurrentUser';
 import { useSocket } from '@/services/hooks/useSocket';
-import { useCreateConversationMutation, useMarkConversationAsReadMutation } from '@/services/api/ConversationsApi';
+import { useCreateConversationMutation, useMarkConversationAsReadMutation, useGetConversationMessagesQuery } from '@/services/api/ConversationsApi';
+import { useToggleReactionMutation } from '@/services/api/ReactionsApi';
 import ContactsList from './ContactsList';
 import UserSearch from './UserSearch';
 
 interface Reaction {
-  emoji: string;
+  type: string;
   count: number;
+  users: Array<{
+    id: number;
+    firstName: string;
+    lastName: string;
+    email: string;
+  }>;
   userReacted: boolean;
 }
 
 interface Message {
-  id: string;
+  id: number;
   text: string;
-  sender: 'me' | 'friend';
-  timestamp: Date;
+  audioUrl?: string;
+  sender: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    email: string;
+    primaryIdentifier: string;
+  };
+  replyToMessage?: {
+    id: number;
+    text: string;
+    sender: {
+      id: number;
+      firstName: string;
+      lastName: string;
+      email: string;
+      primaryIdentifier: string;
+    };
+  };
+  offerId?: number;
+  createdAt: string;
+  isEdited: boolean;
   reactions: Reaction[];
+  readBy?: {
+    userId: number;
+    readAt: string;
+  }[];
+  isRead?: boolean;
 }
 
 interface Contact {
@@ -46,27 +78,57 @@ interface ChatPanelProps {
   onToggle: () => void;
 }
 
-const REACTION_EMOJIS = ['👍', '😂', '😍', '👎', '😮', '😢', '🔥', '❤️'];
+const REACTION_TYPES = [
+  { type: 'like', emoji: '👍', label: 'J\'aime' },
+  { type: 'love', emoji: '❤️', label: 'J\'adore' },
+  { type: 'laugh', emoji: '😂', label: 'Rire' },
+  { type: 'wow', emoji: '😮', label: 'Wow' },
+  { type: 'sad', emoji: '😢', label: 'Triste' },
+  { type: 'angry', emoji: '😡', label: 'En colère' },
+  { type: 'thumbs_up', emoji: '👍', label: 'Pouce vers le haut' },
+  { type: 'thumbs_down', emoji: '👎', label: 'Pouce vers le bas' }
+];
 
 export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
   const { currentUser } = useCurrentUser();
   const { socket, isConnected, joinConversation, leaveConversation, sendMessage: socketSendMessage, on, off } = useSocket();
   const [createConversation] = useCreateConversationMutation();
   const [markConversationAsRead] = useMarkConversationAsReadMutation();
-
+  const [toggleReaction] = useToggleReactionMutation();
+  
   // État pour la gestion des contacts et conversations
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
+  
+  // Récupérer les messages de la conversation sélectionnée
+  const { data: messagesData, isLoading: messagesLoading, error: messagesError } = useGetConversationMessagesQuery(
+    { conversationId: currentConversationId! },
+    { skip: !currentConversationId }
+  );
   const [showContactsList, setShowContactsList] = useState(true);
   const [showUserSearch, setShowUserSearch] = useState(false);
 
   // État pour les messages (maintenant basé sur la conversation sélectionnée)
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [showReactionMenu, setShowReactionMenu] = useState<string | null>(null);
+  const [showReactionMenu, setShowReactionMenu] = useState<number | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const reactionMenuRef = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const readMessages = useRef<Set<number>>(new Set());
+
+  // Mettre à jour les messages quand les données changent
+  useEffect(() => {
+    if (messagesData?.messages) {
+      const formattedMessages = messagesData.messages.map((msg: any) => ({
+        ...msg,
+        reactions: msg.reactions || [], // Utiliser les réactions du serveur ou initialiser vides
+        readBy: msg.readBy || [] // S'assurer que readBy est défini
+      }));
+      setMessages(formattedMessages);
+    }
+  }, [messagesData]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -76,6 +138,51 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
     scrollToBottom();
   }, [messages]);
 
+  // Marquer automatiquement les messages comme lus quand ils deviennent visibles
+  useEffect(() => {
+    if (!currentConversationId || !isConnected || !socket) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const messageId = parseInt(entry.target.getAttribute('data-message-id') || '0');
+            const senderId = parseInt(entry.target.getAttribute('data-sender-id') || '0');
+            
+            // Marquer comme lu seulement si ce n'est pas notre propre message
+            if (messageId && senderId !== currentUser?.id) {
+              markMessageAsRead(messageId);
+            }
+          }
+        });
+      },
+      {
+        threshold: 0.3, // Message considéré comme visible quand 30% est visible
+        rootMargin: '0px 0px -100px 0px' // Délai avant de considérer comme visible
+      }
+    );
+
+    // Observer tous les messages visibles
+    messageRefs.current.forEach((element) => {
+      if (element) {
+        observer.observe(element);
+      }
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [messages, currentConversationId, isConnected, socket, currentUser?.id]);
+
+  // Fonction pour marquer un message comme lu
+  const markMessageAsRead = (messageId: number) => {
+    if (isConnected && socket && !readMessages.current.has(messageId)) {
+      readMessages.current.add(messageId);
+      socket.emit('mark_message_read', { messageId });
+      console.log(`📖 Marquage du message ${messageId} comme lu`);
+    }
+  };
+
   // Gestion de la sélection de contact
   const handleContactSelect = async (contact: Contact) => {
     try {
@@ -83,6 +190,9 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
       setCurrentConversationId(contact.conversationId);
       setShowContactsList(false);
       setShowUserSearch(false);
+      
+      // Réinitialiser le cache des messages lus
+      readMessages.current.clear();
       
       // Rejoindre la conversation via socket
       if (isConnected) {
@@ -92,17 +202,14 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
       // Marquer les messages comme lus
       await markConversationAsRead(contact.conversationId);
       
-      // TODO: Charger les messages de la conversation
-      // Pour l'instant, on utilise des messages mockés
-      setMessages([
-        {
-          id: '1',
-          text: `Conversation avec ${contact.friendName}`,
-          sender: 'friend',
-          timestamp: new Date(Date.now() - 300000),
-          reactions: []
-        }
-      ]);
+      // Marquer automatiquement tous les messages visibles comme lus après un délai
+      setTimeout(() => {
+        messages.forEach(message => {
+          if (message.sender.id !== currentUser?.id) {
+            markMessageAsRead(message.id);
+          }
+        });
+      }, 1000);
     } catch (error) {
       console.error('Erreur lors de la sélection du contact:', error);
     }
@@ -123,11 +230,16 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
     const handleNewMessage = (data: any) => {
       if (data.conversationId === currentConversationId) {
         const newMsg: Message = {
-          id: data.message.id.toString(),
+          id: data.message.id,
           text: data.message.text || '',
-          sender: data.message.sender.id === currentUser?.id ? 'me' : 'friend',
-          timestamp: new Date(data.message.createdAt),
-          reactions: []
+          audioUrl: data.message.audioUrl,
+          sender: data.message.sender,
+          replyToMessage: data.message.replyToMessage,
+          offerId: data.message.offerId,
+          createdAt: data.message.createdAt,
+          isEdited: data.message.isEdited,
+          reactions: [],
+          readBy: data.message.readBy || []
         };
         setMessages(prev => [...prev, newMsg]);
       }
@@ -135,16 +247,60 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
 
     // Écouter les messages marqués comme lus
     const handleMessageRead = (data: any) => {
-      // Mettre à jour l'état des messages si nécessaire
-      console.log('Message lu:', data);
+      if (data.conversationId === currentConversationId) {
+        console.log(`📖 Message ${data.messageId} lu par l'utilisateur ${data.userId}`);
+        
+        // Mettre à jour le statut de lecture des messages
+        setMessages(prev => prev.map(message => {
+          if (message.id === data.messageId) {
+            const updatedReadBy = [...(message.readBy || [])];
+            const existingRead = updatedReadBy.find(read => read.userId === data.userId);
+            
+            if (!existingRead) {
+              updatedReadBy.push({
+                userId: data.userId,
+                readAt: data.readAt || new Date().toISOString()
+              });
+              
+              console.log(`✅ Statut de lecture mis à jour pour le message ${message.id}`);
+            }
+            
+            return {
+              ...message,
+              readBy: updatedReadBy
+            };
+          }
+          return message;
+        }));
+      }
+    };
+
+    // Écouter les mises à jour de réactions
+    const handleReactionUpdated = (data: any) => {
+      if (data.conversationId === currentConversationId) {
+        console.log(`😀 Réaction ${data.reactionType} ${data.action} sur le message ${data.messageId}`);
+        
+        // Mettre à jour les réactions du message
+        setMessages(prev => prev.map(message => {
+          if (message.id === data.messageId) {
+            return {
+              ...message,
+              reactions: data.reactions || []
+            };
+          }
+          return message;
+        }));
+      }
     };
 
     on('new_message', handleNewMessage);
     on('message_read', handleMessageRead);
+    on('reaction_updated', handleReactionUpdated);
 
     return () => {
       off('new_message', handleNewMessage);
       off('message_read', handleMessageRead);
+      off('reaction_updated', handleReactionUpdated);
     };
   }, [socket, isConnected, currentConversationId, currentUser, on, off]);
 
@@ -156,15 +312,7 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
         text: newMessage.trim()
       });
       
-      // Ajouter le message localement pour un feedback immédiat
-      const message: Message = {
-        id: Date.now().toString(),
-        text: newMessage.trim(),
-        sender: 'me',
-        timestamp: new Date(),
-        reactions: []
-      };
-      setMessages(prev => [...prev, message]);
+      // Vider le champ de saisie
       setNewMessage('');
     }
   };
@@ -176,44 +324,34 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
     }
   };
 
-  const addReaction = (messageId: string, emoji: string) => {
-    setMessages(prev => prev.map(message => {
-      if (message.id === messageId) {
-        const existingReaction = message.reactions.find(r => r.emoji === emoji);
-        if (existingReaction) {
-          if (existingReaction.userReacted) {
-            return {
-              ...message,
-              reactions: message.reactions.map(r =>
-                r.emoji === emoji
-                  ? { ...r, count: r.count - 1, userReacted: false }
-                  : r
-              ).filter(r => r.count > 0)
-            };
-          } else {
-            return {
-              ...message,
-              reactions: message.reactions.map(r =>
-                r.emoji === emoji
-                  ? { ...r, count: r.count + 1, userReacted: true }
-                  : r
-              )
-            };
-          }
-        } else {
-          return {
-            ...message,
-            reactions: [...message.reactions, { emoji, count: 1, userReacted: true }]
-          };
-        }
-      }
-      return message;
-    }));
-    setShowReactionMenu(null);
+  const addReaction = async (messageId: number, reactionType: string) => {
+    try {
+      await toggleReaction({ messageId, reactionType }).unwrap();
+      console.log(`😀 Réaction ${reactionType} envoyée pour le message ${messageId}`);
+      setShowReactionMenu(null);
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout de la réaction:', error);
+    }
   };
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const formatTime = (date: string | Date) => {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    return dateObj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  // Fonction pour déterminer le statut de lecture d'un message
+  const getMessageReadStatus = (message: Message) => {
+    if (!message.readBy || message.readBy.length === 0) {
+      return 'sent'; // Message envoyé mais pas encore lu
+    }
+    
+    // Vérifier si le destinataire a lu le message
+    const recipientRead = message.readBy.some(read => read.userId !== currentUser?.id);
+    if (recipientRead) {
+      return 'read'; // Message lu par le destinataire
+    }
+    
+    return 'delivered'; // Message livré mais pas encore lu
   };
 
   if (!isOpen) {
@@ -269,9 +407,6 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
                 setSelectedContact(null);
                 setCurrentConversationId(null);
                 setMessages([]);
-                if (currentConversationId && isConnected) {
-                  leaveConversation(currentConversationId);
-                }
               }}
               className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
               title="Retour à la liste des conversations"
@@ -337,91 +472,130 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
             /* Conversation */
             <>
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4 h-[calc(100vh-140px)]"  >
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`group relative ${message.sender === 'me' ? 'flex justify-end' : 'flex justify-start'}`}
-              >
-                <div className="relative max-w-[80%]">
-                  {/* Message bubble */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 h-[calc(100vh-140px)]">
+              {messagesLoading ? (
+                <div className="flex justify-center items-center h-full">
+                  <div className="text-gray-500">Chargement des messages...</div>
+                </div>
+              ) : messagesError ? (
+                <div className="flex justify-center items-center h-full">
+                  <div className="text-red-500">Erreur lors du chargement des messages</div>
+                </div>
+              ) : (
+                messages.map((message) => (
                   <div
-                    className={`relative px-4 py-2 rounded-2xl ${message.sender === 'me'
-                      ? 'bg-blue-600 text-white rounded-br-sm'
-                      : 'bg-gray-100 text-gray-900 rounded-bl-sm'
-                      } shadow-sm hover:shadow-md transition-shadow duration-200`}
+                    key={message.id}
+                    ref={(el) => {
+                      if (el) {
+                        messageRefs.current.set(message.id, el);
+                      } else {
+                        messageRefs.current.delete(message.id);
+                      }
+                    }}
+                    data-message-id={message.id}
+                    data-sender-id={message.sender.id}
+                    className={`group relative ${message.sender.id === currentUser?.id ? 'flex justify-end' : 'flex justify-start'}`}
                   >
-                    <p className="text-sm leading-relaxed">{message.text}</p>
+                    <div className="relative max-w-[80%]">
+                      {/* Message bubble */}
+                      <div
+                        className={`relative px-4 py-2 rounded-2xl ${message.sender.id === currentUser?.id
+                          ? 'bg-blue-600 text-white rounded-br-sm'
+                          : 'bg-gray-100 text-gray-900 rounded-bl-sm'
+                          } shadow-sm hover:shadow-md transition-shadow duration-200`}
+                      >
+                        <p className="text-sm leading-relaxed">{message.text}</p>
 
-                    {/* Reaction button */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowReactionMenu(showReactionMenu === message.id ? null : message.id);
-                      }}
-                      className={`absolute -top-2 ${message.sender === 'me' ? '-left-2' : '-right-2'
-                        } w-6 h-6 bg-white border-2 border-gray-200 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-gray-50`}
-                    >
-                      <Smile size={12} className="text-gray-600" />
-                    </button>
-                  </div>
-
-                  {/* Reactions */}
-                  {message.reactions.length > 0 && (
-                    <div className={`flex flex-wrap gap-1 mt-2 ${message.sender === 'me' ? 'justify-end' : 'justify-start'
-                      }`}>
-                      {message.reactions.map((reaction, index) => (
+                        {/* Reaction button */}
                         <button
-                          key={index}
                           onClick={(e) => {
                             e.stopPropagation();
-                            addReaction(message.id, reaction.emoji);
+                            setShowReactionMenu(showReactionMenu === message.id ? null : message.id);
                           }}
-                          className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs transition-all duration-200 ${reaction.userReacted
-                            ? 'bg-blue-100 border border-blue-300 text-blue-700'
-                            : 'bg-gray-100 border border-gray-200 text-gray-600 hover:bg-gray-200'
-                            }`}
+                          className={`absolute -top-2 ${message.sender.id === currentUser?.id ? '-left-2' : '-right-2'
+                            } w-6 h-6 bg-white border-2 border-gray-200 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-gray-50`}
                         >
-                          <span>{reaction.emoji}</span>
-                          <span className="font-medium">{reaction.count}</span>
+                          <Smile size={12} className="text-gray-600" />
                         </button>
-                      ))}
+                      </div>
+
+                      {/* Reactions */}
+                      {message.reactions && message.reactions.length > 0 && (
+                        <div className={`flex flex-wrap gap-1 mt-2 ${message.sender.id === currentUser?.id ? 'justify-end' : 'justify-start'
+                          }`}>
+                          {message.reactions.map((reaction, index) => {
+                            const reactionType = REACTION_TYPES.find(r => r.type === reaction.type);
+                            return (
+                              <button
+                                key={index}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  addReaction(message.id, reaction.type);
+                                }}
+                                className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs transition-all duration-200 ${reaction.userReacted
+                                  ? 'bg-blue-100 border border-blue-300 text-blue-700'
+                                  : 'bg-gray-100 border border-gray-200 text-gray-600 hover:bg-gray-200'
+                                  }`}
+                                title={reactionType?.label || reaction.type}
+                              >
+                                <span>{reactionType?.emoji || '😀'}</span>
+                                <span className="font-medium">{reaction.count}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Timestamp et statut de lecture */}
+                      <div className={`flex items-center gap-1 mt-1 ${message.sender.id === currentUser?.id ? 'justify-end' : 'justify-start'
+                        }`}>
+                        <p className="text-xs text-gray-500">
+                          {formatTime(message.createdAt)}
+                        </p>
+                        {message.sender.id === currentUser?.id && (
+                          <div className="flex items-center">
+                            {getMessageReadStatus(message) === 'sent' && (
+                              <Check size={12} className="text-gray-400" />
+                            )}
+                            {getMessageReadStatus(message) === 'delivered' && (
+                              <CheckCheck size={12} className="text-gray-400" />
+                            )}
+                            {getMessageReadStatus(message) === 'read' && (
+                              <CheckCheck size={12} className="text-blue-500" />
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  )}
 
-                  {/* Timestamp */}
-                  <p className={`text-xs text-gray-500 mt-1 ${message.sender === 'me' ? 'text-right' : 'text-left'
-                    }`}>
-                    {formatTime(message.timestamp)}
-                  </p>
-                </div>
-
-                {/* Reaction menu */}
-                {showReactionMenu === message.id && (
-                  <div
-                    ref={reactionMenuRef}
-                    onClick={(e) => e.stopPropagation()}
-                    className={`absolute z-50 ${message.sender === 'me' ? 'right-0' : 'left-0'
-                      } -top-14 bg-white rounded-lg shadow-xl border border-gray-200 p-2 flex space-x-1`}
-                  >
-                    {REACTION_EMOJIS.map((emoji) => (
-                      <button
-                        key={emoji}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          addReaction(message.id, emoji);
-                        }}
-                        className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-lg transition-all duration-200 hover:scale-110"
+                    {/* Reaction menu */}
+                    {showReactionMenu === message.id && (
+                      <div
+                        ref={reactionMenuRef}
+                        onClick={(e) => e.stopPropagation()}
+                        className={`absolute z-50 ${message.sender.id === currentUser?.id ? 'right-0' : 'left-0'
+                          } -top-14 bg-white rounded-lg shadow-xl border border-gray-200 p-2 flex space-x-1`}
                       >
-                        {emoji}
-                      </button>
-                    ))}
+                        {REACTION_TYPES.map((reactionType) => (
+                          <button
+                            key={reactionType.type}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              addReaction(message.id, reactionType.type);
+                            }}
+                            className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-lg transition-all duration-200 hover:scale-110"
+                            title={reactionType.label}
+                          >
+                            {reactionType.emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </div>
+                ))
+              )}
+              <div ref={messagesEndRef} />
+            </div>
 
           {/* Input */}
           <div className="p-4 border-t border-gray-200 bg-gray-50">

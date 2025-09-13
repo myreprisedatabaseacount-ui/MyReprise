@@ -73,4 +73,21 @@ router.put('/:conversationId/read', authenticateToken, async (req, res) => {
     }
 });
 
+/**
+ * GET /api/conversations/:conversationId/messages
+ * Récupérer les messages d'une conversation
+ */
+router.get('/:conversationId/messages', authenticateToken, async (req, res) => {
+    try {
+        await ConversationController.getConversationMessages(req, res);
+    } catch (error) {
+        logger.error('Erreur dans la route GET /api/conversations/:conversationId/messages:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur interne du serveur',
+            code: 'INTERNAL_SERVER_ERROR'
+        });
+    }
+});
+
 module.exports = router;

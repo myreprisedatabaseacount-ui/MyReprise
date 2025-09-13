@@ -7,9 +7,11 @@ const { Conversation } = require('../models/Conversation');
 const { ConversationParticipants } = require('../models/ConversationParticipants');
 const { Message } = require('../models/Message');
 const { MessageReads } = require('../models/MessageReads');
+const { MessageReactions } = require('../models/MessageReactions');
 
 // Import de la fonction de broadcast socket
 const { broadcastConversationsUpdate } = require('../sockets');
+const ConversationService = require('../services/conversationService');
 
 /**
  * Contrôleur pour gérer les conversations
@@ -556,6 +558,168 @@ class ConversationController {
                 success: false,
                 error: 'Erreur lors de la récupération des informations de la conversation',
                 code: 'CONVERSATION_INFO_FETCH_ERROR'
+            });
+        }
+    }
+
+    /**
+     * Récupérer les messages d'une conversation
+     * @param {Object} req - Requête Express
+     * @param {Object} res - Réponse Express
+     */
+    static async getConversationMessages(req, res) {
+        try {
+            const userId = req.user.userId;
+            const conversationId = parseInt(req.params.conversationId);
+            const { limit = 50, offset = 0 } = req.query;
+            
+            if (isNaN(conversationId)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'ID de conversation invalide',
+                    code: 'INVALID_CONVERSATION_ID'
+                });
+            }
+            
+            logger.info(`Récupération des messages de la conversation ${conversationId} pour l'utilisateur ${userId}`);
+            
+            // Vérifier que l'utilisateur peut accéder à cette conversation
+            const canAccess = await ConversationService.canAccessConversation(conversationId, userId);
+            if (!canAccess) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Accès refusé à cette conversation',
+                    code: 'CONVERSATION_ACCESS_DENIED'
+                });
+            }
+
+            // Récupérer les messages
+            const messages = await Message.findAll({
+                where: {
+                    conversation_id: conversationId,
+                },
+                include: [
+                    {
+                        model: User,
+                        as: 'Sender',
+                        attributes: ['id', 'firstName', 'lastName', 'email', 'primaryIdentifier']
+                    },
+                    {
+                        model: Message,
+                        as: 'ReplyToMessage',
+                        attributes: ['id', 'text', 'sender_id'],
+                        include: [{
+                            model: User,
+                            as: 'Sender',
+                            attributes: ['id', 'firstName', 'lastName', 'email', 'primaryIdentifier']
+                        }]
+                    },
+                    {
+                        model: MessageReads,
+                        as: 'Reads',
+                        attributes: ['user_id', 'read_at'],
+                        include: [{
+                            model: User,
+                            as: 'User',
+                            attributes: ['id', 'firstName', 'lastName']
+                        }]
+                    },
+                    {
+                        model: MessageReactions,
+                        as: 'Reactions',
+                        attributes: ['reaction_type', 'user_id', 'created_at'],
+                        include: [{
+                            model: User,
+                            as: 'User',
+                            attributes: ['id', 'firstName', 'lastName', 'email']
+                        }]
+                    }
+                ],
+                order: [['created_at', 'ASC']],
+                limit: parseInt(limit),
+                offset: parseInt(offset)
+            });
+
+            // Formater les messages pour le frontend
+            const formattedMessages = messages.map(message => ({
+                id: message.id,
+                text: message.text,
+                audioUrl: message.audio_url,
+                sender: {
+                    id: message.Sender.id,
+                    firstName: message.Sender.firstName,
+                    lastName: message.Sender.lastName,
+                    email: message.Sender.email,
+                    primaryIdentifier: message.Sender.primaryIdentifier
+                },
+                replyToMessage: message.ReplyToMessage ? {
+                    id: message.ReplyToMessage.id,
+                    text: message.ReplyToMessage.text,
+                    sender: {
+                        id: message.ReplyToMessage.Sender.id,
+                        firstName: message.ReplyToMessage.Sender.firstName,
+                        lastName: message.ReplyToMessage.Sender.lastName,
+                        email: message.ReplyToMessage.Sender.email,
+                        primaryIdentifier: message.ReplyToMessage.Sender.primaryIdentifier
+                    }
+                } : null,
+                offerId: message.offer_id,
+                createdAt: message.created_at,
+                isEdited: message.is_edited,
+                readBy: message.Reads ? message.Reads.map(read => ({
+                    userId: read.user_id,
+                    readAt: read.read_at
+                })) : [],
+                reactions: message.Reactions ? (() => {
+                    // Agréger les réactions par type
+                    const reactionMap = new Map();
+                    
+                    message.Reactions.forEach(reaction => {
+                        const key = reaction.reaction_type;
+                        if (!reactionMap.has(key)) {
+                            reactionMap.set(key, {
+                                type: reaction.reaction_type,
+                                count: 0,
+                                users: [],
+                                userReacted: false
+                            });
+                        }
+                        
+                        const reactionData = reactionMap.get(key);
+                        reactionData.count++;
+                        reactionData.users.push({
+                            id: reaction.User.id,
+                            firstName: reaction.User.firstName,
+                            lastName: reaction.User.lastName,
+                            email: reaction.User.email
+                        });
+                        
+                        // Vérifier si l'utilisateur actuel a réagi
+                        if (reaction.user_id === userId) {
+                            reactionData.userReacted = true;
+                        }
+                    });
+                    
+                    return Array.from(reactionMap.values());
+                })() : []
+            }));
+
+            res.status(200).json({
+                success: true,
+                data: {
+                    messages: formattedMessages,
+                    totalCount: formattedMessages.length,
+                    conversationId: conversationId
+                },
+                message: `${formattedMessages.length} messages récupérés avec succès`
+            });
+
+        } catch (error) {
+            logger.error('Erreur lors de la récupération des messages:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Erreur lors de la récupération des messages',
+                code: 'MESSAGES_FETCH_ERROR'
             });
         }
     }

@@ -55,6 +55,17 @@ export const conversationsApi = createApi({
       invalidatesTags: ['Conversations'],
       transformResponse: (response) => response.data,
     }),
+
+    // Récupérer les messages d'une conversation
+    getConversationMessages: builder.query({
+      query: ({ conversationId, limit = 50, offset = 0 }) => 
+        `/${conversationId}/messages?limit=${limit}&offset=${offset}`,
+      providesTags: (result, error, { conversationId }) => [
+        { type: 'Conversation', id: conversationId },
+        { type: 'Messages', id: conversationId }
+      ],
+      transformResponse: (response) => response.data,
+    }),
   }),
 });
 
@@ -63,4 +74,5 @@ export const {
   useGetConversationQuery,
   useCreateConversationMutation,
   useMarkConversationAsReadMutation,
+  useGetConversationMessagesQuery,
 } = conversationsApi;

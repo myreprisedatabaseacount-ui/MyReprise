@@ -1,6 +1,7 @@
 const { authenticateSocket } = require('../middleware/socketAuth');
 const ConversationService = require('../services/conversationService');
 const MessageService = require('../services/messageService');
+const ReactionService = require('../services/reactionService');
 // ContactsService supprimé - maintenant géré par ConversationController
 const logger = require('../utils/logger');
 
@@ -114,43 +115,66 @@ const initializeSockets = (io) => {
                     offerId
                 );
 
-                // Obtenir les informations complètes du message avec l'expéditeur
-                const fullMessage = await MessageService.getConversationMessages(conversationId, 1, 0);
-                const messageData = fullMessage.find(m => m.id === message.id);
+                // Récupérer les informations complètes du message avec l'expéditeur
+                const { Message } = require('../models/Message');
+                const { User } = require('../models/User');
+                const fullMessage = await Message.findByPk(message.id, {
+                    include: [
+                        {
+                            model: User,
+                            as: 'Sender',
+                            attributes: ['id', 'firstName', 'lastName', 'email', 'primaryIdentifier']
+                        },
+                        {
+                            model: Message,
+                            as: 'ReplyToMessage',
+                            attributes: ['id', 'text', 'sender_id'],
+                            include: [{
+                                model: User,
+                                as: 'Sender',
+                                attributes: ['id', 'firstName', 'lastName', 'email', 'primaryIdentifier']
+                            }]
+                        }
+                    ]
+                });
 
-                if (messageData) {
+                if (fullMessage) {
                     // Envoyer le message à tous les participants de la conversation
                     io.to(`conversation_${conversationId}`).emit('new_message', {
                         conversationId,
                         message: {
-                            id: messageData.id,
-                            text: messageData.text,
-                            audioUrl: messageData.audio_url,
+                            id: fullMessage.id,
+                            text: fullMessage.text,
+                            audioUrl: fullMessage.audio_url,
                             sender: {
-                                id: messageData.Sender.id,
-                                email: messageData.Sender.email,
-                                primaryIdentifier: messageData.Sender.primaryIdentifier
+                                id: fullMessage.Sender.id,
+                                firstName: fullMessage.Sender.firstName,
+                                lastName: fullMessage.Sender.lastName,
+                                email: fullMessage.Sender.email,
+                                primaryIdentifier: fullMessage.Sender.primaryIdentifier
                             },
-                            replyToMessage: messageData.ReplyToMessage ? {
-                                id: messageData.ReplyToMessage.id,
-                                text: messageData.ReplyToMessage.text,
+                            replyToMessage: fullMessage.ReplyToMessage ? {
+                                id: fullMessage.ReplyToMessage.id,
+                                text: fullMessage.ReplyToMessage.text,
                                 sender: {
-                                    id: messageData.ReplyToMessage.Sender.id,
-                                    email: messageData.ReplyToMessage.Sender.email,
-                                    primaryIdentifier: messageData.ReplyToMessage.Sender.primaryIdentifier
+                                    id: fullMessage.ReplyToMessage.Sender.id,
+                                    firstName: fullMessage.ReplyToMessage.Sender.firstName,
+                                    lastName: fullMessage.ReplyToMessage.Sender.lastName,
+                                    email: fullMessage.ReplyToMessage.Sender.email,
+                                    primaryIdentifier: fullMessage.ReplyToMessage.Sender.primaryIdentifier
                                 }
                             } : null,
-                            offerId: messageData.offer_id,
-                            createdAt: messageData.created_at,
-                            isEdited: messageData.is_edited
+                            offerId: fullMessage.offer_id,
+                            createdAt: fullMessage.created_at,
+                            isEdited: fullMessage.is_edited
                         }
                     });
 
                     logger.info(`💬 Message envoyé par ${userEmail} dans conversation ${conversationId}`);
                 }
 
-                // TODO: Mettre à jour la liste des conversations pour tous les participants
-                // await broadcastContactsUpdate(io, conversationId);
+                // Mettre à jour la liste des conversations pour tous les participants
+                await broadcastConversationsUpdate(conversationId);
 
             } catch (error) {
                 logger.error('Erreur send_message:', error);
@@ -167,26 +191,83 @@ const initializeSockets = (io) => {
                     return;
                 }
 
+                // Récupérer le message pour obtenir l'ID de conversation
+                const message = await MessageService.getMessageById(messageId);
+                if (!message) {
+                    socket.emit('error', { message: 'Message non trouvé' });
+                    return;
+                }
+
                 await MessageService.markMessageAsRead(messageId, userId);
 
-                // Informer les autres participants que le message a été lu
-                socket.broadcast.emit('message_read', {
+                // Informer les autres participants de la conversation que le message a été lu
+                socket.to(`conversation_${message.conversation_id}`).emit('message_read', {
                     messageId,
                     userId,
+                    conversationId: message.conversation_id,
                     readAt: new Date()
                 });
 
-                logger.info(`👁️ Message ${messageId} marqué comme lu par ${userEmail}`);
-
-                // TODO: Mettre à jour la liste des conversations pour tous les participants
-                // const message = await Message.findByPk(messageId);
-                // if (message) {
-                //     await broadcastContactsUpdate(io, message.conversation_id);
-                // }
+                logger.info(`👁️ Message ${messageId} marqué comme lu par ${userEmail} dans la conversation ${message.conversation_id}`);
 
             } catch (error) {
                 logger.error('Erreur mark_message_read:', error);
                 socket.emit('error', { message: 'Erreur lors du marquage du message' });
+            }
+        });
+
+        socket.on('toggle_reaction', async (data) => {
+            try {
+                const { messageId, reactionType } = data;
+
+                if (!messageId || !reactionType) {
+                    socket.emit('error', { message: 'ID de message et type de réaction requis' });
+                    return;
+                }
+
+                // Récupérer le message pour obtenir l'ID de conversation
+                const message = await MessageService.getMessageById(messageId);
+                if (!message) {
+                    socket.emit('error', { message: 'Message non trouvé' });
+                    return;
+                }
+
+                // Vérifier que l'utilisateur peut accéder à cette conversation
+                const canAccess = await ConversationService.canAccessConversation(message.conversation_id, userId);
+                if (!canAccess) {
+                    socket.emit('error', { message: 'Accès refusé à cette conversation' });
+                    return;
+                }
+
+                // Toggle la réaction via le service
+                const result = await ReactionService.toggleReaction(messageId, userId, reactionType);
+                
+                // Récupérer toutes les réactions du message
+                const reactions = await ReactionService.getMessageReactionsWithUserStatus(messageId, userId);
+
+                // Informer tous les participants de la conversation
+                io.to(`conversation_${message.conversation_id}`).emit('reaction_updated', {
+                    messageId,
+                    userId,
+                    conversationId: message.conversation_id,
+                    action: result.action,
+                    reactionType: result.reactionType,
+                    count: result.count,
+                    reactions: reactions,
+                    user: {
+                        id: userId,
+                        firstName: socket.user.firstName,
+                        lastName: socket.user.lastName,
+                        email: userEmail,
+                        primaryIdentifier: socket.user.primaryIdentifier
+                    }
+                });
+
+                logger.info(`😀 Réaction ${reactionType} ${result.action} par ${userEmail} sur message ${messageId} dans conversation ${message.conversation_id}`);
+
+            } catch (error) {
+                logger.error('Erreur toggle_reaction:', error);
+                socket.emit('error', { message: 'Erreur lors de la gestion de la réaction' });
             }
         });
 
@@ -264,7 +345,7 @@ const broadcastConversationsUpdate = async (conversationId) => {
             globalIO.to(`user_${userId}`).emit('conversations:update', {
                 conversationId: conversationId,
                 timestamp: new Date(),
-                message: 'Nouvelle conversation créée'
+                message: 'Nouveau message reçu'
             });
         }
         

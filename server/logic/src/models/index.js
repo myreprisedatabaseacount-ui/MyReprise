@@ -21,6 +21,7 @@ const { Message } = require('./Message');
 const { Delta } = require('./Delta');
 const { ConversationParticipants } = require('./ConversationParticipants');
 const { MessageReads } = require('./MessageReads');
+const { MessageReactions } = require('./MessageReactions');
 
 // Import des modèles non encore refactorisés
 const { Subject } = require('./Subject');
@@ -322,6 +323,26 @@ async function initializeModels() {
       console.error('❌ Erreur association User <-> MessageReads:', error.message);
     }
     
+    try {
+      if (Message && MessageReactions) {
+        console.log('🔄 Association Message <-> MessageReactions...');
+        Message.hasMany(MessageReactions, { foreignKey: 'message_id', as: 'Reactions' });
+        MessageReactions.belongsTo(Message, { foreignKey: 'message_id', as: 'Message' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association Message <-> MessageReactions:', error.message);
+    }
+    
+    try {
+      if (User && MessageReactions) {
+        console.log('🔄 Association User <-> MessageReactions...');
+        User.hasMany(MessageReactions, { foreignKey: 'user_id', as: 'MessageReactions' });
+        MessageReactions.belongsTo(User, { foreignKey: 'user_id', as: 'User' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association User <-> MessageReactions:', error.message);
+    }
+    
     logger.info('✅ Associations définies avec gestion d\'erreur');
     
     // Synchroniser la base de données (créer les tables)
@@ -371,7 +392,8 @@ async function initializeModels() {
       Message,
       Delta,
       ConversationParticipants,
-      MessageReads
+      MessageReads,
+      MessageReactions
     };
     
   } catch (error) {

@@ -1,4 +1,8 @@
-const { Message, MessageReads, User, Conversation } = require('../models');
+// Import direct des modèles
+const { Message } = require('../models/Message');
+const { MessageReads } = require('../models/MessageReads');
+const { User } = require('../models/User');
+const { Conversation } = require('../models/Conversation');
 const logger = require('../utils/logger');
 
 /**
@@ -197,6 +201,24 @@ class MessageService {
             return message;
         } catch (error) {
             logger.error('Erreur modification message:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Récupérer un message par son ID
+     * @param {number} messageId - ID du message
+     * @returns {Object} Message trouvé
+     */
+    static async getMessageById(messageId) {
+        try {
+            const message = await Message.findByPk(messageId);
+            if (!message) {
+                throw new Error('Message non trouvé');
+            }
+            return message;
+        } catch (error) {
+            logger.error('Erreur récupération message:', error);
             throw error;
         }
     }

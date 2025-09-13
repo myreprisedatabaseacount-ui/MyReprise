@@ -70,9 +70,6 @@ const Brand = sequelize.define('Brand', {
     updatedAt: 'updated_at',
     indexes: [
         {
-            fields: ['category_id']
-        },
-        {
             unique: true,
             fields: ['name_ar']
         },

@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGetConversationsQuery } from '@/services/api/ConversationsApi';
 import { useCurrentUser } from '@/services/hooks/useCurrentUser';
+import { useSocket } from '@/services/hooks/useSocket';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Search, MessageCircle, Clock } from 'lucide-react';
@@ -35,9 +36,35 @@ interface ContactsListProps {
 export default function ContactsList({ onContactSelect, selectedContactId }: ContactsListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const { currentUser } = useCurrentUser();
-  const { data: conversationsData, isLoading, error } = useGetConversationsQuery({});
+  const { socket, isConnected, on, off } = useSocket();
+  const { data: conversationsData, isLoading, error, refetch } = useGetConversationsQuery({});
 
   const contacts = conversationsData?.conversations || [];
+
+  // Écouter les mises à jour en temps réel
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+
+    // Écouter les mises à jour de conversations
+    const handleConversationsUpdate = (data: any) => {
+      console.log('Mise à jour des conversations reçue:', data);
+      refetch(); // Recharger les conversations
+    };
+
+    // Écouter les nouveaux messages pour mettre à jour la liste
+    const handleNewMessage = (data: any) => {
+      console.log('Nouveau message reçu:', data);
+      refetch(); // Recharger les conversations pour mettre à jour le dernier message
+    };
+
+    on('conversations:update', handleConversationsUpdate);
+    on('new_message', handleNewMessage);
+
+    return () => {
+      off('conversations:update', handleConversationsUpdate);
+      off('new_message', handleNewMessage);
+    };
+  }, [socket, isConnected, on, off, refetch]);
 
   // Filtrer les contacts selon la recherche
   const filteredContacts = contacts.filter((contact: Contact) =>
