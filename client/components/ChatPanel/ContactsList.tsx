@@ -36,7 +36,7 @@ interface ContactsListProps {
 export default function ContactsList({ onContactSelect, selectedContactId }: ContactsListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const { currentUser } = useCurrentUser();
-  const { socket, isConnected, on, off } = useSocket();
+  const { socket, isConnected, onlineUsers, on, off } = useSocket();
   const { data: conversationsData, isLoading, error, refetch } = useGetConversationsQuery({});
 
   const contacts = conversationsData?.conversations || [];
@@ -93,6 +93,11 @@ export default function ContactsList({ onContactSelect, selectedContactId }: Con
       .join('')
       .toUpperCase()
       .slice(0, 2);
+  };
+
+  // Fonction pour vérifier si un contact est en ligne
+  const isContactOnline = (contact: Contact) => {
+    return onlineUsers.has(contact.friendId);
   };
 
   if (isLoading) {
@@ -194,6 +199,10 @@ export default function ContactsList({ onContactSelect, selectedContactId }: Con
                       {getInitials(contact.friendName)}
                     </AvatarFallback>
                   </Avatar>
+                  {/* Indicateur de statut en ligne */}
+                  <div className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-white ${
+                    isContactOnline(contact) ? 'bg-green-500' : 'bg-gray-400'
+                  }`} title={isContactOnline(contact) ? 'En ligne' : 'Hors ligne'}></div>
                   {contact.unreadCount > 0 && (
                     <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-semibold">
                       {contact.unreadCount > 99 ? '99+' : contact.unreadCount}
@@ -204,9 +213,14 @@ export default function ContactsList({ onContactSelect, selectedContactId }: Con
                 {/* Informations du contact */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
-                    <h3 className="font-semibold text-gray-900 truncate">
-                      {contact.friendName}
-                    </h3>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="font-semibold text-gray-900 truncate">
+                        {contact.friendName}
+                      </h3>
+                      {isContactOnline(contact) && (
+                        <span className="text-xs text-green-600 font-medium">En ligne</span>
+                      )}
+                    </div>
                     <div className="flex items-center space-x-1 text-xs text-gray-500">
                       <Clock className="w-3 h-3" />
                       <span>{formatTime(contact.lastActivity)}</span>

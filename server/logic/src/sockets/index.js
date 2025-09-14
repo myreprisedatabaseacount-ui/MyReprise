@@ -8,6 +8,7 @@ const logger = require('../utils/logger');
 // Variable globale pour stocker l'instance Socket.IO
 let globalIO = null;
 
+const onlineUsers = new Map();
 
 const initializeSockets = (io) => {
     // Stocker l'instance Socket.IO globalement
@@ -16,10 +17,33 @@ const initializeSockets = (io) => {
     // Middleware d'authentification pour tous les sockets
     io.use(authenticateSocket);
 
+    // Envoyer périodiquement la liste des utilisateurs en ligne à tous les utilisateurs connectés
+    // pour maintenir la synchronisation (toutes les 30 secondes)
+    setInterval(() => {
+        if (onlineUsers.size > 0) {
+            io.emit('online_users', Object.fromEntries(onlineUsers));
+            console.log('📡 Synchronisation périodique des utilisateurs en ligne:', Object.fromEntries(onlineUsers));
+        }
+    }, 30000);
+
     io.on('connection', (socket) => {
         const userId = socket.user.userId;
         const userEmail = socket.user.email;
-        
+
+        onlineUsers.set(userId, {
+            userId: userId,
+            socketId: socket.id,
+            connectedAt: new Date()
+        });
+
+        // Envoyer la liste des utilisateurs en ligne au nouvel utilisateur
+        socket.emit('online_users', Object.fromEntries(onlineUsers));
+
+        // Informer TOUS les utilisateurs connectés de la nouvelle liste (y compris le nouvel utilisateur)
+        io.emit('online_users', Object.fromEntries(onlineUsers));
+
+        console.log('online_users', Object.fromEntries(onlineUsers));
+
         logger.info(`🔌 Utilisateur connecté: ${userEmail} (ID: ${userId})`);
 
         // Stocker l'ID utilisateur dans le socket pour faciliter l'accès
@@ -271,6 +295,154 @@ const initializeSockets = (io) => {
             }
         });
 
+        socket.on('delete_message', async (data) => {
+            try {
+                const { messageId, conversationId } = data;
+
+                if (!messageId || !conversationId) {
+                    socket.emit('error', { message: 'ID de message et de conversation requis' });
+                    return;
+                }
+
+                // Récupérer le message pour vérifier qu'il existe et appartient à l'utilisateur
+                const message = await MessageService.getMessageById(messageId);
+                if (!message) {
+                    socket.emit('error', { message: 'Message non trouvé' });
+                    return;
+                }
+
+                // Vérifier que l'utilisateur est bien l'expéditeur du message
+                if (message.sender_id !== userId) {
+                    socket.emit('error', { message: 'Vous ne pouvez supprimer que vos propres messages' });
+                    return;
+                }
+
+                // Vérifier que l'utilisateur peut accéder à cette conversation
+                const canAccess = await ConversationService.canAccessConversation(conversationId, userId);
+                if (!canAccess) {
+                    socket.emit('error', { message: 'Accès refusé à cette conversation' });
+                    return;
+                }
+
+                // Supprimer le message via le service
+                const success = await MessageService.deleteMessage(messageId, userId);
+                
+                if (success) {
+                    // Informer tous les participants de la conversation que le message a été supprimé
+                    io.to(`conversation_${conversationId}`).emit('message_deleted', {
+                        messageId,
+                        conversationId,
+                        deletedBy: userId,
+                        deletedAt: new Date(),
+                        user: {
+                            id: userId,
+                            firstName: socket.user.firstName,
+                            lastName: socket.user.lastName,
+                            email: userEmail,
+                            primaryIdentifier: socket.user.primaryIdentifier
+                        }
+                    });
+
+                    logger.info(`🗑️ Message ${messageId} supprimé par ${userEmail} dans la conversation ${conversationId}`);
+                } else {
+                    socket.emit('delete_error', { 
+                        messageId: messageId,
+                        conversationId: conversationId,
+                        error: 'Erreur lors de la suppression du message' 
+                    });
+                }
+
+            } catch (error) {
+                logger.error('Erreur delete_message:', error);
+                socket.emit('delete_error', { 
+                    messageId: messageId,
+                    conversationId: conversationId,
+                    error: 'Erreur lors de la suppression du message' 
+                });
+            }
+        });
+
+        socket.on('edit_message', async (data) => {
+            try {
+                const { messageId, text, conversationId } = data;
+
+                logger.info(`✏️ Demande d'édition de message ${messageId} par ${userId}`);
+
+                // Validation des données
+                if (!messageId || !text || !conversationId) {
+                    socket.emit('edit_error', { 
+                        message: 'Données manquantes', 
+                        messageId,
+                        conversationId 
+                    });
+                    return;
+                }
+
+                // Validation du texte
+                if (text.trim().length === 0) {
+                    socket.emit('edit_error', { 
+                        message: 'Le message ne peut pas être vide', 
+                        messageId,
+                        conversationId 
+                    });
+                    return;
+                }
+
+                // Récupérer le message
+                const message = await MessageService.getMessageById(messageId);
+                if (!message) {
+                    socket.emit('edit_error', { 
+                        message: 'Message non trouvé', 
+                        messageId,
+                        conversationId 
+                    });
+                    return;
+                }
+
+                // Vérifier que l'utilisateur est l'expéditeur du message
+                if (message.sender_id !== userId) {
+                    socket.emit('edit_error', { 
+                        message: 'Vous ne pouvez éditer que vos propres messages', 
+                        messageId,
+                        conversationId 
+                    });
+                    return;
+                }
+
+                // Vérifier l'accès à la conversation
+                const canAccess = await ConversationService.canAccessConversation(conversationId, userId);
+                if (!canAccess) {
+                    socket.emit('edit_error', { 
+                        message: 'Accès refusé à cette conversation', 
+                        messageId,
+                        conversationId 
+                    });
+                    return;
+                }
+
+                // Éditer le message
+                await MessageService.editMessage(messageId, text.trim(), userId);
+
+                // Diffuser l'édition à tous les participants
+                globalIO.to(`conversation_${conversationId}`).emit('message_edited', {
+                    conversationId,
+                    messageId,
+                    text: text.trim(),
+                    editedBy: userId
+                });
+
+                logger.info(`✅ Message ${messageId} édité par ${userEmail}`);
+
+            } catch (error) {
+                logger.error('Erreur edit_message:', error);
+                socket.emit('edit_error', { 
+                    message: 'Erreur lors de l\'édition du message',
+                    messageId: data?.messageId,
+                    conversationId: data?.conversationId 
+                });
+            }
+        });
+
         socket.on('leave_conversation', async (data) => {
             try {
                 const { conversationId } = data;
@@ -311,8 +483,51 @@ const initializeSockets = (io) => {
             }
         });
 
+        // Événement pour synchroniser les utilisateurs en ligne
+        socket.on('sync_online_users', () => {
+            socket.emit('online_users', Object.fromEntries(onlineUsers));
+            logger.info(`🔄 Synchronisation des utilisateurs en ligne demandée par ${userEmail}`);
+        });
+
+        // Événement pour gérer l'indicateur de frappe (typing)
+        socket.on('typing_start', (data) => {
+            const { conversationId } = data;
+            if (conversationId) {
+                // Informer tous les autres utilisateurs de la conversation que cet utilisateur tape
+                socket.to(`conversation_${conversationId}`).emit('user_typing', {
+                    conversationId,
+                    userId: userId,
+                    userName: userEmail,
+                    isTyping: true
+                });
+                logger.info(`⌨️ ${userEmail} commence à taper dans la conversation ${conversationId}`);
+            }
+        });
+
+        socket.on('typing_stop', (data) => {
+            const { conversationId } = data;
+            if (conversationId) {
+                // Informer tous les autres utilisateurs de la conversation que cet utilisateur a arrêté de taper
+                socket.to(`conversation_${conversationId}`).emit('user_typing', {
+                    conversationId,
+                    userId: userId,
+                    userName: userEmail,
+                    isTyping: false
+                });
+                logger.info(`⌨️ ${userEmail} a arrêté de taper dans la conversation ${conversationId}`);
+            }
+        });
+
         socket.on('disconnect', (reason) => {
             logger.info(`🔌 Utilisateur déconnecté: ${userEmail} (ID: ${userId}) - Raison: ${reason}`);
+            
+            // Retirer l'utilisateur de la liste des utilisateurs en ligne
+            onlineUsers.delete(userId);
+            
+            // Informer TOUS les utilisateurs connectés de la liste mise à jour
+            io.emit('online_users', Object.fromEntries(onlineUsers));
+            
+            logger.info(`👥 Utilisateur ${userEmail} retiré de la liste des utilisateurs en ligne`);
         });
 
         socket.on('error', (error) => {

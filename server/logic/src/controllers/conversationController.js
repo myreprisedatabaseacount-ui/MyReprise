@@ -593,10 +593,10 @@ class ConversationController {
                 });
             }
 
-            // Récupérer les messages
+            // Récupérer tous les messages (y compris les messages supprimés)
             const messages = await Message.findAll({
                 where: {
-                    conversation_id: conversationId,
+                    conversation_id: conversationId
                 },
                 include: [
                     {
@@ -643,7 +643,7 @@ class ConversationController {
             // Formater les messages pour le frontend
             const formattedMessages = messages.map(message => ({
                 id: message.id,
-                text: message.text,
+                text: message.is_deleted ? 'Ce message a été supprimé' : message.text,
                 audioUrl: message.audio_url,
                 sender: {
                     id: message.Sender.id,
@@ -666,6 +666,7 @@ class ConversationController {
                 offerId: message.offer_id,
                 createdAt: message.created_at,
                 isEdited: message.is_edited,
+                isDeleted: message.is_deleted,
                 readBy: message.Reads ? message.Reads.map(read => ({
                     userId: read.user_id,
                     readAt: read.read_at
