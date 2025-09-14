@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Minimize2, Send, Smile, MoreHorizontal, Users, Search, Check, CheckCheck, Trash2, Edit3, Reply, Phone } from 'lucide-react';
+import { MessageCircle, X, Send, Smile, Users, Search, Check, CheckCheck, Trash2, Edit3, Reply, Phone } from 'lucide-react';
 import { useCurrentUser } from '@/services/hooks/useCurrentUser';
 import { useSocket } from '@/services/hooks/useSocket';
 import { useCreateConversationMutation, useMarkConversationAsReadMutation, useGetConversationMessagesQuery } from '@/services/api/ConversationsApi';
-import { useToggleReactionMutation } from '@/services/api/ReactionsApi';
 import ContactsList from './ContactsList';
 import UserSearch from './UserSearch';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 interface Reaction {
   type: string;
@@ -140,7 +140,7 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
     if (currentConversationId) {
       refetchMessages();
     }
-  }, [messagesData , currentConversationId]);
+  }, [messagesData, currentConversationId]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -428,7 +428,7 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
     const handleUserTyping = (data: any) => {
       if (data.conversationId === currentConversationId && data.userId !== currentUser?.id) {
         console.log('⌨️ Utilisateur en train de taper:', data);
-        
+
         setTypingUsers(prev => {
           const newMap = new Map(prev);
           if (data.isTyping) {
@@ -767,11 +767,19 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
             {selectedContact ? (
               <>
                 <div className="relative">
+                  {selectedContact.friendImage ? (
                   <img
-                    src={selectedContact.friendImage || "https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2"}
+                    src={selectedContact.friendImage}
                     alt={selectedContact.friendName}
-                    className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
-                  />
+                      className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
+                    />
+                  ) : (
+                    <Avatar className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm">
+                      <AvatarFallback className="bg-blue-100 text-blue-600 font-semibold">
+                        {selectedContact.friendName.split(' ').map(word => word.charAt(0)).join('').toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
                   <div className={`absolute bottom-0 right-0 w-3 h-3 ${isContactOnline(selectedContact) ? 'bg-green-500' : 'bg-gray-500'} rounded-full border-2 border-white`}></div>
                 </div>
                 <div>
@@ -830,12 +838,14 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
                 <Users size={18} className="text-gray-600" />
               </button>
             )}
+            {selectedContact && (
             <button
 
               className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
             >
-              <Phone size={18} className="text-gray-600" />
-            </button>
+                <Phone size={18} className="text-gray-600" />
+              </button>
+            )}
             <button
               onClick={onToggle}
               className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
@@ -1153,17 +1163,17 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
                   </div>
                 ))
               )}
-               {/* Indicateur de typing */}
-               {typingUsers.size > 0 && (
-                <div className="px-4 py-2 bg-blue-50 border-t border-blue-200">
+              {/* Indicateur de typing */}
+              {typingUsers.size > 0 && (
+                <div className="px-4 py-2">
                   <div className="flex items-center space-x-2">
                     <div className="flex space-x-1">
                       <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
                       <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
                       <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                     </div>
-                    <span className="text-sm text-blue-600">
-                      {Array.from(typingUsers.values()).map(user => user.userName).join(', ')} 
+                    <span className="text-sm">
+                      {selectedContact.friendName}
                       {typingUsers.size === 1 ? ' est en train d\'écrire...' : ' sont en train d\'écrire...'}
                     </span>
                   </div>
