@@ -8,6 +8,7 @@ import { reactionsApi } from '../services/api/ReactionsApi';
 import authReducer from '../services/slices/authSlice';
 import userReducer from '../services/slices/userSlice';
 import productReducer from '../services/slices/productSlice';
+import { callApi } from '../services/api/callApi';
 
 const configurestore = configureStore({
   reducer: {
@@ -17,6 +18,7 @@ const configurestore = configureStore({
     [userApi.reducerPath]: userApi.reducer,
     [conversationsApi.reducerPath]: conversationsApi.reducer,
     [reactionsApi.reducerPath]: reactionsApi.reducer,
+    [callApi.reducerPath]: callApi.reducer,
     auth: authReducer,
     user: userReducer,
     product: productReducer,
@@ -42,6 +44,7 @@ const configurestore = configureStore({
       .concat(userApi.middleware)
       .concat(conversationsApi.middleware)
       .concat(reactionsApi.middleware)
+      .concat(callApi.middleware)
 });
 export default configurestore;
 export type RootState = ReturnType<typeof configurestore.getState>;
