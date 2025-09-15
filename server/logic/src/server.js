@@ -22,6 +22,7 @@ const { initializeModels } = require('./models');
 const { categoryRoutes, userRoutes, brandRoutes, whatsappRoutes, subjectRoutes, offerRoutes } = require('./routes');
 const conversationRoutes = require('./routes/conversationRoutes');
 const reactionRoutes = require('./routes/reactionRoutes');
+const callRoutes = require('./routes/callRoutes');
 
 // Import des sockets
 const { initializeSockets } = require('./sockets');
@@ -105,6 +106,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/conversations", conversationRoutes);
 app.use("/api/reactions", reactionRoutes);
+app.use("/api/calls", callRoutes);
 
 // Route de santé
 app.get('/api/health', (req, res) => {
