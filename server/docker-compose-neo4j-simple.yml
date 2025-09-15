@@ -8,14 +8,24 @@ services:
       - "7687:7687"  # Port Bolt pour connexions
     environment:
       - NEO4J_AUTH=neo4j/neo4j123
+      - NEO4J_server_memory_heap_initial__size=512m
+      - NEO4J_server_memory_heap_max__size=1G
     volumes:
       - neo4j_data_simple:/data
+      - neo4j_logs_simple:/logs
     networks:
       - myreprise-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p neo4j123 'RETURN 1' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
 volumes:
   neo4j_data_simple:
+  neo4j_logs_simple:
 
 networks:
   myreprise-network:

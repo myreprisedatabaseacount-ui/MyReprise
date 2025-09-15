@@ -34,6 +34,24 @@ const Address = sequelize.define('Address', {
             len: [5, 500]
         }
     },
+    latitude: {
+        type: DataTypes.DECIMAL(10, 8),
+        allowNull: true,
+        validate: {
+            min: -90,
+            max: 90
+        },
+        comment: 'Latitude en degrés décimaux (WGS84)'
+    },
+    longitude: {
+        type: DataTypes.DECIMAL(11, 8),
+        allowNull: true,
+        validate: {
+            min: -180,
+            max: 180
+        },
+        comment: 'Longitude en degrés décimaux (WGS84)'
+    },
     createdAt: {
         type: DataTypes.DATE,
         allowNull: false,
@@ -60,6 +78,10 @@ const Address = sequelize.define('Address', {
         },
         {
             fields: ['city', 'sector']
+        },
+        {
+            fields: ['latitude', 'longitude'],
+            name: 'idx_addresses_coordinates'
         }
     ]
 });
@@ -81,14 +103,51 @@ Address.prototype.getShortAddress = function() {
     return `${this.city}${this.sector ? ` - ${this.sector}` : ''}`;
 };
 
+/**
+ * Calcule la distance entre cette adresse et une autre (formule de Haversine)
+ * @param {Address} otherAddress - L'autre adresse
+ * @returns {number} Distance en kilomètres
+ */
+Address.prototype.getDistanceTo = function(otherAddress) {
+    if (!this.latitude || !this.longitude || !otherAddress.latitude || !otherAddress.longitude) {
+        return null; // Impossible de calculer sans coordonnées
+    }
+    
+    const R = 6371; // Rayon de la Terre en km
+    const dLat = this.toRadians(otherAddress.latitude - this.latitude);
+    const dLon = this.toRadians(otherAddress.longitude - this.longitude);
+    
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(this.toRadians(this.latitude)) * Math.cos(this.toRadians(otherAddress.latitude)) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+};
+
+/**
+ * Convertit les degrés en radians
+ * @param {number} degrees - Degrés
+ * @returns {number} Radians
+ */
+Address.prototype.toRadians = function(degrees) {
+    return degrees * (Math.PI / 180);
+};
+
 Address.prototype.getPublicData = function() {
     return {
         id: this.id,
         city: this.city,
         sector: this.sector,
         addressName: this.addressName,
+        latitude: this.latitude,
+        longitude: this.longitude,
         fullAddress: this.getFullAddress(),
-        shortAddress: this.getShortAddress()
+        shortAddress: this.getShortAddress(),
+        coordinates: this.latitude && this.longitude ? {
+            lat: parseFloat(this.latitude),
+            lng: parseFloat(this.longitude)
+        } : null
     };
 };
 
@@ -257,6 +316,61 @@ Address.findWithPagination = async function(page = 1, limit = 10, filters = {}) 
         totalPages: Math.ceil(count / limit),
         currentPage: page
     };
+};
+
+/**
+ * Trouve les adresses dans un rayon donné (en km) autour d'un point
+ * @param {number} latitude - Latitude du point central
+ * @param {number} longitude - Longitude du point central
+ * @param {number} radiusKm - Rayon de recherche en kilomètres
+ * @returns {Array} Liste des adresses dans le rayon
+ */
+Address.findNearby = async function(latitude, longitude, radiusKm = 10) {
+    // Formule approximative pour convertir km en degrés
+    const latDelta = radiusKm / 111; // 1 degré de latitude ≈ 111 km
+    const lngDelta = radiusKm / (111 * Math.cos(latitude * Math.PI / 180));
+    
+    return await Address.findAll({
+        where: {
+            latitude: {
+                [db.Sequelize.Op.between]: [latitude - latDelta, latitude + latDelta]
+            },
+            longitude: {
+                [db.Sequelize.Op.between]: [longitude - lngDelta, longitude + lngDelta]
+            }
+        },
+        order: [['city', 'ASC'], ['sector', 'ASC']]
+    });
+};
+
+/**
+ * Trouve l'adresse la plus proche d'un point donné
+ * @param {number} latitude - Latitude du point
+ * @param {number} longitude - Longitude du point
+ * @returns {Address|null} L'adresse la plus proche
+ */
+Address.findNearest = async function(latitude, longitude) {
+    const addresses = await Address.findAll({
+        where: {
+            latitude: { [db.Sequelize.Op.ne]: null },
+            longitude: { [db.Sequelize.Op.ne]: null }
+        }
+    });
+    
+    if (addresses.length === 0) return null;
+    
+    let nearest = addresses[0];
+    let minDistance = nearest.getDistanceTo({ latitude, longitude });
+    
+    for (let i = 1; i < addresses.length; i++) {
+        const distance = addresses[i].getDistanceTo({ latitude, longitude });
+        if (distance < minDistance) {
+            minDistance = distance;
+            nearest = addresses[i];
+        }
+    }
+    
+    return nearest;
 };
 
 module.exports = { Address };

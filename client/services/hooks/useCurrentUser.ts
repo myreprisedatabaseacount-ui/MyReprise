@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useGetCurrentUserQuery } from '../api/UserApi';
+import { useGetCurrentUserQuery, useLogoutUserMutation } from '../api/UserApi';
 import {
   setCurrentUser,
   clearCurrentUser,
@@ -26,6 +26,9 @@ export const useCurrentUser = () => {
   const isLoading = useSelector(selectIsLoading);
   const error = useSelector(selectUserError);
   const isDataFresh = useSelector(selectIsDataFresh);
+
+  // Hook pour la déconnexion
+  const [logoutUser] = useLogoutUserMutation();
 
   // RTK Query pour récupérer l'utilisateur actuel
   const {
@@ -65,8 +68,17 @@ export const useCurrentUser = () => {
   };
 
   // Fonction pour déconnecter l'utilisateur
-  const logout = () => {
-    dispatch(clearCurrentUser());
+  const logout = async () => {
+    try {
+      // Appeler l'API de logout pour supprimer les cookies côté serveur
+      await logoutUser(undefined).unwrap();
+    } catch (error) {
+      console.error('Erreur lors de la déconnexion:', error);
+      // Continuer même en cas d'erreur pour nettoyer l'état local
+    } finally {
+      // Nettoyer l'état local dans tous les cas
+      dispatch(clearCurrentUser());
+    }
   };
 
   return {

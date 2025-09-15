@@ -43,19 +43,6 @@ async function initializeModels() {
     let OfferImage, UserSnapshot, ProductSnapshot;
     let DeliveryCompany, DeliveryInfo, Setting;
     
-    // Modèles refactorisés déjà importés
-    console.log('✅ User importé');
-    console.log('✅ Address importé');
-    console.log('✅ Store importé');
-    console.log('✅ Product importé');
-    console.log('✅ Category importé');
-    console.log('✅ Brand importé');
-    console.log('✅ Offer importé');
-    console.log('✅ Order importé');
-    console.log('✅ Subject importé');
-    console.log('✅ SubjectCategory importé');
-    console.log('✅ BrandCategory importé');
-    
     // Offer déjà importé
     
     try {
@@ -101,29 +88,6 @@ async function initializeModels() {
       console.error('❌ Erreur création Setting:', error.message);
       Setting = null;
     }
-    
-    // Définir les associations avec gestion d'erreur
-    logger.info('🔄 Définition des associations...');
-    
-    // Vérifier que tous les modèles sont définis
-    console.log('🔄 Vérification des modèles...');
-    console.log('  - User:', typeof User);
-    console.log('  - Address:', typeof Address);
-    console.log('  - Store:', typeof Store);
-    console.log('  - Product:', typeof Product);
-    console.log('  - Category:', typeof Category);
-    console.log('  - Brand:', typeof Brand);
-    console.log('  - Subject:', typeof Subject);
-    console.log('  - SubjectCategory:', typeof SubjectCategory);
-    console.log('  - BrandCategory:', typeof BrandCategory);
-    console.log('  - Offer:', typeof Offer);
-    console.log('  - OfferImage:', typeof OfferImage);
-    console.log('  - Order:', typeof Order);
-    console.log('  - UserSnapshot:', typeof UserSnapshot);
-    console.log('  - ProductSnapshot:', typeof ProductSnapshot);
-    console.log('  - DeliveryCompany:', typeof DeliveryCompany);
-    console.log('  - DeliveryInfo:', typeof DeliveryInfo);
-    console.log('  - Setting:', typeof Setting);
     
     // Associations avec try-catch
     try {
@@ -203,7 +167,6 @@ async function initializeModels() {
     // Associations pour les modèles de conversation
     try {
       if (Conversation && Message) {
-        console.log('🔄 Association Conversation <-> Message...');
         Conversation.hasMany(Message, { foreignKey: 'conversation_id', as: 'Messages' });
         Message.belongsTo(Conversation, { foreignKey: 'conversation_id', as: 'Conversation' });
       }
@@ -213,7 +176,6 @@ async function initializeModels() {
     
     try {
       if (User && Message) {
-        console.log('🔄 Association User <-> Message (sender)...');
         User.hasMany(Message, { foreignKey: 'sender_id', as: 'SentMessages' });
         Message.belongsTo(User, { foreignKey: 'sender_id', as: 'Sender' });
       }
@@ -223,7 +185,6 @@ async function initializeModels() {
     
     try {
       if (Message) {
-        console.log('🔄 Association Message self-reference (reply)...');
         Message.belongsTo(Message, { foreignKey: 'reply_to_message_id', as: 'ReplyToMessage' });
         Message.hasMany(Message, { foreignKey: 'reply_to_message_id', as: 'Replies' });
       }
@@ -233,7 +194,6 @@ async function initializeModels() {
     
     try {
       if (Offer && Message) {
-        console.log('🔄 Association Offer <-> Message...');
         Offer.hasMany(Message, { foreignKey: 'offer_id', as: 'Messages' });
         Message.belongsTo(Offer, { foreignKey: 'offer_id', as: 'Offer' });
       }
@@ -243,7 +203,6 @@ async function initializeModels() {
     
     try {
       if (Offer && Delta) {
-        console.log('🔄 Association Offer <-> Delta...');
         Offer.hasMany(Delta, { foreignKey: 'offer_id', as: 'Deltas' });
         Delta.belongsTo(Offer, { foreignKey: 'offer_id', as: 'Offer' });
       }
@@ -253,7 +212,6 @@ async function initializeModels() {
     
     try {
       if (User && Delta) {
-        console.log('🔄 Association User <-> Delta (sender/receiver)...');
         User.hasMany(Delta, { foreignKey: 'sender_id', as: 'SentDeltas' });
         User.hasMany(Delta, { foreignKey: 'receiver_id', as: 'ReceivedDeltas' });
         Delta.belongsTo(User, { foreignKey: 'sender_id', as: 'Sender' });
@@ -265,7 +223,6 @@ async function initializeModels() {
     
     try {
       if (Conversation && Delta) {
-        console.log('🔄 Association Conversation <-> Delta...');
         Conversation.hasMany(Delta, { foreignKey: 'conversation_id', as: 'Deltas' });
         Delta.belongsTo(Conversation, { foreignKey: 'conversation_id', as: 'Conversation' });
       }
@@ -275,7 +232,6 @@ async function initializeModels() {
     
     try {
       if (Order && Delta) {
-        console.log('🔄 Association Order <-> Delta...');
         Order.hasMany(Delta, { foreignKey: 'order_id', as: 'Deltas' });
         Delta.belongsTo(Order, { foreignKey: 'order_id', as: 'Order' });
       }
@@ -285,7 +241,6 @@ async function initializeModels() {
     
     try {
       if (Conversation && ConversationParticipants) {
-        console.log('🔄 Association Conversation <-> ConversationParticipants...');
         Conversation.hasMany(ConversationParticipants, { foreignKey: 'conversation_id', as: 'Participants' });
         ConversationParticipants.belongsTo(Conversation, { foreignKey: 'conversation_id', as: 'Conversation' });
       }
@@ -295,7 +250,6 @@ async function initializeModels() {
     
     try {
       if (User && ConversationParticipants) {
-        console.log('🔄 Association User <-> ConversationParticipants...');
         User.hasMany(ConversationParticipants, { foreignKey: 'user_id', as: 'ConversationParticipations' });
         ConversationParticipants.belongsTo(User, { foreignKey: 'user_id', as: 'User' });
       }
@@ -305,7 +259,6 @@ async function initializeModels() {
     
     try {
       if (Message && MessageReads) {
-        console.log('🔄 Association Message <-> MessageReads...');
         Message.hasMany(MessageReads, { foreignKey: 'message_id', as: 'Reads' });
         MessageReads.belongsTo(Message, { foreignKey: 'message_id', as: 'Message' });
       }
@@ -315,7 +268,6 @@ async function initializeModels() {
     
     try {
       if (User && MessageReads) {
-        console.log('🔄 Association User <-> MessageReads...');
         User.hasMany(MessageReads, { foreignKey: 'user_id', as: 'MessageReads' });
         MessageReads.belongsTo(User, { foreignKey: 'user_id', as: 'User' });
       }
@@ -325,7 +277,6 @@ async function initializeModels() {
     
     try {
       if (Message && MessageReactions) {
-        console.log('🔄 Association Message <-> MessageReactions...');
         Message.hasMany(MessageReactions, { foreignKey: 'message_id', as: 'Reactions' });
         MessageReactions.belongsTo(Message, { foreignKey: 'message_id', as: 'Message' });
       }
@@ -335,7 +286,6 @@ async function initializeModels() {
     
     try {
       if (User && MessageReactions) {
-        console.log('🔄 Association User <-> MessageReactions...');
         User.hasMany(MessageReactions, { foreignKey: 'user_id', as: 'MessageReactions' });
         MessageReactions.belongsTo(User, { foreignKey: 'user_id', as: 'User' });
       }
@@ -343,18 +293,80 @@ async function initializeModels() {
       console.error('❌ Erreur association User <-> MessageReactions:', error.message);
     }
     
-    logger.info('✅ Associations définies avec gestion d\'erreur');
-    
     // Synchroniser la base de données (créer les tables)
-    try {
-      // Désactiver la synchronisation automatique pour éviter les erreurs de colonnes manquantes
-      // await sequelize.sync({ force: false, alter: false, logging: false });
-      logger.info('✅ Synchronisation MySQL désactivée');
-    } catch (syncError) {
-      console.error('❌ Erreur synchronisation base de données:', syncError.message);
-      logger.error('❌ Erreur synchronisation base de données:', syncError);
-      // Ne pas faire échouer le serveur pour une erreur de sync
-    }
+
+    // try {
+    //   // Désactiver temporairement les contraintes de clés étrangères
+    //   await sequelize.query('SET FOREIGN_KEY_CHECKS = 0');
+      
+    //   // Utiliser alter: true pour synchroniser les changements de structure
+    //   const syncOptions = {
+    //     force: false,
+    //     alter: true,
+    //     logging: false
+    //   };
+      
+    //   await sequelize.sync(syncOptions);
+      
+    //   // Réactiver les contraintes de clés étrangères
+    //   await sequelize.query('SET FOREIGN_KEY_CHECKS = 1');
+    // } catch (syncError) {
+    //   console.error('❌ Erreur synchronisation base de données:', syncError.message);
+    //   logger.error('❌ Erreur synchronisation base de données:', syncError);
+      
+    //   // Si c'est une erreur de validation, essayer de la corriger avec le script
+    //   if (syncError.name === 'SequelizeValidationError' || syncError.message.includes('Validation error')) {
+    //     try {
+    //       // Importer et exécuter les scripts de correction
+    //       const { fixUserTable } = require('../scripts/fix-user-table');
+    //       const { fixAddressesTable } = require('../scripts/fix-addresses-table');
+          
+    //       await fixUserTable();
+    //       await fixAddressesTable();
+          
+    //       // Réessayer la synchronisation après correction
+    //       await sequelize.query('SET FOREIGN_KEY_CHECKS = 0');
+    //       await sequelize.sync({
+    //         force: false,
+    //         alter: true,
+    //         logging: false
+    //       });
+    //       await sequelize.query('SET FOREIGN_KEY_CHECKS = 1');
+    //     } catch (correctionError) {
+    //       console.error('❌ Erreur lors de la correction:', correctionError.message);
+          
+    //       // En dernier recours, utiliser force: true en mode développement
+    //       if (process.env.NODE_ENV === 'development' && process.env.FORCE_SYNC === 'true') {
+    //         try {
+    //           await sequelize.sync({ force: true, logging: false });
+    //         } catch (forceError) {
+    //           console.error('❌ Erreur même avec force: true:', forceError.message);
+    //           logger.error('❌ Erreur même avec force: true:', forceError);
+    //         }
+    //       }
+    //     }
+    //   }
+      
+    //   // Si c'est une erreur de trop d'index, optimiser les index
+    //   if (syncError.message.includes('Too many keys specified')) {
+    //     try {
+    //       // Importer et exécuter le script d'optimisation des index
+    //       const { optimizeIndexes } = require('../scripts/optimize-indexes');
+    //       await optimizeIndexes();
+          
+    //       // Réessayer la synchronisation après optimisation
+    //       await sequelize.query('SET FOREIGN_KEY_CHECKS = 0');
+    //       await sequelize.sync({
+    //         force: false,
+    //         alter: true,
+    //         logging: false
+    //       });
+    //       await sequelize.query('SET FOREIGN_KEY_CHECKS = 1');
+    //     } catch (optimizationError) {
+    //       console.error('❌ Erreur lors de l\'optimisation des index:', optimizationError.message);
+    //     }
+    //   }
+    // }
     
     // Initialiser les données par défaut
     try {

@@ -111,14 +111,103 @@ class AuthService {
     }
 
     /**
+     * Trouve un utilisateur par primaryIdentifier avec gestion des formats
+     */
+    static async findUserByPrimaryIdentifier(identifier) {
+        try {
+            // Essayer de trouver directement par primaryIdentifier
+            let user = await User.findByPrimaryIdentifier(identifier);
+            
+            if (user) {
+                return user;
+            }
+            
+            // Si c'est un numéro de téléphone, essayer différents formats
+            if (this.isPhoneNumber(identifier)) {
+                // Format: +212-688675687
+                user = await User.findByPrimaryIdentifier(identifier);
+                if (user) return user;
+                
+                // Format: +212688675687 (sans tiret)
+                const phoneWithoutDash = identifier.replace('-', '');
+                user = await User.findByPrimaryIdentifier(phoneWithoutDash);
+                if (user) return user;
+                
+                // Format: 212688675687 (sans +)
+                const phoneWithoutPlus = identifier.replace('+', '');
+                user = await User.findByPrimaryIdentifier(phoneWithoutPlus);
+                if (user) return user;
+                
+                // Essayer aussi par le champ phone
+                user = await User.findByPhone(identifier);
+                if (user) return user;
+                
+                user = await User.findByPhone(phoneWithoutDash);
+                if (user) return user;
+                
+                user = await User.findByPhone(phoneWithoutPlus);
+                if (user) return user;
+                
+                // Si l'identifiant contient un tiret et commence par +, essayer de normaliser
+                if (identifier.includes('-') && identifier.startsWith('+')) {
+                    const parts = identifier.split('-');
+                    if (parts.length === 2) {
+                        const countryCode = parts[0];
+                        let phoneNumber = parts[1];
+                        
+                        // Normaliser le numéro (supprimer le 0 initial si présent)
+                        phoneNumber = this.normalizePhoneNumber(phoneNumber);
+                        
+                        const normalizedIdentifier = `${countryCode}-${phoneNumber}`;
+                        user = await User.findByPrimaryIdentifier(normalizedIdentifier);
+                        if (user) return user;
+                        
+                        user = await User.findByPhone(normalizedIdentifier);
+                        if (user) return user;
+                    }
+                }
+            }
+            
+            return null;
+        } catch (error) {
+            logger.error('Erreur lors de la recherche par primaryIdentifier:', error);
+            return null;
+        }
+    }
+    
+    /**
+     * Vérifie si un identifiant ressemble à un numéro de téléphone
+     */
+    static isPhoneNumber(identifier) {
+        // Vérifie si l'identifiant contient des caractères typiques d'un numéro de téléphone
+        return /^[\+]?[\d\-]+$/.test(identifier) && identifier.length >= 8;
+    }
+
+    /**
+     * Normalise un numéro de téléphone en supprimant le 0 initial si présent
+     */
+    static normalizePhoneNumber(phone) {
+        // Si le numéro commence par 0, le supprimer
+        if (phone.startsWith('0')) {
+            return phone.substring(1);
+        }
+        return phone;
+    }
+
+    /**
      * Authentification par téléphone avec mot de passe
      */
-    static async authenticateWithPhone(phone, country, password) {
+    static async authenticateWithPhone(phone, country, password, res) {
         try {
-            // Construire le numéro complet avec le pays
-            const fullPhone = `${country}-${phone}`;
+            // Normaliser le numéro de téléphone (supprimer le 0 initial si présent)
+            const normalizedPhone = this.normalizePhoneNumber(phone);
             
-            const user = await User.findByPhone(fullPhone);
+            // Construire le numéro complet avec le pays
+            const fullPhone = `${country}-${normalizedPhone}`;
+            
+            // Utiliser la nouvelle méthode de recherche
+            const user = await this.findUserByPrimaryIdentifier(fullPhone);
+            
             if (!user) {
                 throw new Error('Numéro de téléphone ou mot de passe incorrect');
             }
@@ -137,17 +226,17 @@ class AuthService {
                 throw new Error('Numéro de téléphone ou mot de passe incorrect');
             }
 
-            const tokens = this.generateAndSetTokens(user);
+            // Générer et stocker les tokens dans des cookies HTTP-only
+            const tokens = this.generateAndSetTokens(user, res);
             
-            logger.info(`Utilisateur connecté par téléphone: ${user.phone}`);
+            logger.info(`Utilisateur connecté par téléphone: ${user.primaryIdentifier}`);
             
             return {
                 success: true,
                 message: 'Connexion réussie',
                 data: {
-                    user: user.getPublicData(),
-                    token: tokens.token,
-                    refreshToken: tokens.refreshToken
+                    user: user.getPublicData()
+                    // Les tokens sont maintenant dans les cookies HTTP-only
                 }
             };
 
@@ -160,7 +249,7 @@ class AuthService {
     /**
      * Authentification par Google
      */
-    static async authenticateWithGoogle(googleData) {
+    static async authenticateWithGoogle(googleData, res) {
         try {
             const { googleId, email, firstName, lastName, profilePicture } = googleData;
 
@@ -195,7 +284,8 @@ class AuthService {
                 });
             }
 
-            const tokens = this.generateTokens(user);
+            // Générer et stocker les tokens dans des cookies HTTP-only
+            const tokens = this.generateAndSetTokens(user, res);
             
             logger.info(`Utilisateur connecté par Google: ${user.email}`);
             
@@ -203,9 +293,8 @@ class AuthService {
                 success: true,
                 message: 'Connexion Google réussie',
                 data: {
-                    user: user.getPublicData(),
-                    token: tokens.token,
-                    refreshToken: tokens.refreshToken
+                    user: user.getPublicData()
+                    // Les tokens sont maintenant dans les cookies HTTP-only
                 }
             };
 
@@ -218,7 +307,7 @@ class AuthService {
     /**
      * Authentification par Facebook
      */
-    static async authenticateWithFacebook(facebookData) {
+    static async authenticateWithFacebook(facebookData, res) {
         try {
             const { facebookId, email, phone, firstName, lastName, profilePicture } = facebookData;
 
@@ -269,7 +358,8 @@ class AuthService {
                 });
             }
 
-            const tokens = this.generateTokens(user);
+            // Générer et stocker les tokens dans des cookies HTTP-only
+            const tokens = this.generateAndSetTokens(user, res);
             
             logger.info(`Utilisateur connecté par Facebook: ${user.facebookId}`);
             
@@ -277,9 +367,8 @@ class AuthService {
                 success: true,
                 message: 'Connexion Facebook réussie',
                 data: {
-                    user: user.getPublicData(),
-                    token: tokens.token,
-                    refreshToken: tokens.refreshToken
+                    user: user.getPublicData()
+                    // Les tokens sont maintenant dans les cookies HTTP-only
                 }
             };
 
@@ -296,8 +385,11 @@ class AuthService {
         try {
             const { firstName, lastName, phone, country, password } = userData;
 
-            // Construire le numéro complet avec le pays
-            const fullPhone = `${country}-${phone}`;
+            // Normaliser le numéro de téléphone (supprimer le 0 initial si présent)
+            const normalizedPhone = this.normalizePhoneNumber(phone);
+
+            // Construire le numéro complet avec le pays (format: +212-688675687)
+            const fullPhone = `${country}-${normalizedPhone}`;
 
             // Hashage du mot de passe
             const saltRounds = 12;
@@ -309,7 +401,7 @@ class AuthService {
                 phone: fullPhone,
                 password: hashedPassword,
                 authProvider: 'phone',
-                primaryIdentifier: fullPhone,
+                primaryIdentifier: fullPhone, // Format: +212-688675687
                 isVerified: false,
                 role: 'user'
             };

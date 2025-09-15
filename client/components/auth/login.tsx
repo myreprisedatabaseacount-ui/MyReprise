@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
+import { useDispatch } from 'react-redux';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card } from '../ui/card';
@@ -20,6 +21,9 @@ import countriesData from '../../data/countries.json';
 import GmailLoginButton from './GmailLoginButton';
 import FacebookLoginButton from './FacebookLoginButtonComponent';
 import { loginStep1Schema } from '../../lib/validationSchemas';
+import { useLoginUserMutation } from '../../services/api/UserApi';
+import { setAuthStatus, setAuthError, closeAllModals } from '../../services/slices/authSlice';
+import { useCurrentUser } from '../../services/hooks/useCurrentUser';
 
 interface LoginProps {
     onClose?: () => void;
@@ -28,9 +32,15 @@ interface LoginProps {
 }
 
 const Login: React.FC<LoginProps> = ({ onClose, onSwitchToSignUp, onSwitchToForgotPassword }) => {
+    const dispatch = useDispatch();
     const [showPassword, setShowPassword] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
     const [selectedCountry, setSelectedCountry] = useState(countriesData.find(c => c.dial_code === '+212') || countriesData[0]);
+    
+    // Hook RTK Query pour la connexion
+    const [loginUser, { isLoading, error }] = useLoginUserMutation();
+    
+    // Hook pour rafraîchir les données utilisateur après connexion
+    const { refreshUser } = useCurrentUser();
 
     // Valeurs initiales pour Formik
     const initialValues = {
@@ -38,16 +48,38 @@ const Login: React.FC<LoginProps> = ({ onClose, onSwitchToSignUp, onSwitchToForg
         password: ''
     };
 
-
-
     const handleLoginSubmit = async (values: typeof initialValues) => {
-        setIsLoading(true);
-        // Simulation de connexion
-        setTimeout(() => {
-            console.log('Connexion réussie:', values);
-            setIsLoading(false);
+        try {
+            dispatch(setAuthStatus('loading'));
+            
+            // Préparer les données de connexion
+            // Nettoyer le numéro de téléphone pour ne garder que les chiffres
+            const cleanPhoneNumber = values.phoneNumber.replace(/\D/g, '');
+            
+            const loginData = {
+                phone: cleanPhoneNumber, // Numéro sans le code pays
+                country: selectedCountry.dial_code, // Code pays séparé
+                password: values.password
+            };
+
+            console.log('Données de connexion envoyées:', loginData);
+
+            // Appel à l'API de connexion avec Redux Toolkit
+            const result = await loginUser(loginData).unwrap();
+            
+            // Rafraîchir les données utilisateur pour synchroniser l'état
+            await refreshUser();
+
+            dispatch(setAuthStatus('success'));
+            dispatch(closeAllModals());
             onClose?.();
-        }, 1500);
+            
+            console.log('Connexion réussie:', result);
+        } catch (error: any) {
+            console.error('Erreur de connexion:', error);
+            const errorMessage = error?.data?.error || error?.message || 'Erreur de connexion';
+            dispatch(setAuthError(errorMessage));
+        }
     };
 
     const handleSocialLogin = (provider: string) => {
@@ -168,6 +200,23 @@ const Login: React.FC<LoginProps> = ({ onClose, onSwitchToSignUp, onSwitchToForg
                                             Mot de passe oublié ?
                                         </button>
                                     </div>
+
+                                    {/* Error Message */}
+                                    {error && (
+                                        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                                            <p className="text-sm text-red-600">
+                                                {(() => {
+                                                    if ('data' in error && error.data && typeof error.data === 'object' && 'error' in error.data) {
+                                                        return (error.data as any).error;
+                                                    }
+                                                    if ('message' in error) {
+                                                        return error.message;
+                                                    }
+                                                    return 'Erreur de connexion';
+                                                })()}
+                                            </p>
+                                        </div>
+                                    )}
 
                                     {/* Submit Button */}
                                     <Button

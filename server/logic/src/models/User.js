@@ -53,12 +53,13 @@ const User = sequelize.define('User', {
     // Nouveaux champs pour l'authentification multi-provider
     authProvider: {
         type: DataTypes.ENUM('phone', 'google', 'facebook'),
-        allowNull: false,
-        field: 'auth_provider'
+        allowNull: true, // Temporairement true pour la synchronisation
+        field: 'auth_provider',
+        defaultValue: 'phone' // Valeur par défaut
     },
     primaryIdentifier: {
         type: DataTypes.STRING(255),
-        allowNull: false,
+        allowNull: true, // Temporairement true pour la synchronisation
         unique: true,
         field: 'primary_identifier',
         comment: 'Phone pour phone, Email pour google, Facebook ID pour facebook'
@@ -127,36 +128,45 @@ const User = sequelize.define('User', {
     createdAt: 'created_at',
     updatedAt: 'updated_at',
     indexes: [
+        // Index essentiels seulement - MySQL limite à 64 index par table
         {
             unique: true,
-            fields: ['primary_identifier']
-        },
-        {
-            unique: true,
-            fields: ['phone']
+            fields: ['primary_identifier'],
+            name: 'unique_primary_identifier'
         },
         {
             unique: true,
-            fields: ['email']
+            fields: ['phone'],
+            name: 'unique_phone'
         },
         {
             unique: true,
-            fields: ['google_id']
+            fields: ['email'],
+            name: 'unique_email'
         },
         {
-            unique: true,
-            fields: ['facebook_id']
+            fields: ['auth_provider'],
+            name: 'idx_auth_provider'
         },
         {
-            fields: ['auth_provider']
-        },
-        {
-            fields: ['role']
-        },
-        {
-            fields: ['is_verified']
+            fields: ['role'],
+            name: 'idx_role'
         }
-    ]
+    ],
+    // Validation au niveau de l'application
+    validate: {
+        // S'assurer que authProvider et primaryIdentifier sont définis lors de la création
+        authProviderRequired() {
+            if (!this.authProvider) {
+                throw new Error('authProvider est requis');
+            }
+        },
+        primaryIdentifierRequired() {
+            if (!this.primaryIdentifier) {
+                throw new Error('primaryIdentifier est requis');
+            }
+        }
+    }
 });
 
 // ========================================

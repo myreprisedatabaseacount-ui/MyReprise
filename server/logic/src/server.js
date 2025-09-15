@@ -19,7 +19,7 @@ const fs = require('fs');
 const { initializeModels } = require('./models');
 
 // Import des routes
-const { categoryRoutes, userRoutes, brandRoutes, whatsappRoutes, subjectRoutes } = require('./routes');
+const { categoryRoutes, userRoutes, brandRoutes, whatsappRoutes, subjectRoutes, offerRoutes } = require('./routes');
 const conversationRoutes = require('./routes/conversationRoutes');
 const reactionRoutes = require('./routes/reactionRoutes');
 
@@ -99,6 +99,7 @@ app.use(limiter);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/brands", brandRoutes);
 app.use("/api/subjects", subjectRoutes);
+app.use("/api/offers", offerRoutes);
 app.use("/api/auth", userRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/whatsapp", whatsappRoutes);

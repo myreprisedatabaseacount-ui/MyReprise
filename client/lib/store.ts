@@ -5,6 +5,7 @@ import { brandApi } from '../services/api/BrandApi';
 import userApi from '../services/api/UserApi';
 import { conversationsApi } from '../services/api/ConversationsApi';
 import { reactionsApi } from '../services/api/ReactionsApi';
+import { OfferApi } from '../services/api/OfferApi';
 import authReducer from '../services/slices/authSlice';
 import userReducer from '../services/slices/userSlice';
 import productReducer from '../services/slices/productSlice';
@@ -17,6 +18,7 @@ const configurestore = configureStore({
     [userApi.reducerPath]: userApi.reducer,
     [conversationsApi.reducerPath]: conversationsApi.reducer,
     [reactionsApi.reducerPath]: reactionsApi.reducer,
+    [OfferApi.reducerPath]: OfferApi.reducer,
     auth: authReducer,
     user: userReducer,
     product: productReducer,
@@ -42,6 +44,7 @@ const configurestore = configureStore({
       .concat(userApi.middleware)
       .concat(conversationsApi.middleware)
       .concat(reactionsApi.middleware)
+      .concat(OfferApi.middleware)
 });
 export default configurestore;
 export type RootState = ReturnType<typeof configurestore.getState>;

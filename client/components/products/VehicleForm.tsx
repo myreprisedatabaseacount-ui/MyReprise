@@ -1,13 +1,16 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 
-import { ArrowLeft, Car, Bike, Truck, Anchor, Save, Upload, X, MapPin } from 'lucide-react';
+import { ArrowLeft, Car, Bike, Truck, Anchor, Save, X, MapPin } from 'lucide-react';
 import { useProduct } from '../../services/hooks/useProduct';
+import { useCreateOfferMutation } from '../../services/api/OfferApi';
+import MultipleImageUpload from './MultipleImageUpload';
+import { toast } from 'sonner';
 import * as Yup from 'yup';
 
 interface VehicleFormProps {
@@ -17,8 +20,8 @@ interface VehicleFormProps {
 
 const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
   const { updateData, setStep } = useProduct();
-  const [isLoading, setIsLoading] = useState(false);
-  const [photos, setPhotos] = useState<string[]>([]);
+  const [createOffer, { isLoading }] = useCreateOfferMutation();
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
 
   // Valeurs initiales
@@ -30,7 +33,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
     mileage: '',
     value: '',
     description: '',
-    photos: [],
+    images: [],
   };
 
   const [formValues, setFormValues] = useState(initialValues);
@@ -76,48 +79,27 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
     { value: 'autre', label: 'Autre', icon: Car, color: 'text-gray-600' },
   ];
 
-  // Gestion des photos
-  const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    if (photos.length + files.length > 10) {
-      alert('Maximum 10 photos autorisées');
-      return;
-    }
-    
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const newPhoto = e.target?.result as string;
-        setPhotos(prev => [...prev, newPhoto]);
-      };
-      reader.readAsDataURL(file);
-    });
-    
-    // Réinitialiser l'input
-    event.target.value = '';
+  // Gestion des images via le composant MultipleImageUpload
+  const handleImagesChange = (files: File[]) => {
+    setImageFiles(files);
   };
 
-  const removePhoto = (index: number) => {
-    setPhotos(prev => {
-      const newPhotos = prev.filter((_, i) => i !== index);
-      // Ajuster l'index de la photo courante
-      if (currentPhotoIndex >= newPhotos.length && newPhotos.length > 0) {
-        setCurrentPhotoIndex(newPhotos.length - 1);
-      } else if (newPhotos.length === 0) {
-        setCurrentPhotoIndex(0);
-      }
-      return newPhotos;
-    });
-  };
+  // Synchroniser currentPhotoIndex avec imageFiles
+  useEffect(() => {
+    if (imageFiles.length === 0) {
+      setCurrentPhotoIndex(0);
+    } else if (currentPhotoIndex >= imageFiles.length) {
+      setCurrentPhotoIndex(imageFiles.length - 1);
+    }
+  }, [imageFiles, currentPhotoIndex]);
 
   const handleSubmit = async (values: typeof initialValues) => {
-    // Validation des photos
-    if (photos.length === 0) {
-      alert('Au moins une photo est obligatoire');
+    // Validation des images
+    if (imageFiles.length === 0) {
+      toast.error('Au moins une photo est obligatoire');
       return;
     }
     
-    setIsLoading(true);
     try {
       // Construire le titre pour l'offre
       const title = `${values.brand} ${values.model} ${values.year}`;
@@ -130,12 +112,18 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
         status: 'available',
         productCondition: 'good', // Valeur par défaut
         listingType: 'vehicle',
-        vehicleType: values.vehicleType,
-        year: values.year,
-        brand: values.brand,
-        model: values.model,
-        mileage: Number(values.mileage),
-        photos: photos,
+        images: imageFiles, // Fichiers compressés prêts pour upload
+        // Données spécifiques au véhicule
+        specificData: {
+          vehicleType: values.vehicleType,
+          year: values.year,
+          brand: values.brand,
+          model: values.model,
+          mileage: Number(values.mileage),
+          fuel: 'essence', // Valeur par défaut
+          transmission: 'manuelle', // Valeur par défaut
+          color: 'blanc' // Valeur par défaut
+        },
         // Localisation mockup
         location: {
           city: 'Fès',
@@ -148,18 +136,41 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
       // Sauvegarder les données dans le state
       updateData(offerData);
       
-      // TODO: Appel API pour créer l'offre
-      console.log('Données offre véhicule:', offerData);
+      // Appel API pour créer l'offre
+      console.log('📤 Envoi des données offre véhicule:', offerData);
       
-      // Simuler un délai
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const result = await createOffer(offerData).unwrap();
+      
+      console.log('✅ Offre créée avec succès:', result);
+      
+      // Toast de succès
+      toast.success(result.message || 'Véhicule créé avec succès', {
+        description: `Titre: ${result.data?.title || title}`,
+        duration: 4000,
+      });
       
       // Passer à l'étape suivante ou fermer
       setStep(3);
-    } catch (error) {
-      console.error('Erreur lors de la création:', error);
-    } finally {
-      setIsLoading(false);
+    } catch (error: any) {
+      console.error('❌ Erreur lors de la création:', error);
+      
+      // Gestion des erreurs avec toast
+      if (error?.data?.error) {
+        toast.error('Erreur lors de la création', {
+          description: error.data.details || error.data.error,
+          duration: 6000,
+        });
+      } else if (error?.data?.details) {
+        toast.error('Erreur de validation', {
+          description: error.data.details,
+          duration: 6000,
+        });
+      } else {
+        toast.error('Erreur inattendue', {
+          description: 'Une erreur est survenue lors de la création du véhicule',
+          duration: 6000,
+        });
+      }
     }
   };
 
@@ -210,10 +221,10 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
               onSubmit={handleSubmit}
             >
               {({ values, setFieldValue }) => {
-                // Mettre à jour formValues de manière simple
-                if (JSON.stringify(values) !== JSON.stringify(formValues)) {
+                // Utiliser useEffect pour mettre à jour formValues
+                useEffect(() => {
                   setFormValues(values);
-                }
+                }, [values]);
                 
                 return (
                 <Form className="space-y-6">
@@ -247,64 +258,6 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                     <ErrorMessage name="vehicleType" component="div" className="text-red-500 text-sm mt-1" />
                   </div>
 
-                  {/* Photos */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-3">
-                      Photos * (1-10 photos)
-                    </label>
-                    <div className="space-y-4">
-                      {/* Upload area */}
-                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                        <input
-                          type="file"
-                          multiple
-                          accept="image/*"
-                          onChange={handlePhotoUpload}
-                          className="hidden"
-                          id="photo-upload"
-                        />
-                        <label
-                          htmlFor="photo-upload"
-                          className="cursor-pointer flex flex-col items-center gap-2"
-                        >
-                          <Upload className="w-8 h-8 text-gray-400" />
-                          <span className="text-sm text-gray-600">
-                            Cliquez pour ajouter des photos
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {photos.length}/10 photos
-                          </span>
-                        </label>
-                      </div>
-
-                      {/* Photo preview */}
-                      {photos.length > 0 && (
-                        <div className="space-y-2">
-                          <div className="flex gap-2 overflow-x-auto pb-2">
-                            {photos.map((photo, index) => (
-                              <div key={index} className="relative flex-shrink-0">
-                                <img
-                                  src={photo}
-                                  alt={`Photo ${index + 1}`}
-                                  className="w-20 h-20 object-cover rounded-lg border"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => removePhoto(index)}
-                                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    {photos.length === 0 && (
-                      <p className="text-red-500 text-sm mt-1">Au moins une photo est obligatoire</p>
-                    )}
-                  </div>
 
                   {/* Année, Marque, Modèle */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -392,6 +345,19 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                     <ErrorMessage name="description" component="div" className="text-red-500 text-sm mt-1" />
                   </div>
 
+                  {/* Upload d'images */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Photos du véhicule *
+                    </label>
+                    <MultipleImageUpload
+                      images={imageFiles}
+                      setImages={handleImagesChange}
+                      maxImages={10}
+                      minImages={1}
+                    />
+                  </div>
+
                   {/* Footer */}
                   <div className="flex justify-end gap-3 pt-6 border-t">
                     <Button
@@ -420,16 +386,16 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
               
               {/* Photo principale */}
               <div className="mb-4">
-                {photos.length > 0 ? (
+                {imageFiles.length > 0 && currentPhotoIndex < imageFiles.length && imageFiles[currentPhotoIndex] ? (
                   <div className="relative">
                     <img
-                      src={photos[currentPhotoIndex]}
+                      src={URL.createObjectURL(imageFiles[currentPhotoIndex])}
                       alt="Véhicule"
                       className="w-full h-64 object-cover rounded-lg"
                     />
-                    {photos.length > 1 && (
+                    {imageFiles.length > 1 && (
                       <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex gap-1">
-                        {photos.map((_, index) => (
+                        {imageFiles.map((_, index) => (
                           <button
                             key={index}
                             onClick={() => setCurrentPhotoIndex(index)}

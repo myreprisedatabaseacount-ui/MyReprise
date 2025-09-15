@@ -71,7 +71,7 @@ const login = async (req, res) => {
 
         const { phone, country, password } = req.body;
 
-        const result = await AuthService.authenticateWithPhone(phone, country, password);
+        const result = await AuthService.authenticateWithPhone(phone, country, password, res);
         res.json(result);
 
     } catch (error) {
@@ -124,7 +124,7 @@ const loginWithGoogle = async (req, res) => {
             firstName,
             lastName,
             profilePicture
-        });
+        }, res);
 
         res.json(result);
 
@@ -160,7 +160,7 @@ const loginWithFacebook = async (req, res) => {
             firstName,
             lastName,
             profilePicture
-        });
+        }, res);
 
         res.json(result);
 

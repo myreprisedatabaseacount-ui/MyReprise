@@ -92,6 +92,21 @@ const Offer = sequelize.define('Offer', {
             len: [0, 2000]
         }
     },
+    images: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        comment: 'JSON array of image URLs from Cloudinary'
+    },
+    specificData: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        comment: 'JSON object with type-specific data (vehicle, property, item)'
+    },
+    location: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        comment: 'JSON object with location data'
+    },
     status: {
         type: DataTypes.ENUM('available', 'exchanged', 'archived'),
         allowNull: false,
@@ -156,6 +171,32 @@ const Offer = sequelize.define('Offer', {
 // ========================================
 
 Offer.prototype.getPublicData = function() {
+    // Parser les données JSON
+    let images = [];
+    let specificData = {};
+    let location = {};
+    
+    try {
+        images = this.images ? JSON.parse(this.images) : [];
+    } catch (error) {
+        console.error('Erreur parsing images:', error);
+        images = [];
+    }
+    
+    try {
+        specificData = this.specificData ? JSON.parse(this.specificData) : {};
+    } catch (error) {
+        console.error('Erreur parsing specificData:', error);
+        specificData = {};
+    }
+    
+    try {
+        location = this.location ? JSON.parse(this.location) : {};
+    } catch (error) {
+        console.error('Erreur parsing location:', error);
+        location = {};
+    }
+
     return {
         id: this.id,
         productId: this.productId,
@@ -168,6 +209,10 @@ Offer.prototype.getPublicData = function() {
         title: this.title,
         description: this.description,
         status: this.status,
+        listingType: this.listingType,
+        images: images,
+        specificData: specificData,
+        location: location,
         createdAt: this.createdAt
     };
 };
