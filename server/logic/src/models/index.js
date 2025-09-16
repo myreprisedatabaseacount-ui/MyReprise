@@ -211,6 +211,15 @@ async function initializeModels() {
     }
     
     try {
+      if (Offer && Address) {
+        Offer.belongsTo(Address, { foreignKey: 'addressId', as: 'address' });
+        Address.hasMany(Offer, { foreignKey: 'addressId', as: 'offers' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association Offer <-> Address:', error.message);
+    }
+    
+    try {
       if (User && Delta) {
         User.hasMany(Delta, { foreignKey: 'sender_id', as: 'SentDeltas' });
         User.hasMany(Delta, { foreignKey: 'receiver_id', as: 'ReceivedDeltas' });

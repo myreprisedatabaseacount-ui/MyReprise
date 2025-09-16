@@ -23,7 +23,8 @@ const Address = sequelize.define('Address', {
         allowNull: true,
         validate: {
             len: [2, 100]
-        }
+        },
+        comment: 'Secteur/Région de la ville'
     },
     addressName: {
         type: DataTypes.TEXT,
@@ -96,6 +97,9 @@ Address.prototype.getFullAddress = function() {
         fullAddress += `, ${this.sector}`;
     }
     fullAddress += `, ${this.city}`;
+    if (this.country) {
+        fullAddress += `, ${this.country}`;
+    }
     return fullAddress;
 };
 
@@ -140,6 +144,7 @@ Address.prototype.getPublicData = function() {
         city: this.city,
         sector: this.sector,
         addressName: this.addressName,
+        country: this.country,
         latitude: this.latitude,
         longitude: this.longitude,
         fullAddress: this.getFullAddress(),

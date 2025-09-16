@@ -97,15 +97,25 @@ const Offer = sequelize.define('Offer', {
         allowNull: true,
         comment: 'JSON array of image URLs from Cloudinary'
     },
+    listingType: {
+        type: DataTypes.ENUM('vehicle', 'item', 'property'),
+        allowNull: false,
+        defaultValue: 'item'
+    },
     specificData: {
         type: DataTypes.TEXT,
         allowNull: true,
         comment: 'JSON object with type-specific data (vehicle, property, item)'
     },
-    location: {
-        type: DataTypes.TEXT,
+    addressId: {
+        type: DataTypes.INTEGER,
         allowNull: true,
-        comment: 'JSON object with location data'
+        field: 'address_id',
+        references: {
+            model: 'addresses',
+            key: 'id'
+        },
+        comment: 'Référence vers l\'adresse de l\'offre'
     },
     status: {
         type: DataTypes.ENUM('available', 'exchanged', 'archived'),
@@ -162,6 +172,9 @@ const Offer = sequelize.define('Offer', {
         },
         {
             fields: ['product_condition']
+        },
+        {
+            fields: ['address_id']
         }
     ]
 });
@@ -174,7 +187,6 @@ Offer.prototype.getPublicData = function() {
     // Parser les données JSON
     let images = [];
     let specificData = {};
-    let location = {};
     
     try {
         images = this.images ? JSON.parse(this.images) : [];
@@ -189,13 +201,6 @@ Offer.prototype.getPublicData = function() {
         console.error('Erreur parsing specificData:', error);
         specificData = {};
     }
-    
-    try {
-        location = this.location ? JSON.parse(this.location) : {};
-    } catch (error) {
-        console.error('Erreur parsing location:', error);
-        location = {};
-    }
 
     return {
         id: this.id,
@@ -204,6 +209,7 @@ Offer.prototype.getPublicData = function() {
         categoryId: this.categoryId,
         brandId: this.brandId,
         subjectId: this.subjectId,
+        addressId: this.addressId,
         productCondition: this.productCondition,
         price: parseFloat(this.price),
         title: this.title,
@@ -212,7 +218,6 @@ Offer.prototype.getPublicData = function() {
         listingType: this.listingType,
         images: images,
         specificData: specificData,
-        location: location,
         createdAt: this.createdAt
     };
 };
@@ -570,6 +575,53 @@ Offer.findWithPagination = async function(page = 1, limit = 10, filters = {}) {
         totalPages: Math.ceil(count / limit),
         currentPage: page
     };
+};
+
+/**
+ * Trouve les offres avec leurs adresses associées
+ */
+Offer.findWithAddresses = async function(filters = {}) {
+    const whereClause = {
+        isDeleted: false
+    };
+    
+    if (filters.categoryId) whereClause.categoryId = filters.categoryId;
+    if (filters.brandId) whereClause.brandId = filters.brandId;
+    if (filters.sellerId) whereClause.sellerId = filters.sellerId;
+    if (filters.status) whereClause.status = filters.status;
+    if (filters.productCondition) whereClause.productCondition = filters.productCondition;
+    if (filters.addressId) whereClause.addressId = filters.addressId;
+    if (filters.minPrice) whereClause.price = { ...whereClause.price, [db.Sequelize.Op.gte]: filters.minPrice };
+    if (filters.maxPrice) whereClause.price = { ...whereClause.price, [db.Sequelize.Op.lte]: filters.maxPrice };
+    if (filters.search) {
+        whereClause[db.Sequelize.Op.or] = [
+            { title: { [db.Sequelize.Op.like]: `%${filters.search}%` } },
+            { description: { [db.Sequelize.Op.like]: `%${filters.search}%` } }
+        ];
+    }
+    
+    return await Offer.findAll({
+        where: whereClause,
+        include: [{
+            model: db.Address,
+            as: 'address',
+            required: false // LEFT JOIN pour inclure les offres sans adresse
+        }],
+        order: [['createdAt', 'DESC']]
+    });
+};
+
+/**
+ * Trouve une offre par ID avec son adresse associée
+ */
+Offer.findWithAddressById = async function(id) {
+    return await Offer.findByPk(id, {
+        include: [{
+            model: db.Address,
+            as: 'address',
+            required: false
+        }]
+    });
 };
 
 /**

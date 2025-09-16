@@ -57,7 +57,7 @@ class Database {
   }
 
   // Méthode pour synchroniser les modèles
-      async syncModels(options = { force: false, alter: false }) {
+    async syncModels(options = { force: false, alter: false }) {
         try {
             await this.sequelize.sync(options);
             console.log("✅ Modèles synchronisés avec la base de données");

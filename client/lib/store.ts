@@ -6,6 +6,7 @@ import userApi from '../services/api/UserApi';
 import { conversationsApi } from '../services/api/ConversationsApi';
 import { reactionsApi } from '../services/api/ReactionsApi';
 import { OfferApi } from '../services/api/OfferApi';
+import { AddressApi } from '../services/api/AddressApi';
 import authReducer from '../services/slices/authSlice';
 import userReducer from '../services/slices/userSlice';
 import productReducer from '../services/slices/productSlice';
@@ -20,6 +21,7 @@ const configurestore = configureStore({
     [conversationsApi.reducerPath]: conversationsApi.reducer,
     [reactionsApi.reducerPath]: reactionsApi.reducer,
     [OfferApi.reducerPath]: OfferApi.reducer,
+    [AddressApi.reducerPath]: AddressApi.reducer,
     [callApi.reducerPath]: callApi.reducer,
     auth: authReducer,
     user: userReducer,
@@ -47,6 +49,7 @@ const configurestore = configureStore({
       .concat(conversationsApi.middleware)
       .concat(reactionsApi.middleware)
       .concat(OfferApi.middleware)
+      .concat(AddressApi.middleware)
       .concat(callApi.middleware)
 });
 export default configurestore;

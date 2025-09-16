@@ -5,6 +5,7 @@ const whatsappRoutes = require('./whatsappRoutes.js');
 const subjectRoutes = require('./subjectRoutes.js');
 const offerRoutes = require('./offerRoutes.js');
 const callRoutes = require('./callRoutes.js');
+const addressRoutes = require('./addressRoutes.js');
 // const upload = require('./upload');
 // const products = require('./products');
 // const orders = require('./orders');
@@ -19,6 +20,7 @@ module.exports = {
   whatsappRoutes,
   offerRoutes,
   callRoutes,
+  addressRoutes,
   // upload,
   // products,
   // orders,
