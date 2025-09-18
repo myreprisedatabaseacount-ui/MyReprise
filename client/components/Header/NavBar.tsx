@@ -13,6 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
+import Link from 'next/link';
 
 interface NavBarProps {
   className?: string;
@@ -41,16 +42,18 @@ const NavBar: React.FC<NavBarProps> = ({ className = '' }) => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
-          <div className="flex items-center">
-            <h1 className="text-2xl font-bold text-gray-900">
-              MyReprise
-            </h1>
-          </div>
+          <Link href={'/'} >
+            <div className="flex items-center">
+              <h1 className="text-2xl font-bold text-gray-900">
+                MyReprise
+              </h1>
+            </div>
+          </Link>
 
           {/* Action Buttons */}
           <div className="flex items-center gap-3">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={handleCreateProduct}
               className="flex items-center gap-2"
             >
@@ -59,7 +62,7 @@ const NavBar: React.FC<NavBarProps> = ({ className = '' }) => {
               </svg>
               Créer un produit
             </Button>
-            
+
             {/* Affichage conditionnel selon l'état de connexion */}
             {isLoading ? (
               <div className="flex items-center gap-2">
@@ -94,7 +97,7 @@ const NavBar: React.FC<NavBarProps> = ({ className = '' }) => {
                     <span>Paramètres</span>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem 
+                  <DropdownMenuItem
                     onClick={handleLogout}
                     className="flex items-center gap-2 text-red-600 focus:text-red-600"
                   >
