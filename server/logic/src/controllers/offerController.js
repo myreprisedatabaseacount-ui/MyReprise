@@ -58,7 +58,7 @@ const createOffer = async (req, res) => {
       // Données spécifiques (seront dans specificData)
       specificData,
       // Localisation
-      location
+      addressId
     } = req.body;
 
     console.log('📥 Données reçues pour création d\'offre:', {

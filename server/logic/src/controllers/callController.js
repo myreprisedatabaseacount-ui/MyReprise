@@ -1,6 +1,10 @@
-import { generateStreamToken } from "../lib/stream.js";
+// Fonction temporaire pour générer un token de stream
+function generateStreamToken(userId) {
+  // Implémentation temporaire - à remplacer par la vraie logique
+  return `stream_token_${userId}_${Date.now()}`;
+}
 
-export async function getStreamToken(req, res) {
+async function getStreamToken(req, res) {
   try {
     console.log("Generating Stream token for user:", req.user);
     const token = generateStreamToken(req.user.userId);
@@ -11,3 +15,7 @@ export async function getStreamToken(req, res) {
     res.status(500).json({ message: "Internal Server Error" });
   }
 }
+
+module.exports = {
+  getStreamToken
+};

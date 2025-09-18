@@ -16,13 +16,21 @@ const db = require("./config/db.js");
 const fs = require('fs');
 
 // Import de l'initialisation des modèles
+console.log('🔄 Import initializeModels...');
 const { initializeModels } = require('./models');
+console.log('✅ initializeModels importé');
 
 // Import des routes
-const { categoryRoutes, userRoutes, brandRoutes, whatsappRoutes, subjectRoutes, offerRoutes } = require('./routes');
+console.log('🔄 Import des routes...');
+const { categoryRoutes, userRoutes, brandRoutes, whatsappRoutes, subjectRoutes, offerRoutes, addressRoutes } = require('./routes');
+console.log('✅ Routes importées');
+console.log('🔄 Import des routes supplémentaires...');
 const conversationRoutes = require('./routes/conversationRoutes');
+console.log('✅ conversationRoutes importé');
 const reactionRoutes = require('./routes/reactionRoutes');
+console.log('✅ reactionRoutes importé');
 const callRoutes = require('./routes/callRoutes');
+console.log('✅ callRoutes importé');
 
 // Import des sockets
 const { initializeSockets } = require('./sockets');
@@ -107,6 +115,7 @@ app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/conversations", conversationRoutes);
 app.use("/api/reactions", reactionRoutes);
 app.use("/api/calls", callRoutes);
+app.use("/api/addresses", addressRoutes);
 
 // Route de santé
 app.get('/api/health', (req, res) => {
@@ -122,14 +131,13 @@ app.get('/api/health', (req, res) => {
 // Fonction pour démarrer le serveur
 async function startServer() {
   try {
-    // Initialiser les modèles avec leurs associations
-    console.log('🔄 Initialisation des modèles...');
     try {
-      await initializeModels();
-      // await db.syncModels();
+      // await initializeModels();
+      await db.initializeDatabase();
       console.log('✅ Modèles initialisés avec succès');
     } catch (modelError) {
       console.error('❌ Erreur lors de l\'initialisation des modèles:', modelError.message);
+      console.error('❌ Stack trace:', modelError.stack);
       // Continuer même si les modèles échouent
     }
     
@@ -142,14 +150,18 @@ async function startServer() {
     }
     
     // Initialiser les sockets
+    console.log('🔄 Initialisation des sockets...');
     initializeSockets(io);
+    console.log('✅ Sockets initialisés');
     
+    console.log('🔄 Démarrage du serveur...');
     server.listen(PORT, () => {
       console.log(`🚀 Serveur MyReprise démarré sur le port ${PORT}`);
       console.log(`🔌 Socket.IO activé sur le port ${PORT}`);
     });
   } catch (error) {
     console.error('❌ Erreur lors de l\'initialisation:', error);
+    console.error('❌ Stack trace:', error.stack);
     process.exit(1);
   }
 }
