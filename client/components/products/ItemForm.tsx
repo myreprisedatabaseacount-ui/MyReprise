@@ -358,20 +358,20 @@ const ItemForm: React.FC<ItemFormProps> = ({ onBack, onClose }) => {
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onBack}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onBack}
               className="p-2 hover:shadow-md hover:border-gray-300 border border-transparent rounded-lg transition-all duration-200"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
             <div className="flex items-center gap-2">
-              <ShoppingBag className="w-6 h-6 text-green-600" />
-            </div>
-            <h2 className="text-xl font-semibold text-gray-900">
+            <ShoppingBag className="w-6 h-6 text-green-600" />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900">
               Article à vendre
-            </h2>
+          </h2>
           </div>
           <div className="flex items-center gap-3">
             
@@ -396,9 +396,9 @@ const ItemForm: React.FC<ItemFormProps> = ({ onBack, onClose }) => {
         <div className="flex h-[calc(95vh-80px)]">
           {/* Left Panel - Form */}
           <div className="w-full lg:w-1/2 p-6 overflow-y-auto">
-            <Formik
-              initialValues={initialValues}
-              validationSchema={itemSchema}
+        <Formik
+          initialValues={initialValues}
+          validationSchema={itemSchema}
               onSubmit={() => {}}
             >
               {({ values, setFieldValue }) => {
@@ -546,43 +546,43 @@ const ItemForm: React.FC<ItemFormProps> = ({ onBack, onClose }) => {
                         <ErrorMessage name="weight" component="div" className="text-red-500 text-sm mt-1" />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                           Valeur (MAD) *
-                        </label>
-                        <Field
-                          as={Input}
+                  </label>
+                  <Field
+                    as={Input}
                           name="value"
                           type="number"
                           placeholder="1500"
-                          className="w-full"
-                        />
+                    className="w-full"
+                  />
                         <ErrorMessage name="value" component="div" className="text-red-500 text-sm mt-1" />
                       </div>
-                    </div>
+                </div>
 
-                    {/* Description */}
+                {/* Description */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                         Description - Plus de détails *
-                      </label>
-                      <Field
-                        as="textarea"
-                        name="description"
-                        rows={4}
-                        placeholder="Décrivez votre article en détail..."
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                      />
-                      <ErrorMessage name="description" component="div" className="text-red-500 text-sm mt-1" />
-                    </div>
+                  </label>
+                  <Field
+                    as="textarea"
+                    name="description"
+                    rows={4}
+                    placeholder="Décrivez votre article en détail..."
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  />
+                  <ErrorMessage name="description" component="div" className="text-red-500 text-sm mt-1" />
+                </div>
 
                     {/* Caractéristiques détaillées */}
-                    <div>
+                  <div>
                       <label className="block text-sm font-medium text-gray-700 mb-3">
                         Caractéristiques détaillées *
                         <span className="text-gray-500 text-sm font-normal ml-2">
                           (Ajoutez des spécifications techniques, dimensions, etc.)
                         </span>
-                      </label>
+                    </label>
                       <div className="space-y-3">
                         {characteristics.map((char, index) => (
                           <div key={index} className="flex gap-2">
@@ -599,8 +599,8 @@ const ItemForm: React.FC<ItemFormProps> = ({ onBack, onClose }) => {
                                 placeholder="Ex: 8GB, Intel i7, 2 ans..."
                                 value={char.value}
                                 onChange={(e) => updateCharacteristic(index, 'value', e.target.value)}
-                                className="w-full"
-                              />
+                      className="w-full"
+                    />
                             </div>
                             <Button
                               type="button"
@@ -612,7 +612,7 @@ const ItemForm: React.FC<ItemFormProps> = ({ onBack, onClose }) => {
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
-                          </div>
+                  </div>
                         ))}
                         <Button
                           type="button"
@@ -623,14 +623,14 @@ const ItemForm: React.FC<ItemFormProps> = ({ onBack, onClose }) => {
                           <Plus className="w-4 h-4 mr-2" />
                           Ajouter une caractéristique
                         </Button>
-                      </div>
-                    </div>
+                  </div>
+                </div>
 
                     {/* Localisation */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                         Localisation *
-                      </label>
+                  </label>
                       <div className="relative">
                         <div className="relative">
                           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -653,7 +653,7 @@ const ItemForm: React.FC<ItemFormProps> = ({ onBack, onClose }) => {
                               <X className="h-4 w-4" />
                             </button>
                           )}
-                        </div>
+                </div>
 
                         {showLocationResults && locationResults.length > 0 && (
                           <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
@@ -666,7 +666,7 @@ const ItemForm: React.FC<ItemFormProps> = ({ onBack, onClose }) => {
                               >
                                 <div className="flex items-center gap-2">
                                   <MapPin className="h-4 w-4 text-gray-400" />
-                                  <div>
+                  <div>
                                     <p className="font-medium text-gray-900">{location.city}</p>
                                     {location.sector && (
                                       <p className="text-sm text-gray-500">{location.sector}</p>
@@ -683,13 +683,13 @@ const ItemForm: React.FC<ItemFormProps> = ({ onBack, onClose }) => {
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
                           </div>
                         )}
-                      </div>
+                  </div>
 
                       {selectedLocation && (
                         <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
                           <div className="flex items-center gap-2">
                             <MapPin className="h-4 w-4 text-green-600" />
-                            <div>
+                  <div>
                               <p className="text-sm font-medium text-green-800">
                                 {selectedLocation.city}
                               </p>
@@ -698,24 +698,24 @@ const ItemForm: React.FC<ItemFormProps> = ({ onBack, onClose }) => {
                                   {selectedLocation.sector}
                                 </p>
                               )}
-                            </div>
-                          </div>
-                        </div>
+                  </div>
+                </div>
+              </div>
                       )}
-                    </div>
+                </div>
 
                     {/* Upload d'images */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                         Photos de l'article *
-                      </label>
+                  </label>
                       <MultipleImageUpload
                         images={imageFiles}
                         setImages={handleImagesChange}
                         maxImages={10}
                         minImages={1}
                       />
-                    </div>
+                </div>
 
                     {/* Section des catégories d'échange - affichée après création de l'offre */}
                     {createdOfferId && (
@@ -736,7 +736,7 @@ const ItemForm: React.FC<ItemFormProps> = ({ onBack, onClose }) => {
                           <span className="text-gray-500 text-sm font-normal ml-2">
                             (Sélectionnez les catégories que vous souhaitez recevoir en échange)
                           </span>
-                        </label>
+                    </label>
                         {isLoadingAllCategories ? (
                           <div className="flex items-center justify-center p-4">
                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600"></div>
@@ -764,29 +764,29 @@ const ItemForm: React.FC<ItemFormProps> = ({ onBack, onClose }) => {
                                     {selectedExchangeCategories.includes(category.id) && (
                                       <div className="w-2 h-2 bg-white rounded-sm"></div>
                                     )}
-                                  </div>
+                  </div>
                                   <img src={category.icon} alt={category.name} className="w-4 h-4" />
                                   <span className="font-medium text-sm">{category.name}</span>
-                                </div>
+                  </div>
                               </button>
                             ))}
-                          </div>
+                </div>
                         )}
-                      </div>
+              </div>
                     )}
 
-                    {/* Footer */}
-                    <div className="flex justify-between gap-3 pt-6 border-t">
+              {/* Footer */}
+              <div className="flex justify-between gap-3 pt-6 border-t">
                       {createdOfferId && !isExchangeConfirmed && (
-                        <Button
-                          type="button"
+                <Button
+                  type="button"
                           onClick={handleConfirmExchange}
                           disabled={selectedExchangeCategories.length === 0}
                           className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
-                        >
+                >
                           <Save className="w-4 h-4" />
                           Confirmer les échanges
-                        </Button>
+                </Button>
                       )}
                       {createdOfferId && isExchangeConfirmed && (
                         <div className="flex items-center gap-2 text-green-600">
@@ -796,21 +796,21 @@ const ItemForm: React.FC<ItemFormProps> = ({ onBack, onClose }) => {
                           <span className="text-sm font-medium">Configuration terminée</span>
                         </div>
                       )}
-                      <Button
+                <Button
                         type="button"
                         onClick={() => handlePublishOffer(values)}
                         disabled={isLoading || (createdOfferId && !isExchangeConfirmed)}
-                        className="flex items-center gap-2"
-                      >
-                        {isLoading ? (
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <Save className="w-4 h-4" />
-                        )}
+                  className="flex items-center gap-2"
+                >
+                  {isLoading ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
                         {isLoading ? 'Publication...' : 'Publier l\'Offre'}
-                      </Button>
-                    </div>
-                  </Form>
+                </Button>
+              </div>
+            </Form>
                 );
               }}
             </Formik>

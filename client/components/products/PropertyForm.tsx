@@ -378,20 +378,20 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ onBack, onClose }) => {
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onBack}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onBack}
               className="p-2 hover:shadow-md hover:border-gray-300 border border-transparent rounded-lg transition-all duration-200"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
             <div className="flex items-center gap-2">
-              <Home className="w-6 h-6 text-purple-600" />
-            </div>
-            <h2 className="text-xl font-semibold text-gray-900">
+            <Home className="w-6 h-6 text-purple-600" />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900">
               Bien immobilier à vendre
-            </h2>
+          </h2>
           </div>
           <div className="flex items-center gap-3">
            
@@ -416,9 +416,9 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ onBack, onClose }) => {
         <div className="flex h-[calc(95vh-80px)]">
           {/* Left Panel - Form */}
           <div className="w-full lg:w-1/2 p-6 overflow-y-auto">
-            <Formik
-              initialValues={initialValues}
-              validationSchema={propertySchema}
+        <Formik
+          initialValues={initialValues}
+          validationSchema={propertySchema}
               onSubmit={() => {}}
             >
               {({ values, setFieldValue }) => {
@@ -433,7 +433,7 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ onBack, onClose }) => {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-3">
                         Catégorie d'immobilier *
-                      </label>
+                  </label>
                       {isLoadingCategories ? (
                         <div className="flex items-center justify-center p-4">
                           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
@@ -457,153 +457,153 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ onBack, onClose }) => {
                               </div>
                             </button>
                           ))}
-                        </div>
+                </div>
                       )}
                       <ErrorMessage name="categoryId" component="div" className="text-red-500 text-sm mt-1" />
-                    </div>
+                </div>
 
                     {/* Type de bien */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
                         Type de bien *
-                      </label>
-                      <Field
-                        as="select"
+                    </label>
+                    <Field
+                      as="select"
                         name="propertyType"
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      >
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    >
                         <option value="">Sélectionner un type</option>
                         <option value="appartement">Appartement</option>
-                        <option value="maison">Maison</option>
-                        <option value="villa">Villa</option>
-                        <option value="terrain">Terrain</option>
-                        <option value="immeuble">Immeuble</option>
-                        <option value="local-commercial">Local commercial</option>
-                        <option value="bureau">Bureau</option>
-                      </Field>
+                      <option value="maison">Maison</option>
+                      <option value="villa">Villa</option>
+                      <option value="terrain">Terrain</option>
+                      <option value="immeuble">Immeuble</option>
+                      <option value="local-commercial">Local commercial</option>
+                      <option value="bureau">Bureau</option>
+                    </Field>
                       <ErrorMessage name="propertyType" component="div" className="text-red-500 text-sm mt-1" />
-                    </div>
+                </div>
 
                     {/* Superficie et Pièces */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
                           Superficie (m²) *
-                        </label>
-                        <Field
-                          as={Input}
+                    </label>
+                    <Field
+                      as={Input}
                           name="area"
-                          type="number"
-                          placeholder="120"
-                          className="w-full"
-                        />
+                      type="number"
+                      placeholder="120"
+                      className="w-full"
+                    />
                         <ErrorMessage name="area" component="div" className="text-red-500 text-sm mt-1" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
                           Pièces *
-                        </label>
-                        <Field
-                          as={Input}
+                    </label>
+                    <Field
+                      as={Input}
                           name="rooms"
-                          type="number"
-                          placeholder="3"
-                          className="w-full"
-                        />
+                      type="number"
+                      placeholder="3"
+                      className="w-full"
+                    />
                         <ErrorMessage name="rooms" component="div" className="text-red-500 text-sm mt-1" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Salles de bain *
-                        </label>
-                        <Field
-                          as={Input}
-                          name="bathrooms"
-                          type="number"
-                          placeholder="2"
-                          className="w-full"
-                        />
-                        <ErrorMessage name="bathrooms" component="div" className="text-red-500 text-sm mt-1" />
-                      </div>
-                    </div>
-
-                    {/* Étage et Année de construction */}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Salles de bain *
+                    </label>
+                    <Field
+                      as={Input}
+                      name="bathrooms"
+                      type="number"
+                      placeholder="2"
+                      className="w-full"
+                    />
+                    <ErrorMessage name="bathrooms" component="div" className="text-red-500 text-sm mt-1" />
+                  </div>
+                </div>
+                
+                {/* Étage et Année de construction */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Étage
-                        </label>
-                        <Field
-                          as={Input}
-                          name="floor"
-                          type="number"
-                          placeholder="2"
-                          className="w-full"
-                        />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Étage
+                    </label>
+                    <Field
+                      as={Input}
+                      name="floor"
+                      type="number"
+                      placeholder="2"
+                      className="w-full"
+                    />
                         <ErrorMessage name="floor" component="div" className="text-red-500 text-sm mt-1" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Année de construction
-                        </label>
-                        <Field
-                          as={Input}
-                          name="constructionYear"
-                          type="number"
-                          placeholder="2020"
-                          className="w-full"
-                        />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Année de construction
+                    </label>
+                    <Field
+                      as={Input}
+                      name="constructionYear"
+                      type="number"
+                      placeholder="2020"
+                      className="w-full"
+                    />
                         <ErrorMessage name="constructionYear" component="div" className="text-red-500 text-sm mt-1" />
-                      </div>
-                    </div>
+                  </div>
+                </div>
 
                     {/* Équipements */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-3">
                         Équipements
-                      </label>
+                  </label>
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="flex items-center">
-                          <Field
-                            type="checkbox"
+                  <div className="flex items-center">
+                    <Field
+                      type="checkbox"
                             name="hasElevator"
-                            className="mr-2"
-                          />
-                          <label className="text-sm font-medium text-gray-700">Ascenseur</label>
-                        </div>
-                        <div className="flex items-center">
-                          <Field
-                            type="checkbox"
+                      className="mr-2"
+                    />
+                    <label className="text-sm font-medium text-gray-700">Ascenseur</label>
+                  </div>
+                  <div className="flex items-center">
+                    <Field
+                      type="checkbox"
                             name="hasParking"
-                            className="mr-2"
-                          />
-                          <label className="text-sm font-medium text-gray-700">Parking</label>
-                        </div>
-                        <div className="flex items-center">
-                          <Field
-                            type="checkbox"
+                      className="mr-2"
+                    />
+                    <label className="text-sm font-medium text-gray-700">Parking</label>
+                  </div>
+                  <div className="flex items-center">
+                    <Field
+                      type="checkbox"
                             name="hasGarden"
-                            className="mr-2"
-                          />
-                          <label className="text-sm font-medium text-gray-700">Jardin</label>
-                        </div>
-                        <div className="flex items-center">
-                          <Field
-                            type="checkbox"
+                      className="mr-2"
+                    />
+                    <label className="text-sm font-medium text-gray-700">Jardin</label>
+                  </div>
+                  <div className="flex items-center">
+                    <Field
+                      type="checkbox"
                             name="hasBalcony"
-                            className="mr-2"
-                          />
+                      className="mr-2"
+                    />
                           <label className="text-sm font-medium text-gray-700">Balcon/Terrasse</label>
-                        </div>
-                      </div>
-                    </div>
+                  </div>
+                </div>
+              </div>
 
                     {/* Valeur */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                         Valeur (MAD) *
-                      </label>
-                      <Field
+                  </label>
+                  <Field
                         as={Input}
                         name="value"
                         type="number"
@@ -611,14 +611,14 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ onBack, onClose }) => {
                         className="w-full"
                       />
                       <ErrorMessage name="value" component="div" className="text-red-500 text-sm mt-1" />
-                    </div>
+                </div>
 
                     {/* Description */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                         Description - Plus de détails *
-                      </label>
-                      <Field
+                  </label>
+                  <Field
                         as="textarea"
                         name="description"
                         rows={4}
@@ -652,8 +652,8 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ onBack, onClose }) => {
                                 placeholder="Ex: Central, Gaz, Gardien 24h..."
                                 value={char.value}
                                 onChange={(e) => updateCharacteristic(index, 'value', e.target.value)}
-                                className="w-full"
-                              />
+                    className="w-full"
+                  />
                             </div>
                             <Button
                               type="button"
@@ -676,8 +676,8 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ onBack, onClose }) => {
                           <Plus className="w-4 h-4 mr-2" />
                           Ajouter une caractéristique
                         </Button>
-                      </div>
-                    </div>
+                </div>
+              </div>
 
                     {/* Localisation */}
                     <div>
@@ -828,18 +828,18 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ onBack, onClose }) => {
                       </div>
                     )}
 
-                    {/* Footer */}
-                    <div className="flex justify-between gap-3 pt-6 border-t">
+              {/* Footer */}
+              <div className="flex justify-between gap-3 pt-6 border-t">
                       {createdOfferId && !isExchangeConfirmed && (
-                        <Button
-                          type="button"
+                <Button
+                  type="button"
                           onClick={handleConfirmExchange}
                           disabled={selectedExchangeCategories.length === 0}
                           className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white"
-                        >
+                >
                           <Save className="w-4 h-4" />
                           Confirmer les échanges
-                        </Button>
+                </Button>
                       )}
                       {createdOfferId && isExchangeConfirmed && (
                         <div className="flex items-center gap-2 text-purple-600">
@@ -849,21 +849,21 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ onBack, onClose }) => {
                           <span className="text-sm font-medium">Configuration terminée</span>
                         </div>
                       )}
-                      <Button
+                <Button
                         type="button"
                         onClick={() => handlePublishOffer(values)}
                         disabled={isLoading || (createdOfferId && !isExchangeConfirmed)}
-                        className="flex items-center gap-2"
-                      >
-                        {isLoading ? (
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <Save className="w-4 h-4" />
-                        )}
+                  className="flex items-center gap-2"
+                >
+                  {isLoading ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
                         {isLoading ? 'Publication...' : 'Publier l\'Offre'}
-                      </Button>
-                    </div>
-                  </Form>
+                </Button>
+              </div>
+            </Form>
                 );
               }}
             </Formik>

@@ -92,11 +92,6 @@ const Offer = sequelize.define('Offer', {
             len: [0, 2000]
         }
     },
-    images: {
-        type: DataTypes.TEXT,
-        allowNull: true,
-        comment: 'JSON array of image URLs from Cloudinary'
-    },
     listingType: {
         type: DataTypes.ENUM('vehicle', 'item', 'property'),
         allowNull: false,
@@ -185,15 +180,7 @@ const Offer = sequelize.define('Offer', {
 
 Offer.prototype.getPublicData = function() {
     // Parser les données JSON
-    let images = [];
     let specificData = {};
-    
-    try {
-        images = this.images ? JSON.parse(this.images) : [];
-    } catch (error) {
-        console.error('Erreur parsing images:', error);
-        images = [];
-    }
     
     try {
         specificData = this.specificData ? JSON.parse(this.specificData) : {};
@@ -216,7 +203,6 @@ Offer.prototype.getPublicData = function() {
         description: this.description,
         status: this.status,
         listingType: this.listingType,
-        images: images,
         specificData: specificData,
         createdAt: this.createdAt
     };

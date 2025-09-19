@@ -58,12 +58,15 @@ class Neo4jSyncService {
         try {
             let endpoint = '/sync/user';
             
-            // Déterminer l'endpoint selon le type de données
-            if (data.type === 'OFFER_CATEGORY_RELATION') {
+            // Déterminer l'endpoint selon la structure des données
+            if (data.categoryId !== undefined && data.offerId !== undefined) {
+                // Relation offre-catégorie
                 endpoint = '/sync/offer-category-relation';
-            } else if (data.type === 'OFFER') {
+            } else if (data.offerId !== undefined && data.offerData !== undefined) {
+                // Offre
                 endpoint = '/sync/offer';
-            } else if (data.type === 'CATEGORY') {
+            } else if (data.categoryId !== undefined && data.nameAr !== undefined) {
+                // Catégorie
                 endpoint = '/sync/category';
             }
 
@@ -742,28 +745,25 @@ class Neo4jSyncService {
      */
     static prepareOfferDataForNeo4j(offerId, offerData, action) {
         return {
-            type: 'OFFER',
             action: action,
-            data: {
-                offerId: offerId,
-                offerData: {
-                    title: offerData.title,
-                    description: offerData.description,
-                    price: offerData.price,
-                    status: offerData.status,
-                    productCondition: offerData.productCondition,
-                    listingType: offerData.listingType,
-                    sellerId: offerData.sellerId,
-                    categoryId: offerData.categoryId,
-                    brandId: offerData.brandId,
-                    subjectId: offerData.subjectId,
-                    addressId: offerData.addressId,
-                    images: offerData.images,
-                    specificData: offerData.specificData,
-                    isDeleted: offerData.isDeleted,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString()
-                }
+            offerId: offerId,
+            offerData: {
+                title: offerData.title,
+                description: offerData.description,
+                price: offerData.price,
+                status: offerData.status,
+                productCondition: offerData.productCondition,
+                listingType: offerData.listingType,
+                sellerId: offerData.sellerId,
+                categoryId: offerData.categoryId,
+                brandId: offerData.brandId,
+                subjectId: offerData.subjectId,
+                addressId: offerData.addressId,
+                images: offerData.images,
+                specificData: offerData.specificData,
+                isDeleted: offerData.isDeleted,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
             },
             timestamp: new Date().toISOString()
         };
@@ -808,13 +808,10 @@ class Neo4jSyncService {
      */
     static prepareOfferCategoryRelationDataForNeo4j(offerId, categoryId, action) {
         return {
-            type: 'OFFER_CATEGORY_RELATION',
             action: action,
-            data: {
-                offerId: offerId,
-                categoryId: categoryId,
-                timestamp: new Date().toISOString()
-            }
+            offerId: offerId,
+            categoryId: categoryId,
+            timestamp: new Date().toISOString()
         };
     }
 }
