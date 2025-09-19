@@ -132,7 +132,7 @@ app.get('/api/health', (req, res) => {
 async function startServer() {
   try {
     try {
-      // await initializeModels();
+      await initializeModels();
       await db.initializeDatabase();
       console.log('✅ Modèles initialisés avec succès');
     } catch (modelError) {

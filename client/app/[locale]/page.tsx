@@ -5,6 +5,7 @@ import AuthProvider from '../../components/auth/AuthProvider';
 import ProductSlider from '@/components/home/productSlider/slider';
 import Hero from '@/components/home/Hero/hero';
 import ProductsGrid from '@/components/home/ProductsGrid/ProductsGrid';
+import ChatPanelWrapper from '@/components/ChatPanel/ChatPanelWrapper';
 
 export default async function HomePage({
   params
@@ -25,6 +26,7 @@ export default async function HomePage({
       <ProductSlider title={t('title')} />
       <AuthProvider />
       <ProductsGrid />
+      <ChatPanelWrapper />
     </>
   );
 }
