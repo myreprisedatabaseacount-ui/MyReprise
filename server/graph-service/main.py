@@ -86,6 +86,18 @@ class CategorySyncData(BaseModel):
     categoryData: Dict[str, Any]
     timestamp: str
 
+class OfferSyncData(BaseModel):
+    action: str  # CREATE, UPDATE, DELETE
+    offerId: int
+    offerData: Dict[str, Any]
+    timestamp: str
+
+class OfferCategoryRelationSyncData(BaseModel):
+    action: str  # CREATE, DELETE
+    offerId: int
+    categoryId: int
+    timestamp: str
+
 # Routes principales
 
 @app.get("/")
@@ -645,6 +657,335 @@ async def get_category_sync_status(category_id: int):
     except Exception as e:
         logger.error(f"❌ Erreur vérification statut catégorie {category_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Erreur vérification: {str(e)}")
+
+@app.post("/sync/offer")
+async def sync_offer(sync_data: OfferSyncData):
+    """Synchronise une offre avec Neo4j"""
+    driver = get_neo4j_driver()
+    
+    try:
+        with driver.session() as session:
+            if sync_data.action == 'CREATE':
+                # Créer une nouvelle offre dans Neo4j
+                result = session.run("""
+                    MERGE (o:Offer {id: $offerId})
+                    SET o.title = $title,
+                        o.description = $description,
+                        o.price = $price,
+                        o.status = $status,
+                        o.productCondition = $productCondition,
+                        o.listingType = $listingType,
+                        o.sellerId = $sellerId,
+                        o.categoryId = $categoryId,
+                        o.brandId = $brandId,
+                        o.subjectId = $subjectId,
+                        o.addressId = $addressId,
+                        o.images = $images,
+                        o.specificData = $specificData,
+                        o.isDeleted = $isDeleted,
+                        o.createdAt = datetime($createdAt),
+                        o.updatedAt = datetime($updatedAt),
+                        o.lastSync = datetime()
+                    RETURN o.id as offerId, o.lastSync as lastSync
+                """, 
+                offerId=sync_data.offerId,
+                title=sync_data.offerData.get('title'),
+                description=sync_data.offerData.get('description'),
+                price=sync_data.offerData.get('price'),
+                status=sync_data.offerData.get('status'),
+                productCondition=sync_data.offerData.get('productCondition'),
+                listingType=sync_data.offerData.get('listingType'),
+                sellerId=sync_data.offerData.get('sellerId'),
+                categoryId=sync_data.offerData.get('categoryId'),
+                brandId=sync_data.offerData.get('brandId'),
+                subjectId=sync_data.offerData.get('subjectId'),
+                addressId=sync_data.offerData.get('addressId'),
+                images=sync_data.offerData.get('images'),
+                specificData=sync_data.offerData.get('specificData'),
+                isDeleted=sync_data.offerData.get('isDeleted', False),
+                createdAt=sync_data.offerData.get('createdAt'),
+                updatedAt=sync_data.offerData.get('updatedAt'))
+                
+                record = result.single()
+                logger.info(f"✅ Offre {sync_data.offerId} créée dans Neo4j")
+                
+                return {
+                    "success": True,
+                    "message": "Offre synchronisée avec succès",
+                    "offerId": record["offerId"],
+                    "lastSync": record["lastSync"]
+                }
+                
+            elif sync_data.action == 'UPDATE':
+                # Mettre à jour une offre existante
+                result = session.run("""
+                    MATCH (o:Offer {id: $offerId})
+                    SET o.title = $title,
+                        o.description = $description,
+                        o.price = $price,
+                        o.status = $status,
+                        o.productCondition = $productCondition,
+                        o.listingType = $listingType,
+                        o.sellerId = $sellerId,
+                        o.categoryId = $categoryId,
+                        o.brandId = $brandId,
+                        o.subjectId = $subjectId,
+                        o.addressId = $addressId,
+                        o.images = $images,
+                        o.specificData = $specificData,
+                        o.isDeleted = $isDeleted,
+                        o.updatedAt = datetime($updatedAt),
+                        o.lastSync = datetime()
+                    RETURN o.id as offerId, o.lastSync as lastSync
+                """, 
+                offerId=sync_data.offerId,
+                title=sync_data.offerData.get('title'),
+                description=sync_data.offerData.get('description'),
+                price=sync_data.offerData.get('price'),
+                status=sync_data.offerData.get('status'),
+                productCondition=sync_data.offerData.get('productCondition'),
+                listingType=sync_data.offerData.get('listingType'),
+                sellerId=sync_data.offerData.get('sellerId'),
+                categoryId=sync_data.offerData.get('categoryId'),
+                brandId=sync_data.offerData.get('brandId'),
+                subjectId=sync_data.offerData.get('subjectId'),
+                addressId=sync_data.offerData.get('addressId'),
+                images=sync_data.offerData.get('images'),
+                specificData=sync_data.offerData.get('specificData'),
+                isDeleted=sync_data.offerData.get('isDeleted', False),
+                updatedAt=sync_data.offerData.get('updatedAt'))
+                
+                record = result.single()
+                if record:
+                    logger.info(f"✅ Offre {sync_data.offerId} mise à jour dans Neo4j")
+                    return {
+                        "success": True,
+                        "message": "Offre mise à jour avec succès",
+                        "offerId": record["offerId"],
+                        "lastSync": record["lastSync"]
+                    }
+                else:
+                    raise HTTPException(status_code=404, detail="Offre non trouvée")
+                    
+            elif sync_data.action == 'DELETE':
+                # Supprimer une offre (soft delete)
+                result = session.run("""
+                    MATCH (o:Offer {id: $offerId})
+                    SET o.isDeleted = true,
+                        o.updatedAt = datetime($updatedAt),
+                        o.lastSync = datetime()
+                    RETURN o.id as offerId
+                """, 
+                offerId=sync_data.offerId,
+                updatedAt=sync_data.offerData.get('updatedAt'))
+                
+                record = result.single()
+                if record:
+                    logger.info(f"✅ Offre {sync_data.offerId} supprimée de Neo4j")
+                    return {
+                        "success": True,
+                        "message": "Offre supprimée avec succès",
+                        "offerId": record["offerId"]
+                    }
+                else:
+                    raise HTTPException(status_code=404, detail="Offre non trouvée")
+            
+            else:
+                raise HTTPException(status_code=400, detail="Action non supportée")
+                
+    except Exception as e:
+        logger.error(f"❌ Erreur synchronisation offre {sync_data.offerId}: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur synchronisation: {str(e)}")
+
+@app.post("/sync/offer-category-relation")
+async def sync_offer_category_relation(sync_data: OfferCategoryRelationSyncData):
+    """Synchronise une relation offre-catégorie avec Neo4j"""
+    driver = get_neo4j_driver()
+    
+    try:
+        with driver.session() as session:
+            if sync_data.action == 'CREATE':
+                # Créer la relation MATCHED_WITH entre l'offre et la catégorie
+                result = session.run("""
+                    MATCH (o:Offer {id: $offerId})
+                    MATCH (c:Category {id: $categoryId})
+                    MERGE (o)-[r:MATCHED_WITH]->(c)
+                    SET r.createdAt = datetime($timestamp),
+                        r.lastSync = datetime()
+                    RETURN o.id as offerId, c.id as categoryId, r.createdAt as createdAt
+                """, 
+                offerId=sync_data.offerId,
+                categoryId=sync_data.categoryId,
+                timestamp=sync_data.timestamp)
+                
+                record = result.single()
+                if record:
+                    logger.info(f"✅ Relation offre-catégorie {sync_data.offerId}-{sync_data.categoryId} créée dans Neo4j")
+                    
+                    return {
+                        "success": True,
+                        "message": "Relation offre-catégorie synchronisée avec succès",
+                        "offerId": record["offerId"],
+                        "categoryId": record["categoryId"],
+                        "createdAt": record["createdAt"]
+                    }
+                else:
+                    raise HTTPException(status_code=404, detail="Offre ou catégorie non trouvée")
+                    
+            elif sync_data.action == 'DELETE':
+                # Supprimer la relation MATCHED_WITH
+                result = session.run("""
+                    MATCH (o:Offer {id: $offerId})-[r:MATCHED_WITH]->(c:Category {id: $categoryId})
+                    DELETE r
+                    RETURN o.id as offerId, c.id as categoryId
+                """, 
+                offerId=sync_data.offerId,
+                categoryId=sync_data.categoryId)
+                
+                record = result.single()
+                if record:
+                    logger.info(f"✅ Relation offre-catégorie {sync_data.offerId}-{sync_data.categoryId} supprimée de Neo4j")
+                    
+                    return {
+                        "success": True,
+                        "message": "Relation offre-catégorie supprimée avec succès",
+                        "offerId": record["offerId"],
+                        "categoryId": record["categoryId"]
+                    }
+                else:
+                    logger.warning(f"⚠️ Relation offre-catégorie {sync_data.offerId}-{sync_data.categoryId} non trouvée")
+                    return {
+                        "success": True,
+                        "message": "Relation non trouvée (déjà supprimée)",
+                        "offerId": sync_data.offerId,
+                        "categoryId": sync_data.categoryId
+                    }
+            else:
+                raise HTTPException(status_code=400, detail="Action non supportée")
+                
+    except Exception as e:
+        logger.error(f"❌ Erreur synchronisation relation offre-catégorie: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur synchronisation: {str(e)}")
+
+@app.get("/recommendations/exchange/{offer_id}")
+async def get_exchange_recommendations(offer_id: int, limit: int = 10):
+    """Récupère les recommandations d'échange pour une offre donnée"""
+    driver = get_neo4j_driver()
+    
+    try:
+        with driver.session() as session:
+            # Requête pour trouver les offres qui peuvent être échangées
+            # Basée sur les relations MATCHED_WITH
+            result = session.run("""
+                MATCH (sourceOffer:Offer {id: $offerId})-[:MATCHED_WITH]->(category:Category)
+                MATCH (targetOffer:Offer)-[:MATCHED_WITH]->(category)
+                WHERE targetOffer.id <> $offerId
+                AND targetOffer.status = 'available'
+                WITH targetOffer, category, count(category) as commonCategories
+                ORDER BY commonCategories DESC, targetOffer.createdAt DESC
+                LIMIT $limit
+                RETURN targetOffer.id as offerId,
+                       targetOffer.title as title,
+                       targetOffer.description as description,
+                       targetOffer.price as price,
+                       targetOffer.images as images,
+                       targetOffer.listingType as listingType,
+                       targetOffer.productCondition as productCondition,
+                       targetOffer.sellerId as sellerId,
+                       collect(DISTINCT category.nameFr) as matchingCategories,
+                       commonCategories
+            """, offerId=offer_id, limit=limit)
+            
+            recommendations = []
+            for record in result:
+                recommendations.append({
+                    "offerId": record["offerId"],
+                    "title": record["title"],
+                    "description": record["description"],
+                    "price": record["price"],
+                    "images": record["images"],
+                    "listingType": record["listingType"],
+                    "productCondition": record["productCondition"],
+                    "sellerId": record["sellerId"],
+                    "matchingCategories": record["matchingCategories"],
+                    "commonCategoriesCount": record["commonCategories"],
+                    "matchScore": min(record["commonCategories"] / 3.0, 1.0)  # Score de 0 à 1
+                })
+            
+            logger.info(f"✅ {len(recommendations)} recommandations trouvées pour l'offre {offer_id}")
+            
+            return {
+                "success": True,
+                "data": recommendations,
+                "total": len(recommendations),
+                "message": f"Recommandations d'échange pour l'offre {offer_id}"
+            }
+            
+    except Exception as e:
+        logger.error(f"❌ Erreur récupération recommandations pour offre {offer_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur recommandations: {str(e)}")
+
+@app.get("/recommendations/user/{user_id}")
+async def get_user_exchange_recommendations(user_id: int, limit: int = 20):
+    """Récupère toutes les recommandations d'échange pour un utilisateur"""
+    driver = get_neo4j_driver()
+    
+    try:
+        with driver.session() as session:
+            # Trouver toutes les offres de l'utilisateur et leurs recommandations
+            result = session.run("""
+                MATCH (userOffer:Offer {sellerId: $userId})-[:MATCHED_WITH]->(category:Category)
+                MATCH (targetOffer:Offer)-[:MATCHED_WITH]->(category)
+                WHERE targetOffer.sellerId <> $userId
+                AND targetOffer.status = 'available'
+                WITH userOffer, targetOffer, category, count(category) as commonCategories
+                ORDER BY userOffer.id, commonCategories DESC
+                WITH userOffer, collect({
+                    offerId: targetOffer.id,
+                    title: targetOffer.title,
+                    description: targetOffer.description,
+                    price: targetOffer.price,
+                    images: targetOffer.images,
+                    listingType: targetOffer.listingType,
+                    productCondition: targetOffer.productCondition,
+                    sellerId: targetOffer.sellerId,
+                    matchingCategories: collect(DISTINCT category.nameFr),
+                    commonCategoriesCount: commonCategories
+                })[0..5] as recommendations
+                RETURN userOffer.id as userOfferId,
+                       userOffer.title as userOfferTitle,
+                       userOffer.price as userOfferPrice,
+                       recommendations
+            """, userId=user_id, limit=limit)
+            
+            user_recommendations = {}
+            for record in result:
+                user_recommendations[record["userOfferId"]] = {
+                    "userOffer": {
+                        "id": record["userOfferId"],
+                        "title": record["userOfferTitle"],
+                        "price": record["userOfferPrice"]
+                    },
+                    "recommendations": [
+                        {
+                            **rec,
+                            "matchScore": min(rec["commonCategoriesCount"] / 3.0, 1.0)
+                        } for rec in record["recommendations"]
+                    ]
+                }
+            
+            logger.info(f"✅ Recommandations récupérées pour l'utilisateur {user_id}")
+            
+            return {
+                "success": True,
+                "data": user_recommendations,
+                "totalOffers": len(user_recommendations),
+                "message": f"Recommandations d'échange pour l'utilisateur {user_id}"
+            }
+            
+    except Exception as e:
+        logger.error(f"❌ Erreur récupération recommandations utilisateur {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur recommandations: {str(e)}")
 
 @app.on_event("startup")
 async def startup_event():

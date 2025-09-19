@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { ChevronDown, ChevronRight, Folder, Image, Code, Palette, Database, Globe, Smartphone, Monitor, Edit3, ArrowRightLeft, Trash2, MoreHorizontal, Plus } from 'lucide-react';
-import { useGetCategoriesQuery } from '@/services/api/CategoryApi';
+import { useGetAllCategoriesQuery } from '@/services/api/CategoryApi';
 
 // Interface pour les données de l'API
 interface ApiCategory {
@@ -332,7 +332,7 @@ const CategoryCard: React.FC<CategoryCardProps> = ({ category, isExpanded, onTog
 
 const CategoriesContent: React.FC = () => {
   const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set());
-  const { data: categoriesResponse, isLoading, error } = useGetCategoriesQuery({});
+  const { data: categoriesResponse, isLoading, error } = useGetAllCategoriesQuery({});
 
   // Construire l'arbre des catégories à partir des données de l'API
   const categoriesTree = useMemo(() => {

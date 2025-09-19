@@ -1,6 +1,6 @@
 const express = require("express");
 const multer = require("multer");
-const { createOffer, getOffers, getOfferById, updateOffer, deleteOffer } = require("../controllers/offerController.js");
+const { createOffer, getOffers, getOfferById, updateOffer, deleteOffer, getCategoriesToExchange } = require("../controllers/offerController.js");
 
 const offerRoutes = express.Router();
 
@@ -72,6 +72,9 @@ offerRoutes.get("/category/:categoryId", getOffers);
 
 // Route pour récupérer une offre par ID
 offerRoutes.get("/:id", getOfferById);
+
+// Route pour récupérer les catégories d'échange d'une offre
+offerRoutes.get("/:offerId/categories-to-exchange", getCategoriesToExchange);
 
 // Route pour créer une offre avec uploads multiples
 offerRoutes.post("/create",

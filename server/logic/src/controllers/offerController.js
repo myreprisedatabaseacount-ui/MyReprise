@@ -1,5 +1,7 @@
 const cloudinaryService = require("../services/cloudinaryService.js");
 const { Offer } = require("../models/Offer.js");
+const { Product } = require("../models/Product.js");
+const { OfferCategory } = require("../models/OfferCategory.js");
 
 // Fonction utilitaire pour extraire le public_id d'une URL Cloudinary
 const extractPublicIdFromUrl = (url) => {
@@ -72,7 +74,8 @@ const createOffer = async (req, res) => {
       categoryId,
       brandId,
       subjectId,
-      specificData
+      specificData,
+      addressId
     });
 
     // ✅ Vérification des fichiers
@@ -137,26 +140,30 @@ const createOffer = async (req, res) => {
       });
     }
 
-    // ✅ Validation des données spécifiques selon le type
-    if (listingType === 'vehicle') {
-      if (!specificData || !specificData.vehicleType || !specificData.year || !specificData.brand || !specificData.model || !specificData.mileage) {
-        await cleanupUploadedFiles(uploadedPublicIds);
-        return res.status(400).json({
-          error: "Pour un véhicule, type, année, marque, modèle et kilométrage sont obligatoires dans specificData"
-        });
-      }
-    } else if (listingType === 'property') {
-      if (!specificData || !specificData.propertyType || !specificData.area) {
-        await cleanupUploadedFiles(uploadedPublicIds);
-        return res.status(400).json({
-          error: "Pour une propriété, type et surface sont obligatoires dans specificData"
-        });
-      }
-    }
+    // ✅ Pas de validation des specificData - flexibilité totale
+    // Les specificData sont acceptés tels quels, sans validation de format ou de contenu
 
     // ✅ Sauvegarde en base de données
     try {
+      // 1. Créer d'abord le Product
+      const productData = {
+        createdBy: sellerId ? parseInt(sellerId) : 1, // TODO: Récupérer depuis l'auth
+        nameAr: title.trim(), // Utiliser le titre comme nom arabe
+        nameFr: title.trim(), // Utiliser le titre comme nom français
+        descriptionAr: description.trim(),
+        descriptionFr: description.trim(),
+        brandId: brandId ? parseInt(brandId) : null,
+        categoryId: categoryId ? parseInt(categoryId) : null,
+        isActive: true
+      };
+
+      console.log('📦 Création du produit:', productData);
+      const product = await Product.createProduct(productData);
+      console.log('✅ Produit créé avec ID:', product.id);
+
+      // 2. Créer ensuite l'Offer avec productId
       const offerData = {
+        productId: product.id, // Référence vers le produit créé
         title: title.trim(),
         description: description.trim(),
         price: priceNum,
@@ -167,24 +174,42 @@ const createOffer = async (req, res) => {
         categoryId: categoryId ? parseInt(categoryId) : null,
         brandId: brandId ? parseInt(brandId) : null,
         subjectId: subjectId ? parseInt(subjectId) : null,
+        addressId: addressId ? parseInt(addressId) : null,
         // Stocker les URLs des images en JSON
         images: JSON.stringify(imageUrls),
         // Données spécifiques dans un objet JSON
         specificData: specificData ? JSON.stringify(specificData) : null,
-        location: location ? JSON.stringify(location) : null,
         isDeleted: false,
       };
 
+      console.log('📋 Création de l\'offre:', offerData);
       const offer = await Offer.createOffer(offerData);
+
+      // Synchroniser l'offre vers Neo4j
+      try {
+        const Neo4jSyncService = require('../services/neo4jSyncService');
+        await Neo4jSyncService.syncOffer(offer.id, offerData, 'CREATE');
+        console.log(`✅ Offre ${offer.id} synchronisée vers Neo4j`);
+      } catch (syncError) {
+        console.error('⚠️ Erreur synchronisation offre vers Neo4j (non bloquant):', syncError);
+      }
 
       return res.status(201).json({
         success: true,
         data: { 
           id: offer.id, 
+          productId: product.id,
           title: offer.title, 
           price: offer.price,
           images: imageUrls,
-          listingType: offer.listingType
+          listingType: offer.listingType,
+          product: {
+            id: product.id,
+            nameAr: product.nameAr,
+            nameFr: product.nameFr,
+            categoryId: product.categoryId,
+            brandId: product.brandId
+          }
         },
         message: "Offre créée avec succès",
       });
@@ -376,10 +401,52 @@ const deleteOffer = async (req, res) => {
   }
 };
 
+const getCategoriesToExchange = async (req, res) => {
+  try {
+    const { offerId } = req.params;
+
+    if (!offerId) {
+      return res.status(400).json({
+        error: "ID d'offre requis"
+      });
+    }
+
+    // Vérifier que l'offre existe
+    const offer = await Offer.findByPk(offerId);
+    if (!offer) {
+      return res.status(404).json({
+        error: "Offre non trouvée"
+      });
+    }
+
+    console.log(`📋 Récupération des catégories d'échange pour l'offre ${offerId}`);
+
+    // Récupérer les catégories d'échange de cette offre
+    const exchangeCategories = await OfferCategory.getCategoriesByOffer(offerId);
+
+    // Convertir en format public
+    const publicCategories = exchangeCategories.map(category => category.getLocalizedData('fr'));
+
+    return res.status(200).json({
+      success: true,
+      data: publicCategories,
+      message: "Catégories d'échange récupérées avec succès"
+    });
+
+  } catch (error) {
+    console.error("❌ Erreur getCategoriesToExchange:", error);
+    return res.status(500).json({
+      error: "Erreur lors de la récupération des catégories d'échange",
+      details: error.message || "Erreur inconnue"
+    });
+  }
+};
+
 module.exports = {
   createOffer,
   getOffers,
   getOfferById,
   updateOffer,
   deleteOffer,
+  getCategoriesToExchange,
 };

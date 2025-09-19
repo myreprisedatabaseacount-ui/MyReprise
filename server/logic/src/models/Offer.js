@@ -418,9 +418,9 @@ Offer.findByCondition = function(condition) {
  * Crée une nouvelle offre avec validation
  */
 Offer.createOffer = async function(offerData) {
-    // Validation des données
-    if (!offerData.productId || !offerData.sellerId || !offerData.price || !offerData.title) {
-        throw new Error('Produit, vendeur, prix et titre sont requis');
+    // Validation des données obligatoires
+    if (!offerData.sellerId || !offerData.price || !offerData.title) {
+        throw new Error('Vendeur, prix et titre sont requis');
     }
     
     if (offerData.price <= 0) {
