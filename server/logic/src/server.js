@@ -22,7 +22,7 @@ console.log('✅ initializeModels importé');
 
 // Import des routes
 console.log('🔄 Import des routes...');
-const { categoryRoutes, userRoutes, brandRoutes, whatsappRoutes, subjectRoutes, offerRoutes, addressRoutes } = require('./routes');
+const { categoryRoutes, userRoutes, brandRoutes, whatsappRoutes, subjectRoutes, offerRoutes, offerCategoryRoutes, recommendationRoutes, addressRoutes } = require('./routes');
 console.log('✅ Routes importées');
 console.log('🔄 Import des routes supplémentaires...');
 const conversationRoutes = require('./routes/conversationRoutes');
@@ -109,6 +109,8 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/brands", brandRoutes);
 app.use("/api/subjects", subjectRoutes);
 app.use("/api/offers", offerRoutes);
+app.use("/api/offer-categories", offerCategoryRoutes);
+app.use("/api/recommendations", recommendationRoutes);
 app.use("/api/auth", userRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/whatsapp", whatsappRoutes);

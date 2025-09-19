@@ -1,9 +1,11 @@
 const categoryRoutes = require('./categoryRoutes.js');
 const userRoutes = require('./userRoutes.js');
-const brandRoutes = require('./brandRoutes.js');
+const brandRoutes = require('./userRoutes.js');
 const whatsappRoutes = require('./whatsappRoutes.js');
 const subjectRoutes = require('./subjectRoutes.js');
 const offerRoutes = require('./offerRoutes.js');
+const offerCategoryRoutes = require('./offerCategoryRoutes.js');
+const recommendationRoutes = require('./recommendationRoutes.js');
 const callRoutes = require('./callRoutes.js');
 const addressRoutes = require('./addressRoutes.js');
 // const upload = require('./upload');
@@ -19,6 +21,8 @@ module.exports = {
   subjectRoutes,
   whatsappRoutes,
   offerRoutes,
+  offerCategoryRoutes,
+  recommendationRoutes,
   callRoutes,
   addressRoutes,
   // upload,

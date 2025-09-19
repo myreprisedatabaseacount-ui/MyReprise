@@ -1,13 +1,13 @@
 const { v2: cloudinary } = require("cloudinary");
 const dotenv = require("dotenv");
-dotenv.config();
+dotenv.config({ path: require('path').join(__dirname, '../../../server/.env') });
 
 // Configuration Cloudinary avec gestion d'erreur
 try {
   cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'demo',
-    api_key: process.env.CLOUDINARY_API_KEY || 'demo',
-    api_secret: process.env.CLOUDINARY_API_SECRET || 'demo',
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
   });
   console.log('✅ Configuration Cloudinary initialisée');
 } catch (configError) {

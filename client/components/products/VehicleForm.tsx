@@ -10,6 +10,8 @@ import { ArrowLeft, Car, Bike, Truck, Anchor, Save, X, MapPin, Search, Map, User
 import { useProduct } from '../../services/hooks/useProduct';
 import { useCreateOfferMutation } from '../../services/api/OfferApi';
 import { useSearchLocationsMutation } from '../../services/api/AddressApi';
+import { useGetCategoriesByListingTypeQuery, useGetAllCategoriesQuery } from '../../services/api/CategoryApi';
+import { useAddCategoryToOfferMutation, useRemoveCategoryFromOfferMutation } from '../../services/api/OfferCategoryApi';
 import { useCurrentUser, useUserDisplay } from '../../services/hooks/useCurrentUser';
 import MultipleImageUpload from './MultipleImageUpload';
 import OpenStreetMap from '../ui/OpenStreetMap';
@@ -27,8 +29,22 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
   const [searchLocations, { isLoading: isSearchingLocations }] = useSearchLocationsMutation();
   const { currentUser, isAuthenticated } = useCurrentUser();
   const { displayName, initials, fullName } = useUserDisplay();
+  
+  // Récupérer les catégories pour les véhicules
+  const { data: categoriesData, isLoading: isLoadingCategories } = useGetCategoriesByListingTypeQuery('vehicle');
+  // Récupérer toutes les catégories pour les échanges
+  const { data: allCategoriesData, isLoading: isLoadingAllCategories } = useGetAllCategoriesQuery({});
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+  
+  // États pour les catégories d'échange
+  const [selectedExchangeCategories, setSelectedExchangeCategories] = useState<number[]>([]);
+  const [createdOfferId, setCreatedOfferId] = useState<number | null>(null);
+  const [isExchangeConfirmed, setIsExchangeConfirmed] = useState(false);
+  
+  // Mutations pour les catégories d'échange
+  const [addCategoryToOffer] = useAddCategoryToOfferMutation();
+  const [removeCategoryFromOffer] = useRemoveCategoryFromOfferMutation();
 
   // États pour la recherche de localisation
   const [locationSearch, setLocationSearch] = useState('');
@@ -38,13 +54,14 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
 
   // Valeurs initiales
   const initialValues = {
-    vehicleType: '',
+    categoryId: '',
     year: new Date().getFullYear(),
     brand: '',
     model: '',
     mileage: '',
     value: '',
     description: '',
+    productCondition: 'good',
     images: [],
     location: null,
   };
@@ -53,9 +70,8 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
 
   // Schéma de validation pour véhicule
   const vehicleSchema = Yup.object({
-    vehicleType: Yup.string()
-      .oneOf(['moto', 'voiture-camion', 'remorque', 'bateau', 'autre'], 'Type de véhicule invalide')
-      .required('Le type de véhicule est obligatoire'),
+    categoryId: Yup.number()
+      .required('La catégorie de véhicule est obligatoire'),
     year: Yup.number()
       .min(1900, 'Année invalide')
       .max(new Date().getFullYear() + 1, 'Année invalide')
@@ -80,17 +96,12 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
       .min(20, 'La description doit contenir au moins 20 caractères')
       .max(2000, 'La description ne peut pas dépasser 2000 caractères')
       .required('La description est obligatoire'),
+    productCondition: Yup.string()
+      .oneOf(['new', 'like_new', 'good', 'fair'], 'État invalide')
+      .required('L\'état du véhicule est obligatoire'),
     // Les photos sont gérées séparément via l'état local
   });
 
-  // Types de véhicules avec icônes
-  const vehicleTypes = [
-    { value: 'moto', label: 'Moto', icon: Bike, color: 'text-orange-600' },
-    { value: 'voiture-camion', label: 'Voiture/Camion', icon: Car, color: 'text-blue-600' },
-    { value: 'remorque', label: 'Remorque', icon: Truck, color: 'text-green-600' },
-    { value: 'bateau', label: 'Bateau', icon: Anchor, color: 'text-cyan-600' },
-    { value: 'autre', label: 'Autre', icon: Car, color: 'text-gray-600' },
-  ];
 
   // Gestion des images via le composant MultipleImageUpload
   const handleImagesChange = (files: File[]) => {
@@ -118,7 +129,9 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
   // Fonction pour sélectionner une localisation
   const handleLocationSelect = (location: any) => {
     setSelectedLocation(location);
-    setLocationSearch(location.displayName);
+    // Afficher seulement city et sector au lieu de displayName
+    const locationText = location.sector ? `${location.city}, ${location.sector}` : location.city;
+    setLocationSearch(locationText);
     setShowLocationResults(false);
   };
 
@@ -130,6 +143,49 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
     setShowLocationResults(false);
   };
 
+  // Fonction pour gérer la sélection des catégories d'échange
+  const handleExchangeCategoryToggle = async (categoryId: number) => {
+    if (!createdOfferId) {
+      toast.error('Veuillez d\'abord créer l\'offre');
+      return;
+    }
+
+    const isSelected = selectedExchangeCategories.includes(categoryId);
+
+    try {
+      if (isSelected) {
+        // Supprimer la catégorie
+        await removeCategoryFromOffer({ offerId: createdOfferId, categoryId }).unwrap();
+        setSelectedExchangeCategories(prev => prev.filter(id => id !== categoryId));
+        toast.success('Catégorie d\'échange supprimée');
+      } else {
+        // Ajouter la catégorie
+        await addCategoryToOffer({ offerId: createdOfferId, categoryId }).unwrap();
+        setSelectedExchangeCategories(prev => [...prev, categoryId]);
+        toast.success('Catégorie d\'échange ajoutée');
+      }
+    } catch (error: any) {
+      console.error('Erreur lors de la gestion de la catégorie d\'échange:', error);
+      toast.error('Erreur lors de la gestion de la catégorie d\'échange');
+    }
+  };
+
+  // Fonction pour confirmer les catégories d'échange et fermer le formulaire
+  const handleConfirmExchange = () => {
+    setIsExchangeConfirmed(true);
+    toast.success('Configuration terminée !', {
+      description: 'Votre offre est maintenant complète avec les catégories d\'échange sélectionnées.',
+      duration: 3000,
+    });
+    
+    // Fermer le formulaire après confirmation
+    setTimeout(() => {
+      if (onClose) {
+        onClose();
+      }
+    }, 1500);
+  };
+
   // Synchroniser currentPhotoIndex avec imageFiles
   useEffect(() => {
     if (imageFiles.length === 0) {
@@ -139,7 +195,8 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
     }
   }, [imageFiles, currentPhotoIndex]);
 
-  const handleSubmit = async (values: typeof initialValues) => {
+  // Fonction pour publier l'offre (appelée par le bouton "Publier l'Offre")
+  const handlePublishOffer = async (values: typeof initialValues) => {
     console.log('values', values);
     // Validation des images
     if (imageFiles.length === 0) {
@@ -154,51 +211,53 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
     }
 
     try {
-      // Construire le titre pour l'offre
-      const title = `${values.brand} ${values.model} ${values.year}`;
+      // Construire le titre pour l'offre avec format amélioré
+      const title = `${values.brand} ${values.model} (${values.year})`;
 
-      // Données pour l'offre
-      const offerData = {
+      // Données spécifiques au véhicule
+      const specificData = {
+        year: values.year,
+        brand: values.brand,
+        model: values.model,
+        mileage: Number(values.mileage),
+        fuel: 'essence', // Valeur par défaut
+        transmission: 'manuelle', // Valeur par défaut
+        color: 'blanc' // Valeur par défaut
+      };
+
+      // Préparer les données pour l'API selon la structure attendue
+      const apiData = {
         title: title,
         description: values.description,
         price: Number(values.value),
         status: 'available',
-        productCondition: 'good', // Valeur par défaut
+        productCondition: values.productCondition,
         listingType: 'vehicle',
-        images: imageFiles, // Fichiers compressés prêts pour upload
-        // Données spécifiques au véhicule
-        specificData: {
-          vehicleType: values.vehicleType,
-          year: values.year,
-          brand: values.brand,
-          model: values.model,
-          mileage: Number(values.mileage),
-          fuel: 'essence', // Valeur par défaut
-          transmission: 'manuelle', // Valeur par défaut
-          color: 'blanc' // Valeur par défaut
-        },
-        // ID de l'adresse sélectionnée
-        addressId: selectedLocation.id
+        sellerId: currentUser?.id || 1,
+        categoryId: values.categoryId,
+        addressId: selectedLocation.id,
+        specificData: specificData,
+        images: imageFiles // Les objets File pour l'upload
       };
 
-      // Sauvegarder les données dans le state
-      updateData(offerData);
+      console.log('📤 Envoi des données offre véhicule:', apiData);
 
-      // Appel API pour créer l'offre
-      console.log('📤 Envoi des données offre véhicule:', offerData);
+      const result = await createOffer(apiData).unwrap();
 
-      // const result = await createOffer(offerData).unwrap();
+      console.log('✅ Offre créée avec succès:', result);
 
-      // console.log('✅ Offre créée avec succès:', result);
+      // Sauvegarder l'ID de l'offre créée pour les catégories d'échange
+      if (result.data?.id) {
+        setCreatedOfferId(result.data.id);
+      }
 
       // Toast de succès
-      // toast.success(result.message || 'Véhicule créé avec succès', {
-      //   description: `Titre: ${result.data?.title || title}`,
-      //   duration: 4000,
-      // });
+      toast.success('Offre créée avec succès !', {
+        description: `Votre véhicule "${result.data?.title || title}" est maintenant en ligne. Vous pouvez maintenant sélectionner les catégories d'échange.`,
+        duration: 4000,
+      });
 
-      // Passer à l'étape suivante ou fermer
-      setStep(3);
+      // Ne pas fermer automatiquement - laisser l'utilisateur sélectionner les catégories d'échange
     } catch (error: any) {
       console.error('❌ Erreur lors de la création:', error);
 
@@ -220,6 +279,42 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
         });
       }
     }
+  };
+
+  // Fonction pour mettre à jour l'aperçu (appelée par le formulaire)
+  const handleFormChange = (values: typeof initialValues) => {
+    // Construire le titre pour l'offre avec format amélioré
+    const title = `${values.brand} ${values.model} (${values.year})`;
+
+    // Données spécifiques au véhicule
+    const specificData = {
+      year: values.year,
+      brand: values.brand,
+      model: values.model,
+      mileage: Number(values.mileage),
+      fuel: 'essence', // Valeur par défaut
+      transmission: 'manuelle', // Valeur par défaut
+      color: 'blanc' // Valeur par défaut
+    };
+
+    // Sauvegarder les données dans le state (pour l'aperçu) - sans les objets File
+    const offerData = {
+      title: title,
+      description: values.description,
+      price: Number(values.value),
+      status: 'available',
+      productCondition: values.productCondition,
+      listingType: 'vehicle',
+      images: imageFiles.map(file => ({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        lastModified: file.lastModified
+      })), // Convertir les File en objets sérialisables
+      specificData: specificData,
+      addressId: selectedLocation?.id
+    };
+    updateData(offerData);
   };
 
   return (
@@ -251,7 +346,13 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={onClose}
+              onClick={() => {
+                if (createdOfferId && !isExchangeConfirmed) {
+                  toast.error('Veuillez d\'abord confirmer vos sélections d\'échange');
+                  return;
+                }
+                if (onClose) onClose();
+              }}
               className="p-2 hover:bg-gray-100 rounded-lg"
             >
               <X className="w-5 h-5" />
@@ -266,43 +367,48 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
             <Formik
               initialValues={initialValues}
               validationSchema={vehicleSchema}
-              onSubmit={handleSubmit}
+              onSubmit={() => {}} // Pas de soumission automatique
             >
               {({ values, setFieldValue }) => {
-                // Utiliser useEffect pour mettre à jour formValues
+                // Utiliser useEffect pour mettre à jour formValues et l'aperçu
                 useEffect(() => {
                   setFormValues(values);
+                  handleFormChange(values); // Mettre à jour l'aperçu
                 }, [values]);
 
                 return (
                   <Form id="vehicle-form" className="space-y-6">
-                    {/* Type de véhicule */}
+                    {/* Catégorie de véhicule */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-3">
-                        Type de véhicule *
+                        Catégorie de véhicule *
                       </label>
-                      <div className="grid grid-cols-2 gap-3">
-                        {vehicleTypes.map((type) => {
-                          const IconComponent = type.icon;
-                          return (
+                      {isLoadingCategories ? (
+                        <div className="flex items-center justify-center p-4">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                          <span className="ml-2 text-gray-600">Chargement des catégories...</span>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-3">
+                          {categoriesData?.data?.map((category) => (
                             <button
-                              key={type.value}
+                              key={category.id}
                               type="button"
-                              onClick={() => setFieldValue('vehicleType', type.value)}
-                              className={`p-4 border-2 rounded-lg text-left transition-all ${values.vehicleType === type.value
+                              onClick={() => setFieldValue('categoryId', category.id)}
+                              className={`p-4 border-2 rounded-lg text-left transition-all ${values.categoryId === category.id
                                   ? 'border-blue-500 bg-blue-50'
                                   : 'border-gray-200 hover:border-gray-300'
                                 }`}
                             >
                               <div className="flex items-center gap-3">
-                                <IconComponent className={`w-6 h-6 ${type.color}`} />
-                                <span className="font-medium">{type.label}</span>
+                                <img src={category.icon} alt={category.name} className="w-6 h-6 text-blue-600" />
+                                <span className="font-medium">{category.name}</span>
                               </div>
                             </button>
-                          );
-                        })}
-                      </div>
-                      <ErrorMessage name="vehicleType" component="div" className="text-red-500 text-sm mt-1" />
+                          ))}
+                        </div>
+                      )}
+                      <ErrorMessage name="categoryId" component="div" className="text-red-500 text-sm mt-1" />
                     </div>
 
 
@@ -377,6 +483,24 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                       </div>
                     </div>
 
+                    {/* État du véhicule */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        État du véhicule *
+                      </label>
+                      <Field
+                        as="select"
+                        name="productCondition"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="new">Neuf</option>
+                        <option value="like_new">Comme neuf</option>
+                        <option value="good">Bon état</option>
+                        <option value="fair">État correct</option>
+                      </Field>
+                      <ErrorMessage name="productCondition" component="div" className="text-red-500 text-sm mt-1" />
+                    </div>
+
                     {/* Description */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -434,11 +558,10 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                                 <div className="flex items-center gap-2">
                                   <MapPin className="h-4 w-4 text-gray-400" />
                                   <div>
-                                    <p className="font-medium text-gray-900">{location.displayName}</p>
-                                    <p className="text-sm text-gray-500">
-                                      {location.sector && `${location.sector}, `}
-                                      {location.city}
-                                    </p>
+                                    <p className="font-medium text-gray-900">{location.city}</p>
+                                    {location.sector && (
+                                      <p className="text-sm text-gray-500">{location.sector}</p>
+                                    )}
                                   </div>
                                 </div>
                               </button>
@@ -461,12 +584,13 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                             <MapPin className="h-4 w-4 text-green-600" />
                             <div>
                               <p className="text-sm font-medium text-green-800">
-                                {selectedLocation.displayName}
-                              </p>
-                              <p className="text-xs text-green-600">
-                                {selectedLocation.sector && `${selectedLocation.sector}, `}
                                 {selectedLocation.city}
                               </p>
+                              {selectedLocation.sector && (
+                                <p className="text-xs text-green-600">
+                                  {selectedLocation.sector}
+                                </p>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -486,11 +610,89 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                       />
                     </div>
 
+                    {/* Section des catégories d'échange - affichée après création de l'offre */}
+                    {createdOfferId && (
+                      <div>
+                        <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                          <p className="text-sm text-green-800 font-medium">
+                            ✅ Offre créée avec succès ! 
+                          </p>
+                          <p className="text-xs text-green-700 mt-1">
+                            {selectedExchangeCategories.length === 0 
+                              ? "Sélectionnez au moins une catégorie d'échange souhaitée, puis cliquez sur 'Confirmer les échanges'."
+                              : `Vous avez sélectionné ${selectedExchangeCategories.length} catégorie(s). Cliquez sur 'Confirmer les échanges' pour terminer.`
+                            }
+                          </p>
+                        </div>
+                        <label className="block text-sm font-medium text-gray-700 mb-3">
+                          Catégories d'échange souhaitées
+                          <span className="text-gray-500 text-sm font-normal ml-2">
+                            (Sélectionnez les catégories que vous souhaitez recevoir en échange)
+                          </span>
+                        </label>
+                        {isLoadingAllCategories ? (
+                          <div className="flex items-center justify-center p-4">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                            <span className="ml-2 text-gray-600">Chargement des catégories...</span>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-3 max-h-60 overflow-y-auto">
+                            {allCategoriesData?.data?.map((category) => (
+                              <button
+                                key={category.id}
+                                type="button"
+                                onClick={() => handleExchangeCategoryToggle(category.id)}
+                                className={`p-3 border-2 rounded-lg text-left transition-all ${
+                                  selectedExchangeCategories.includes(category.id)
+                                    ? 'border-green-500 bg-green-50'
+                                    : 'border-gray-200 hover:border-gray-300'
+                                } cursor-pointer`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                                    selectedExchangeCategories.includes(category.id)
+                                      ? 'border-green-500 bg-green-500'
+                                      : 'border-gray-300'
+                                  }`}>
+                                    {selectedExchangeCategories.includes(category.id) && (
+                                      <div className="w-2 h-2 bg-white rounded-sm"></div>
+                                    )}
+                                  </div>
+                                  <img src={category.icon} alt={category.name} className="w-4 h-4" />
+                                  <span className="font-medium text-sm">{category.name}</span>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Footer */}
-                    <div className="flex justify-end gap-3 pt-6 border-t">
+                    <div className="flex justify-between gap-3 pt-6 border-t">
+                      {createdOfferId && !isExchangeConfirmed && (
+                        <Button
+                          type="button"
+                          onClick={handleConfirmExchange}
+                          disabled={selectedExchangeCategories.length === 0}
+                          className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          <Save className="w-4 h-4" />
+                          Confirmer les échanges
+                        </Button>
+                      )}
+                      {createdOfferId && isExchangeConfirmed && (
+                        <div className="flex items-center gap-2 text-green-600">
+                          <div className="w-4 h-4 rounded-full bg-green-600 flex items-center justify-center">
+                            <div className="w-2 h-2 bg-white rounded-full"></div>
+                          </div>
+                          <span className="text-sm font-medium">Configuration terminée</span>
+                        </div>
+                      )}
                       <Button
-                        type="submit"
-                        disabled={isLoading}
+                        type="button"
+                        onClick={() => handlePublishOffer(values)}
+                        disabled={isLoading || (createdOfferId && !isExchangeConfirmed)}
                         className="flex items-center gap-2"
                       >
                         {isLoading ? (
@@ -498,7 +700,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                         ) : (
                           <Save className="w-4 h-4" />
                         )}
-                        {isLoading ? 'Enregistrement...' : 'Suivant'}
+                        {isLoading ? 'Publication...' : 'Publier l\'Offre'}
                       </Button>
                     </div>
                   </Form>
@@ -519,7 +721,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                     <img
                       src={URL.createObjectURL(imageFiles[currentPhotoIndex])}
                       alt="Véhicule"
-                      className="w-full h-64 object-cover rounded-lg"
+                      className="w-full aspect-square object-cover rounded-lg"
                     />
                     {imageFiles.length > 1 && (
                       <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex gap-1">
@@ -535,7 +737,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                     )}
                   </div>
                 ) : (
-                  <div className="w-full h-64 bg-gray-200 rounded-lg flex items-center justify-center">
+                  <div className="w-full aspect-square bg-gray-200 rounded-lg flex items-center justify-center">
                     <span className="text-gray-500">Aucune photo</span>
                   </div>
                 )}
@@ -545,7 +747,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
               <div className="mb-4">
                 <h4 className="text-xl font-semibold text-gray-900 mb-2">
                   {formValues.brand && formValues.model && formValues.year
-                    ? `${formValues.brand} ${formValues.model} ${formValues.year}`
+                    ? `${formValues.brand} ${formValues.model} (${formValues.year})`
                     : 'Titre de l\'annonce'
                   }
                 </h4>
@@ -556,19 +758,44 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
 
               {/* Détails */}
               <div className="space-y-2 mb-4 text-sm text-gray-600">
-                <p>Publié il y a quelques secondes dans فاس</p>
-                {formValues.vehicleType && (
-                  <p>Type: {vehicleTypes.find(t => t.value === formValues.vehicleType)?.label}</p>
+                <p>Publié il y a quelques secondes dans {selectedLocation?.city || 'فاس'}</p>
+                {formValues.categoryId && categoriesData?.data && (
+                  <p>Catégorie: {categoriesData.data.find(c => c.id === formValues.categoryId)?.name}</p>
                 )}
                 {formValues.mileage && (
                   <p>Kilométrage: {Number(formValues.mileage).toLocaleString()} km</p>
+                )}
+                {formValues.productCondition && (
+                  <p>État: {
+                    formValues.productCondition === 'new' ? 'Neuf' :
+                    formValues.productCondition === 'like_new' ? 'Comme neuf' :
+                    formValues.productCondition === 'good' ? 'Bon état' :
+                    formValues.productCondition === 'fair' ? 'État correct' :
+                    formValues.productCondition
+                  }</p>
+                )}
+                {selectedExchangeCategories.length > 0 && allCategoriesData?.data && (
+                  <div>
+                    <p className="font-medium text-gray-700 mb-1">Échange souhaité contre:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedExchangeCategories.map(categoryId => {
+                        const category = allCategoriesData.data.find(c => c.id === categoryId);
+                        return category ? (
+                          <span key={categoryId} className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                            <img src={category.icon} alt={category.name} className="w-3 h-3" />
+                            {category.name}
+                          </span>
+                        ) : null;
+                      })}
+                    </div>
+                  </div>
                 )}
               </div>
 
               {/* Description */}
               <div className="mb-4">
                 <p className="text-sm text-gray-700">
-                  {formValues.description || 'Description fournie par le ou la vendeur(se)'}
+                  {formValues.description || 'Description fournie par le ou la propriétaire'}
                 </p>
               </div>
 
@@ -596,11 +823,12 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                           <span className="text-xs text-gray-500">Aucune coordonnée disponible</span>
                         </div>
                       )}
-                      <p className="text-sm text-gray-600">{selectedLocation.displayName}</p>
-                      <p className="text-xs text-gray-500">
-                        {selectedLocation.sector && `${selectedLocation.sector}, `}
-                        {selectedLocation.city}
-                      </p>
+                      <p className="text-sm text-gray-600">{selectedLocation.city}</p>
+                      {selectedLocation.sector && (
+                        <p className="text-xs text-gray-500">
+                          {selectedLocation.sector}
+                        </p>
+                      )}
                     </>
                   ) : (
                     <>
@@ -638,10 +866,6 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                 )}
               </div>
 
-              {/* Bouton contact */}
-              <Button onClick={() => handleSubmit(formValues)} className="w-full bg-gray-600 hover:bg-gray-700" disabled={isLoading}>
-                Publier l'Offre
-              </Button>
             </div>
           </div>
         </div>

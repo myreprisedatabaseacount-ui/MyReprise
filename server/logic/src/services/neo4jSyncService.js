@@ -54,11 +54,22 @@ class Neo4jSyncService {
     /**
      * Synchronise directement avec le Graph Service
      */
-    static async syncToGraphService(userData) {
+    static async syncToGraphService(data) {
         try {
+            let endpoint = '/sync/user';
+            
+            // Déterminer l'endpoint selon le type de données
+            if (data.type === 'OFFER_CATEGORY_RELATION') {
+                endpoint = '/sync/offer-category-relation';
+            } else if (data.type === 'OFFER') {
+                endpoint = '/sync/offer';
+            } else if (data.type === 'CATEGORY') {
+                endpoint = '/sync/category';
+            }
+
             const response = await axios.post(
-                `${this.GRAPH_SERVICE_URL}/sync/user`,
-                userData,
+                `${this.GRAPH_SERVICE_URL}${endpoint}`,
+                data,
                 {
                     timeout: 10000, // 10 secondes timeout
                     headers: {
@@ -71,6 +82,9 @@ class Neo4jSyncService {
 
         } catch (error) {
             logger.error('Erreur appel Graph Service:', error.message);
+            if (error.response) {
+                logger.error('Détails erreur:', error.response.data);
+            }
             return false;
         }
     }
@@ -687,6 +701,121 @@ class Neo4jSyncService {
                 error: error.message
             };
         }
+    }
+
+    /**
+     * Synchronise une offre vers Neo4j (temps réel)
+     */
+    static async syncOffer(offerId, offerData, action = 'CREATE') {
+        try {
+            logger.info(`🔄 Synchronisation ${action} offre ${offerId} vers Neo4j`);
+
+            // Préparer les données d'offre pour Neo4j
+            const syncData = this.prepareOfferDataForNeo4j(offerId, offerData, action);
+
+            // Tentative de synchronisation temps réel
+            const success = await this.syncToGraphService(syncData);
+
+            if (success) {
+                logger.info(`✅ Offre ${offerId} synchronisée avec succès`);
+                return true;
+            } else {
+                // En cas d'échec, ajouter à la queue de retry
+                await this.addToRetryQueue(syncData);
+                logger.warn(`⚠️ Synchronisation échouée, ajouté à la queue de retry`);
+                return false;
+            }
+
+        } catch (error) {
+            logger.error(`❌ Erreur synchronisation offre ${offerId}:`, error);
+            
+            // En cas d'erreur, ajouter à la queue de retry
+            const syncData = this.prepareOfferDataForNeo4j(offerId, offerData, action);
+            await this.addToRetryQueue(syncData);
+            
+            return false;
+        }
+    }
+
+    /**
+     * Prépare les données d'offre pour Neo4j
+     */
+    static prepareOfferDataForNeo4j(offerId, offerData, action) {
+        return {
+            type: 'OFFER',
+            action: action,
+            data: {
+                offerId: offerId,
+                offerData: {
+                    title: offerData.title,
+                    description: offerData.description,
+                    price: offerData.price,
+                    status: offerData.status,
+                    productCondition: offerData.productCondition,
+                    listingType: offerData.listingType,
+                    sellerId: offerData.sellerId,
+                    categoryId: offerData.categoryId,
+                    brandId: offerData.brandId,
+                    subjectId: offerData.subjectId,
+                    addressId: offerData.addressId,
+                    images: offerData.images,
+                    specificData: offerData.specificData,
+                    isDeleted: offerData.isDeleted,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                }
+            },
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    /**
+     * Synchronise une relation offre-catégorie vers Neo4j (temps réel)
+     */
+    static async syncOfferCategoryRelation(offerId, categoryId, action = 'CREATE') {
+        try {
+            logger.info(`🔄 Synchronisation ${action} relation offre-catégorie ${offerId}-${categoryId} vers Neo4j`);
+
+            // Préparer les données de relation pour Neo4j
+            const relationData = this.prepareOfferCategoryRelationDataForNeo4j(offerId, categoryId, action);
+
+            // Tentative de synchronisation temps réel
+            const success = await this.syncToGraphService(relationData);
+
+            if (success) {
+                logger.info(`✅ Relation offre-catégorie ${offerId}-${categoryId} synchronisée avec succès`);
+                return true;
+            } else {
+                // En cas d'échec, ajouter à la queue de retry
+                await this.addToRetryQueue(relationData);
+                logger.warn(`⚠️ Synchronisation échouée, ajouté à la queue de retry`);
+                return false;
+            }
+
+        } catch (error) {
+            logger.error(`❌ Erreur synchronisation relation offre-catégorie ${offerId}-${categoryId}:`, error);
+            
+            // En cas d'erreur, ajouter à la queue de retry
+            const relationData = this.prepareOfferCategoryRelationDataForNeo4j(offerId, categoryId, action);
+            await this.addToRetryQueue(relationData);
+            
+            return false;
+        }
+    }
+
+    /**
+     * Prépare les données de relation offre-catégorie pour Neo4j
+     */
+    static prepareOfferCategoryRelationDataForNeo4j(offerId, categoryId, action) {
+        return {
+            type: 'OFFER_CATEGORY_RELATION',
+            action: action,
+            data: {
+                offerId: offerId,
+                categoryId: categoryId,
+                timestamp: new Date().toISOString()
+            }
+        };
     }
 }
 

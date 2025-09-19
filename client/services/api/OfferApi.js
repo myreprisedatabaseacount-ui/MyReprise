@@ -24,6 +24,7 @@ export const OfferApi = createApi({
         if (offerData.categoryId) formData.append('categoryId', offerData.categoryId.toString());
         if (offerData.brandId) formData.append('brandId', offerData.brandId.toString());
         if (offerData.subjectId) formData.append('subjectId', offerData.subjectId.toString());
+        if (offerData.addressId) formData.append('addressId', offerData.addressId.toString());
         
         // Ajouter les données spécifiques au type de listing (structure flexible)
         if (offerData.specificData) {
