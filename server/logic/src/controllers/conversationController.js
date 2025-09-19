@@ -25,7 +25,15 @@ class ConversationController {
      */
     static async getConversations(req, res) {
         try {
-            const userId = req.user.userId;
+            // Sécurité: s'assurer que l'utilisateur est authentifié
+            const userId = req.user?.userId;
+            if (!userId) {
+                return res.status(401).json({
+                    success: false,
+                    error: "Authentification requise",
+                    code: "UNAUTHORIZED"
+                });
+            }
             
             logger.info(`Récupération des conversations pour l'utilisateur ${userId}`);
             
@@ -232,7 +240,15 @@ class ConversationController {
      */
     static async createOrGetConversation(req, res) {
         try {
-            const userId = req.user.userId;
+            // Sécurité: s'assurer que l'utilisateur est authentifié
+            const userId = req.user?.userId;
+            if (!userId) {
+                return res.status(401).json({
+                    success: false,
+                    error: "Authentification requise",
+                    code: "UNAUTHORIZED"
+                });
+            }
             const friendId = parseInt(req.params.friendId);
             const { type = 'chat' } = req.body;
             
@@ -406,7 +422,15 @@ class ConversationController {
      */
     static async markConversationAsRead(req, res) {
         try {
-            const userId = req.user.userId;
+            // Sécurité: s'assurer que l'utilisateur est authentifié
+            const userId = req.user?.userId;
+            if (!userId) {
+                return res.status(401).json({
+                    success: false,
+                    error: "Authentification requise",
+                    code: "UNAUTHORIZED"
+                });
+            }
             const conversationId = parseInt(req.params.conversationId);
             
             if (isNaN(conversationId)) {
@@ -479,7 +503,15 @@ class ConversationController {
      */
     static async getConversationInfo(req, res) {
         try {
-            const userId = req.user.userId;
+            // Sécurité: s'assurer que l'utilisateur est authentifié
+            const userId = req.user?.userId;
+            if (!userId) {
+                return res.status(401).json({
+                    success: false,
+                    error: "Authentification requise",
+                    code: "UNAUTHORIZED"
+                });
+            }
             const conversationId = parseInt(req.params.conversationId);
             
             if (isNaN(conversationId)) {
@@ -569,7 +601,15 @@ class ConversationController {
      */
     static async getConversationMessages(req, res) {
         try {
-            const userId = req.user.userId;
+            // Sécurité: s'assurer que l'utilisateur est authentifié
+            const userId = req.user?.userId;
+            if (!userId) {
+                return res.status(401).json({
+                    success: false,
+                    error: "Authentification requise",
+                    code: "UNAUTHORIZED"
+                });
+            }
             const conversationId = parseInt(req.params.conversationId);
             const { limit = 50, offset = 0 } = req.query;
             

@@ -23,7 +23,7 @@ export const callApi = createApi({
   endpoints: (builder) => ({
     getStreamToken: builder.query({
       query: () => '/token',
-      transformResponse: (response) => response.data,
+      transformResponse: (response) => response,
     }),
   }),
 });
