@@ -2,6 +2,12 @@ const cloudinaryService = require("../services/cloudinaryService.js");
 const { Offer } = require("../models/Offer.js");
 const { Product } = require("../models/Product.js");
 const { OfferCategory } = require("../models/OfferCategory.js");
+const db = require("../config/db");
+const createOfferImageModel = require("../models/OfferImage.js");
+
+// Initialiser le modèle OfferImage
+const sequelize = db.getSequelize();
+const OfferImage = createOfferImageModel(sequelize);
 
 // Fonction utilitaire pour extraire le public_id d'une URL Cloudinary
 const extractPublicIdFromUrl = (url) => {
@@ -161,7 +167,7 @@ const createOffer = async (req, res) => {
       const product = await Product.createProduct(productData);
       console.log('✅ Produit créé avec ID:', product.id);
 
-      // 2. Créer ensuite l'Offer avec productId
+      // 2. Créer ensuite l'Offer avec productId (sans les images)
       const offerData = {
         productId: product.id, // Référence vers le produit créé
         title: title.trim(),
@@ -175,8 +181,6 @@ const createOffer = async (req, res) => {
         brandId: brandId ? parseInt(brandId) : null,
         subjectId: subjectId ? parseInt(subjectId) : null,
         addressId: addressId ? parseInt(addressId) : null,
-        // Stocker les URLs des images en JSON
-        images: JSON.stringify(imageUrls),
         // Données spécifiques dans un objet JSON
         specificData: specificData ? JSON.stringify(specificData) : null,
         isDeleted: false,
@@ -184,6 +188,23 @@ const createOffer = async (req, res) => {
 
       console.log('📋 Création de l\'offre:', offerData);
       const offer = await Offer.createOffer(offerData);
+
+      // 3. Créer les enregistrements OfferImage pour chaque image
+      console.log('🖼️ Création des enregistrements d\'images pour l\'offre:', offer.id);
+      const offerImages = [];
+      for (let i = 0; i < imageUrls.length; i++) {
+        const imageData = {
+          offerId: offer.id,
+          imageUrl: imageUrls[i],
+          isMain: i === 0, // La première image est l'image principale
+          color: null, // Peut être rempli plus tard si nécessaire
+          colorHex: null
+        };
+        
+        const offerImage = await OfferImage.create(imageData);
+        offerImages.push(offerImage);
+        console.log(`✅ Image ${i + 1} créée avec ID:`, offerImage.id);
+      }
 
       // Synchroniser l'offre vers Neo4j
       try {
@@ -194,6 +215,15 @@ const createOffer = async (req, res) => {
         console.error('⚠️ Erreur synchronisation offre vers Neo4j (non bloquant):', syncError);
       }
 
+      // Récupérer les images depuis OfferImage pour la réponse
+      const offerImagesData = offerImages.map(img => ({
+        id: img.id,
+        imageUrl: img.imageUrl,
+        isMain: img.isMain,
+        color: img.color,
+        colorHex: img.colorHex
+      }));
+
       return res.status(201).json({
         success: true,
         data: { 
@@ -201,7 +231,7 @@ const createOffer = async (req, res) => {
           productId: product.id,
           title: offer.title, 
           price: offer.price,
-          images: imageUrls,
+          images: offerImagesData, // Images depuis OfferImage
           listingType: offer.listingType,
           product: {
             id: product.id,
@@ -296,21 +326,45 @@ const getOffers = async (req, res) => {
       }
     }
 
-    // Parser les images JSON pour chaque offre
-    const offersWithParsedImages = result.offers.map(offer => {
-      const offerData = offer.getPublicData();
+    // Si la route était /seller/:sellerId et qu'aucune offre n'est trouvée, vérifier si l'utilisateur existe
+    if (req.params && req.params.sellerId !== undefined && result.totalCount === 0) {
       try {
-        offerData.images = offer.images ? JSON.parse(offer.images) : [];
-      } catch (error) {
-        console.error('Erreur parsing images:', error);
-        offerData.images = [];
+        const { User } = require("../models/User.js");
+        const user = await User.findByPk(parseInt(req.params.sellerId));
+        if (!user) {
+          return res.status(404).json({ error: "Utilisateur non trouvé" });
+        }
+      } catch (userErr) {
+        // En cas d'erreur inattendue lors de la vérification utilisateur, ne pas casser la réponse des offres
+        console.warn('⚠️ Vérification utilisateur échouée:', userErr.message);
       }
+    }
+
+    // Récupérer les images depuis OfferImage pour chaque offre
+    const offersWithImages = await Promise.all(result.offers.map(async (offer) => {
+      const offerData = offer.getPublicData();
+      
+      // Récupérer les images depuis OfferImage
+      const offerImages = await OfferImage.findAll({
+        where: { offerId: offer.id },
+        order: [['isMain', 'DESC'], ['createdAt', 'ASC']] // Image principale en premier
+        
+      });
+      
+      offerData.images = offerImages.map(img => ({
+        id: img.id,
+        imageUrl: img.imageUrl,
+        isMain: img.isMain,
+        color: img.color,
+        colorHex: img.colorHex
+      }));
+      
       return offerData;
-    });
+    }));
 
     return res.status(200).json({
       success: true,
-      data: offersWithParsedImages,
+      data: offersWithImages,
       pagination: {
         totalCount: result.totalCount,
         totalPages: result.totalPages,
@@ -347,6 +401,21 @@ const getOfferById = async (req, res) => {
         error: "Offre non trouvée"
       });
     }
+
+    
+    // Récupérer les images depuis OfferImage
+    const offerImages = await OfferImage.findAll({
+      where: { offerId: offer.id },
+      order: [['isMain', 'DESC'], ['createdAt', 'ASC']] // Image principale en premier
+    });
+    
+    offerData.images = offerImages.map(img => ({
+      id: img.id,
+      imageUrl: img.imageUrl,
+      isMain: img.isMain,
+      color: img.color,
+      colorHex: img.colorHex
+    }));
 
     return res.status(200).json({
       success: true,

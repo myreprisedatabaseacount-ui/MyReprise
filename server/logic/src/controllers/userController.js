@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { User } = require('../models/User.js');
+const { Store } = require('../models/Store.js');
 const { validationResult } = require('express-validator');
 const logger = require('../utils/logger.js');
 const AuthService = require('../services/authService.js');
@@ -12,6 +13,47 @@ const OTPService = require('../services/otpService.js');
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+
+// ========================================
+// FONCTIONS UTILITAIRES
+// ========================================
+
+/**
+ * Vérifie et crée un store pour un utilisateur s'il n'en a pas
+ */
+const ensureUserHasStore = async (userId, userData = null) => {
+    try {
+        // Vérifier si l'utilisateur a déjà un store
+        const existingStore = await Store.findByUserId(userId);
+        
+        if (existingStore) {
+            logger.info(`Store existant trouvé pour l'utilisateur ${userId}`);
+            return existingStore;
+        }
+
+        // Créer un nouveau store pour l'utilisateur
+        const storeName = userData 
+            ? `Boutique de ${userData.firstName} ${userData.lastName}`
+            : `Boutique utilisateur ${userId}`;
+        
+        const storeData = {
+            userId: userId,
+            name: storeName,
+            description: 'Boutique créée automatiquement lors de l\'inscription',
+            isActive: true
+        };
+
+        const newStore = await Store.createStore(storeData);
+        logger.info(`Nouveau store créé pour l'utilisateur ${userId}: ${newStore.name}`);
+        
+        return newStore;
+
+    } catch (error) {
+        logger.error(`Erreur lors de la gestion du store pour l'utilisateur ${userId}:`, error);
+        // Ne pas faire échouer l'authentification si la création du store échoue
+        return null;
+    }
+};
 
 // ========================================
 // MÉTHODES D'AUTHENTIFICATION
@@ -41,6 +83,15 @@ const register = async (req, res) => {
             country,
             password
         });
+
+        // Vérifier et créer un store pour le nouvel utilisateur
+        if (result.success && result.data && result.data.user) {
+            const user = result.data.user;
+            await ensureUserHasStore(user.id, {
+                firstName: user.firstName,
+                lastName: user.lastName
+            });
+        }
 
         res.status(201).json(result);
 
@@ -72,6 +123,16 @@ const login = async (req, res) => {
         const { phone, country, password } = req.body;
 
         const result = await AuthService.authenticateWithPhone(phone, country, password, res);
+        
+        // Vérifier et créer un store pour l'utilisateur connecté
+        if (result.success && result.data && result.data.user) {
+            const user = result.data.user;
+            await ensureUserHasStore(user.id, {
+                firstName: user.firstName,
+                lastName: user.lastName
+            });
+        }
+        
         res.json(result);
 
     } catch (error) {
@@ -126,6 +187,15 @@ const loginWithGoogle = async (req, res) => {
             profilePicture
         }, res);
 
+        // Vérifier et créer un store pour l'utilisateur connecté
+        if (result.success && result.data && result.data.user) {
+            const user = result.data.user;
+            await ensureUserHasStore(user.id, {
+                firstName: user.firstName,
+                lastName: user.lastName
+            });
+        }
+
         res.json(result);
 
     } catch (error) {
@@ -161,6 +231,15 @@ const loginWithFacebook = async (req, res) => {
             lastName,
             profilePicture
         }, res);
+
+        // Vérifier et créer un store pour l'utilisateur connecté
+        if (result.success && result.data && result.data.user) {
+            const user = result.data.user;
+            await ensureUserHasStore(user.id, {
+                firstName: user.firstName,
+                lastName: user.lastName
+            });
+        }
 
         res.json(result);
 
@@ -726,6 +805,12 @@ const updateVerificationStatus = async (req, res) => {
         // Si l'utilisateur est vérifié, générer et stocker les tokens
         if (isVerified) {
             AuthService.generateAndSetTokens(updatedUser, res);
+            
+            // Vérifier et créer un store pour l'utilisateur vérifié
+            await ensureUserHasStore(updatedUser.id, {
+                firstName: updatedUser.firstName,
+                lastName: updatedUser.lastName
+            });
         }
 
         res.json({

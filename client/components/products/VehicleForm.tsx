@@ -327,7 +327,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
               variant="ghost"
               size="sm"
               onClick={onBack}
-              className="p-2 hover:bg-gray-100 rounded-lg"
+              className="p-2 hover:shadow-md hover:border-gray-300 border border-transparent rounded-lg transition-all duration-200"
             >
               <ArrowLeft className="w-5 h-5" />
             </Button>
@@ -340,9 +340,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
             </h2>
           </div>
           <div className="flex items-center gap-3">
-            <button className="text-blue-600 text-sm hover:underline">
-              Enregistrer le brouillon
-            </button>
+            
             <Button
               variant="ghost"
               size="sm"
@@ -353,7 +351,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                 }
                 if (onClose) onClose();
               }}
-              className="p-2 hover:bg-gray-100 rounded-lg"
+              className="p-2 hover:shadow-md hover:border-gray-400 border border-transparent rounded-lg transition-all duration-200"
             >
               <X className="w-5 h-5" />
             </Button>
@@ -553,7 +551,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                                 key={location.id}
                                 type="button"
                                 onClick={() => handleLocationSelect(location)}
-                                className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                                className="w-full px-4 py-3 text-left hover:shadow-sm hover:border-gray-200 border-b border-gray-100 last:border-b-0 transition-all duration-200"
                               >
                                 <div className="flex items-center gap-2">
                                   <MapPin className="h-4 w-4 text-gray-400" />

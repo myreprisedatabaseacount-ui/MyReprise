@@ -220,6 +220,15 @@ async function initializeModels() {
     }
     
     try {
+      if (Offer && OfferImage) {
+        Offer.hasMany(OfferImage, { foreignKey: 'offerId', as: 'images' });
+        OfferImage.belongsTo(Offer, { foreignKey: 'offerId', as: 'offer' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association Offer <-> OfferImage:', error.message);
+    }
+    
+    try {
       if (User && Delta) {
         User.hasMany(Delta, { foreignKey: 'sender_id', as: 'SentDeltas' });
         User.hasMany(Delta, { foreignKey: 'receiver_id', as: 'ReceivedDeltas' });
