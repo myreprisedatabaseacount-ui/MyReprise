@@ -9,6 +9,7 @@ const recommendationRoutes = require('./recommendationRoutes.js');
 const callRoutes = require('./callRoutes.js');
 const addressRoutes = require('./addressRoutes.js');
 const storeRoutes = require('./storeRoutes.js');
+const repriseOrderRoutes = require('./repriseOrderRoutes.js');
 // const upload = require('./upload');
 // const products = require('./products');
 // const orders = require('./orders');
@@ -27,6 +28,7 @@ module.exports = {
   callRoutes,
   addressRoutes,
   storeRoutes,
+  repriseOrderRoutes,
   // upload,
   // products,
   // orders,

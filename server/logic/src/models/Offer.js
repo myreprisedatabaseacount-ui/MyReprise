@@ -208,6 +208,87 @@ Offer.prototype.getPublicData = function() {
     };
 };
 
+/**
+ * Méthode pour obtenir les données complètes de l'offre avec toutes les relations
+ */
+Offer.prototype.getCompleteData = async function() {
+    const sequelize = db.getSequelize();
+    const { Brand } = require('./Brand');
+    const { Category } = require('./Category');
+    const { User } = require('./User');
+    const { Store } = require('./Store');
+    const { OfferCategory } = require('./OfferCategory');
+    
+    // Récupérer les données de base
+    const baseData = this.getPublicData();
+    
+    // Récupérer les données de la marque
+    let brandData = null;
+    if (this.brandId) {
+        const brand = await Brand.findByPk(this.brandId);
+        if (brand) {
+            brandData = brand.getLocalizedData('fr');
+        }
+    }
+    
+    // Récupérer les données de la catégorie
+    let categoryData = null;
+    if (this.categoryId) {
+        const category = await Category.findByPk(this.categoryId);
+        if (category) {
+            categoryData = category.getLocalizedData('fr');
+        }
+    }
+    
+    // Récupérer les données du vendeur
+    let sellerData = null;
+    if (this.sellerId) {
+        const seller = await User.findByPk(this.sellerId);
+        if (seller) {
+            sellerData = seller.getPublicData();
+        }
+    }
+    
+    // Récupérer les données du magasin du vendeur
+    let storeData = null;
+    if (this.sellerId) {
+        const store = await Store.findByUserId(this.sellerId);
+        if (store) {
+            storeData = store.getPublicData();
+        }
+    }
+    
+    // Récupérer les catégories de reprise (OfferCategory)
+    let repriseCategories = [];
+    try {
+        const repriseCategoryRelations = await OfferCategory.getCategoriesByOffer(this.id);
+        repriseCategories = repriseCategoryRelations.map(cat => cat.getLocalizedData('fr'));
+    } catch (error) {
+        console.error('Erreur lors de la récupération des catégories de reprise:', error);
+        repriseCategories = [];
+    }
+    
+    // Récupérer les données de l'adresse
+    let addressData = null;
+    if (this.addressId) {
+        const { Address } = require('./Address');
+        const address = await Address.findByPk(this.addressId);
+        if (address) {
+            addressData = address.getPublicData();
+        }
+    }
+    
+    return {
+        ...baseData,
+        brand: brandData,
+        category: categoryData,
+        seller: sellerData,
+        store: storeData,
+        repriseCategories: repriseCategories,
+        address: addressData
+    };
+};
+
 Offer.prototype.isAvailable = function() {
     return this.status === 'available' && !this.isDeleted;
 };
@@ -608,6 +689,18 @@ Offer.findWithAddressById = async function(id) {
             required: false
         }]
     });
+};
+
+/**
+ * Trouve une offre par ID avec toutes ses relations (brand, category, seller, store, repriseCategories)
+ */
+Offer.findCompleteById = async function(id) {
+    const offer = await Offer.findByPk(id);
+    if (!offer) {
+        return null;
+    }
+    
+    return await offer.getCompleteData();
 };
 
 /**

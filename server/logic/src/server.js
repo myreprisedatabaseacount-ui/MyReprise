@@ -19,7 +19,7 @@ const fs = require('fs');
 const { initializeModels } = require('./models');
 
 // Import des routes
-const { categoryRoutes, userRoutes, brandRoutes, whatsappRoutes, subjectRoutes, offerRoutes, offerCategoryRoutes, recommendationRoutes, addressRoutes, storeRoutes } = require('./routes');
+const { categoryRoutes, userRoutes, brandRoutes, whatsappRoutes, subjectRoutes, offerRoutes, offerCategoryRoutes, recommendationRoutes, addressRoutes, repriseOrderRoutes, storeRoutes } = require('./routes');
 const conversationRoutes = require('./routes/conversationRoutes');
 const reactionRoutes = require('./routes/reactionRoutes');
 const callRoutes = require('./routes/callRoutes');
@@ -110,6 +110,7 @@ app.use("/api/conversations", conversationRoutes);
 app.use("/api/reactions", reactionRoutes);
 app.use("/api/calls", callRoutes);
 app.use("/api/addresses", addressRoutes);
+app.use("/api/reprise-orders", repriseOrderRoutes);
 app.use("/api/stores", storeRoutes);
 
 // Route de santé
