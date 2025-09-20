@@ -10,7 +10,7 @@ const Delta = sequelize.define('Delta', {
         primaryKey: true,
         allowNull: false
     },
-    offer_id: {
+    offerId: {
         type: DataTypes.INTEGER,
         allowNull: false,
         field: 'offer_id',
@@ -19,7 +19,7 @@ const Delta = sequelize.define('Delta', {
             key: 'id'
         }
     },
-    sender_id: {
+    senderId: {
         type: DataTypes.INTEGER,
         allowNull: false,
         field: 'sender_id',
@@ -28,7 +28,7 @@ const Delta = sequelize.define('Delta', {
             key: 'id'
         }
     },
-    receiver_id: {
+    receiverId: {
         type: DataTypes.INTEGER,
         allowNull: false,
         field: 'receiver_id',
@@ -37,7 +37,7 @@ const Delta = sequelize.define('Delta', {
             key: 'id'
         }
     },
-    conversation_id: {
+    conversationId: {
         type: DataTypes.INTEGER,
         allowNull: false,
         field: 'conversation_id',
@@ -46,7 +46,7 @@ const Delta = sequelize.define('Delta', {
             key: 'id'
         }
     },
-    order_id: {
+    orderId: {
         type: DataTypes.INTEGER,
         allowNull: true,
         field: 'order_id',
@@ -62,18 +62,18 @@ const Delta = sequelize.define('Delta', {
             min: 0
         }
     },
-    is_accepted: {
+    isAccepted: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
         field: 'is_accepted'
     },
-    created_at: {
+    createdAt: {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: DataTypes.NOW
     },
-    updated_at: {
+    updatedAt: {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: DataTypes.NOW
