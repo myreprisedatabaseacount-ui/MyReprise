@@ -1,10 +1,11 @@
 const jwt = require('jsonwebtoken');
 const { User } = require('../models/User.js');
 const logger = require('../utils/logger.js');
-require('dotenv').config({ path: require('path').join(__dirname, '../../../server/.env') });
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 
-// Configuration JWT
-const JWT_SECRET = process.env.JWT_SECRET;
+// Configuration JWT (alignée sur authService avec fallback)
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
 
 /**
  * 🔐 Middleware d'authentification JWT amélioré

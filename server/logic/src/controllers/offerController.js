@@ -249,13 +249,26 @@ const getOffers = async (req, res) => {
       limit = 10
     } = req.query;
 
+    // Validation spécifique pour la route /offers/seller/:sellerId mappée vers ce contrôleur
+    if (req.params && req.params.sellerId !== undefined) {
+      const paramSellerId = req.params.sellerId;
+      if (!paramSellerId) {
+        return res.status(400).json({ error: "ID utilisateur requis" });
+      }
+      if (isNaN(parseInt(paramSellerId))) {
+        return res.status(400).json({ error: "ID utilisateur invalide" });
+      }
+    }
+
     // Construire les filtres
     const filters = {};
     
     if (listingType) filters.listingType = listingType;
     if (categoryId) filters.categoryId = parseInt(categoryId);
     if (brandId) filters.brandId = parseInt(brandId);
-    if (sellerId) filters.sellerId = parseInt(sellerId);
+    // Prioriser l'ID vendeur provenant de l'URL /seller/:sellerId
+    const effectiveSellerId = req.params && req.params.sellerId ? parseInt(req.params.sellerId) : (sellerId ? parseInt(sellerId) : undefined);
+    if (effectiveSellerId !== undefined) filters.sellerId = effectiveSellerId;
     if (productCondition) filters.productCondition = productCondition;
     if (status) filters.status = status;
     if (minPrice) filters.minPrice = parseFloat(minPrice);
@@ -268,6 +281,20 @@ const getOffers = async (req, res) => {
       parseInt(limit), 
       filters
     );
+
+    // Si la route était /seller/:sellerId et qu'aucune offre n'est trouvée, vérifier si l'utilisateur existe
+    if (req.params && req.params.sellerId !== undefined && result.totalCount === 0) {
+      try {
+        const { User } = require("../models/User.js");
+        const user = await User.findByPk(parseInt(req.params.sellerId));
+        if (!user) {
+          return res.status(404).json({ error: "Utilisateur non trouvé" });
+        }
+      } catch (userErr) {
+        // En cas d'erreur inattendue lors de la vérification utilisateur, ne pas casser la réponse des offres
+        console.warn('⚠️ Vérification utilisateur échouée:', userErr.message);
+      }
+    }
 
     // Parser les images JSON pour chaque offre
     const offersWithParsedImages = result.offers.map(offer => {
@@ -312,22 +339,13 @@ const getOfferById = async (req, res) => {
       });
     }
 
-    const offer = await Offer.findByPk(offerId);
+    // Utiliser la nouvelle méthode pour récupérer l'offre avec toutes ses relations
+    const offerData = await Offer.findCompleteById(offerId);
     
-    if (!offer) {
+    if (!offerData) {
       return res.status(404).json({
         error: "Offre non trouvée"
       });
-    }
-
-    const offerData = offer.getPublicData();
-    
-    // Parser les images JSON
-    try {
-      offerData.images = offer.images ? JSON.parse(offer.images) : [];
-    } catch (error) {
-      console.error('Erreur parsing images:', error);
-      offerData.images = [];
     }
 
     return res.status(200).json({

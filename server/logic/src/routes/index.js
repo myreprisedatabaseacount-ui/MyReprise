@@ -8,6 +8,7 @@ const offerCategoryRoutes = require('./offerCategoryRoutes.js');
 const recommendationRoutes = require('./recommendationRoutes.js');
 const callRoutes = require('./callRoutes.js');
 const addressRoutes = require('./addressRoutes.js');
+const repriseOrderRoutes = require('./repriseOrderRoutes.js');
 // const upload = require('./upload');
 // const products = require('./products');
 // const orders = require('./orders');
@@ -25,6 +26,7 @@ module.exports = {
   recommendationRoutes,
   callRoutes,
   addressRoutes,
+  repriseOrderRoutes,
   // upload,
   // products,
   // orders,
