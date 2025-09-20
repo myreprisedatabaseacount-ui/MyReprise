@@ -347,7 +347,7 @@ const getOffers = async (req, res) => {
       // Récupérer les images depuis OfferImage
       const offerImages = await OfferImage.findAll({
         where: { offerId: offer.id },
-        order: [['isMain', 'DESC'], ['createdAt', 'ASC']] // Image principale en premier
+        order: [['isMain', 'DESC'], ['id', 'ASC']] // Image principale en premier
         
       });
       
@@ -405,8 +405,8 @@ const getOfferById = async (req, res) => {
     
     // Récupérer les images depuis OfferImage
     const offerImages = await OfferImage.findAll({
-      where: { offerId: offer.id },
-      order: [['isMain', 'DESC'], ['createdAt', 'ASC']] // Image principale en premier
+      where: { offerId: parseInt(offerId) },
+      order: [['isMain', 'DESC'], ['id', 'ASC']] // Image principale en premier
     });
     
     offerData.images = offerImages.map(img => ({
