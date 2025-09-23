@@ -6,7 +6,7 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 
-import { ArrowLeft, Car, Bike, Truck, Anchor, Save, X, MapPin, Search, Map, User } from 'lucide-react';
+import { ArrowLeft, Car, Bike, Truck, Anchor, Save, X, MapPin, Search, Map, User, Plus, Trash2 } from 'lucide-react';
 import { useProduct } from '../../services/hooks/useProduct';
 import { useCreateOfferMutation } from '../../services/api/OfferApi';
 import { useSearchLocationsMutation } from '../../services/api/AddressApi';
@@ -41,6 +41,11 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
   const [selectedExchangeCategories, setSelectedExchangeCategories] = useState<number[]>([]);
   const [createdOfferId, setCreatedOfferId] = useState<number | null>(null);
   const [isExchangeConfirmed, setIsExchangeConfirmed] = useState(false);
+  
+  // États pour les caractéristiques détaillées
+  const [characteristics, setCharacteristics] = useState<Array<{key: string, value: string}>>([
+    { key: '', value: '' }
+  ]);
   
   // Mutations pour les catégories d'échange
   const [addCategoryToOffer] = useAddCategoryToOfferMutation();
@@ -186,6 +191,23 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
     }, 1500);
   };
 
+  // Fonctions pour gérer les caractéristiques détaillées
+  const addCharacteristic = () => {
+    setCharacteristics([...characteristics, { key: '', value: '' }]);
+  };
+
+  const removeCharacteristic = (index: number) => {
+    if (characteristics.length > 1) {
+      setCharacteristics(characteristics.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateCharacteristic = (index: number, field: 'key' | 'value', value: string) => {
+    const updated = [...characteristics];
+    updated[index][field] = value;
+    setCharacteristics(updated);
+  };
+
   // Synchroniser currentPhotoIndex avec imageFiles
   useEffect(() => {
     if (imageFiles.length === 0) {
@@ -210,9 +232,22 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
       return;
     }
 
+    // Valider les caractéristiques
+    const validCharacteristics = characteristics.filter(c => c.key.trim() && c.value.trim());
+    if (validCharacteristics.length === 0) {
+      toast.error('Veuillez ajouter au moins une caractéristique détaillée');
+      return;
+    }
+
     try {
       // Construire le titre pour l'offre avec format amélioré
       const title = `${values.brand} ${values.model} (${values.year})`;
+
+      // Convertir les caractéristiques en objet
+      const characteristicsObj = validCharacteristics.reduce((acc, char) => {
+        acc[char.key] = char.value;
+        return acc;
+      }, {} as Record<string, string>);
 
       // Données spécifiques au véhicule
       const specificData = {
@@ -222,7 +257,8 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
         mileage: Number(values.mileage),
         fuel: 'essence', // Valeur par défaut
         transmission: 'manuelle', // Valeur par défaut
-        color: 'blanc' // Valeur par défaut
+        color: 'blanc', // Valeur par défaut
+        characteristics: characteristicsObj
       };
 
       // Préparer les données pour l'API selon la structure attendue
@@ -286,6 +322,13 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
     // Construire le titre pour l'offre avec format amélioré
     const title = `${values.brand} ${values.model} (${values.year})`;
 
+    // Convertir les caractéristiques en objet
+    const validCharacteristics = characteristics.filter(c => c.key.trim() && c.value.trim());
+    const characteristicsObj = validCharacteristics.reduce((acc, char) => {
+      acc[char.key] = char.value;
+      return acc;
+    }, {} as Record<string, string>);
+
     // Données spécifiques au véhicule
     const specificData = {
       year: values.year,
@@ -294,7 +337,8 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
       mileage: Number(values.mileage),
       fuel: 'essence', // Valeur par défaut
       transmission: 'manuelle', // Valeur par défaut
-      color: 'blanc' // Valeur par défaut
+      color: 'blanc', // Valeur par défaut
+      characteristics: characteristicsObj
     };
 
     // Sauvegarder les données dans le state (pour l'aperçu) - sans les objets File
@@ -502,7 +546,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                     {/* Description */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Description - Plus de détails *
+                        Description *
                       </label>
                       <Field
                         as="textarea"
@@ -512,6 +556,57 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                       <ErrorMessage name="description" component="div" className="text-red-500 text-sm mt-1" />
+                    </div>
+
+                    {/* Caractéristiques détaillées */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-3">
+                        Caractéristiques détaillées *
+                        <span className="text-gray-500 text-sm font-normal ml-2">
+                          (Ajoutez des spécifications techniques, équipements, etc.)
+                        </span>
+                      </label>
+                      <div className="space-y-3">
+                        {characteristics.map((char, index) => (
+                          <div key={index} className="flex gap-2">
+                            <div className="flex-1">
+                              <Input
+                                placeholder="Ex: Couleur, Carburant, Transmission..."
+                                value={char.key}
+                                onChange={(e) => updateCharacteristic(index, 'key', e.target.value)}
+                                className="w-full"
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <Input
+                                placeholder="Ex: Rouge, Diesel, Automatique..."
+                                value={char.value}
+                                onChange={(e) => updateCharacteristic(index, 'value', e.target.value)}
+                                className="w-full"
+                              />
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => removeCharacteristic(index)}
+                              disabled={characteristics.length === 1}
+                              className="px-3"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ))}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={addCharacteristic}
+                          className="w-full border-dashed border-2 border-gray-300 hover:border-blue-500"
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          Ajouter une caractéristique
+                        </Button>
+                      </div>
                     </div>
 
                     {/* Localisation */}
@@ -796,6 +891,23 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                   {formValues.description || 'Description fournie par le ou la propriétaire'}
                 </p>
               </div>
+
+              {/* Caractéristiques détaillées */}
+              {characteristics.some(c => c.key.trim() && c.value.trim()) && (
+                <div className="mb-4">
+                  <h5 className="text-sm font-medium text-gray-900 mb-2">Caractéristiques détaillées</h5>
+                  <div className="space-y-1">
+                    {characteristics
+                      .filter(c => c.key.trim() && c.value.trim())
+                      .map((char, index) => (
+                        <div key={index} className="flex justify-between text-sm">
+                          <span className="text-gray-600">{char.key}:</span>
+                          <span className="text-gray-900 font-medium">{char.value}</span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
 
               {/* Localisation */}
               <div className="mb-4">

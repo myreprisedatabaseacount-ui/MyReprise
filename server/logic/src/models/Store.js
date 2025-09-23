@@ -35,6 +35,36 @@ const Store = sequelize.define('Store', {
             len: [0, 1000]
         }
     },
+    logo: {
+        type: DataTypes.STRING(500),
+        allowNull: true,
+        validate: {
+            isUrl: true
+        }
+    },
+    banner: {
+        type: DataTypes.STRING(500),
+        allowNull: true,
+        validate: {
+            isUrl: true
+        }
+    },
+    secondaryColor: {
+        type: DataTypes.STRING(7),
+        allowNull: true,
+        validate: {
+            is: /^#[0-9A-F]{6}$/i
+        },
+        defaultValue: '#ffa500' // orange-jaune
+    },
+    primaryColor: {
+        type: DataTypes.STRING(7),
+        allowNull: true,
+        validate: {
+            is: /^#[0-9A-F]{6}$/i
+        },
+        defaultValue: '#4169e1' // bleu royale
+    },
     isActive: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
@@ -81,9 +111,19 @@ Store.prototype.getPublicData = function() {
         id: this.id,
         name: this.name,
         description: this.description,
+        logo: this.logo,
+        banner: this.banner,
+        secondaryColor: this.secondaryColor,
+        primaryColor: this.primaryColor,
         isActive: this.isActive,
         createdAt: this.createdAt
     };
+};
+
+Store.prototype.findByUserId = function(userId) {
+    return this.findOne({
+        where: { userId: userId }
+    });
 };
 
 Store.prototype.activate = async function() {

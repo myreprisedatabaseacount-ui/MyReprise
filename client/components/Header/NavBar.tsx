@@ -5,7 +5,7 @@ import { Button } from '../ui/button';
 import { useAuth } from '../../services/hooks/useAuth';
 import { useProduct } from '../../services/hooks/useProduct';
 import { useCurrentUser, useUserDisplay } from '../../services/hooks/useCurrentUser';
-import { User, LogOut, Settings } from 'lucide-react';
+import { User, LogOut, Settings, Store } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -91,9 +91,11 @@ const NavBar: React.FC<NavBarProps> = ({ className = '' }) => {
                     <p className="text-sm font-medium text-gray-900">{displayName}</p>
                   </div>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem className="flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    <span>Profil</span>
+                  <DropdownMenuItem asChild>
+                    <Link href={`/store/${currentUser?.id}`} className="flex items-center gap-2">
+                      <Store className="h-4 w-4" />
+                      <span>My Store</span>
+                    </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem className="flex items-center gap-2">
                     <Settings className="h-4 w-4" />
