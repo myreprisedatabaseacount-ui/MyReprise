@@ -21,6 +21,7 @@ export interface RepriseOrderModalProps {
     title: string;
     image: string;
     price: number;
+    sellerId: number;
   };
 }
 
@@ -35,6 +36,14 @@ const RepriseOrderModal: React.FC<RepriseOrderModalProps> = ({ isOpen, onClose, 
   const [selectedMyOfferId, setSelectedMyOfferId] = useState<number | null>(null);
   const [customDifference, setCustomDifference] = useState<string>('');
   const selectedMyOffer = myOffersList.find(o => o.id === selectedMyOfferId) || null;
+
+  // Helper: retourne l'URL de l'image principale selon le nouveau format
+  const getOfferMainImageUrl = (offer: any): string => {
+    const images = Array.isArray(offer?.images) ? offer.images : [];
+    if (images.length === 0) return '/placeholder.png';
+    const main = images.find((img: any) => img?.isMain) || images[0];
+    return main?.imageUrl || '/placeholder.png';
+  };
 
   const baseDifference = selectedMyOffer ? Number(target.price) - Number(selectedMyOffer.price) : 0;
   const absDifference = Math.abs(baseDifference);
@@ -113,33 +122,35 @@ const RepriseOrderModal: React.FC<RepriseOrderModalProps> = ({ isOpen, onClose, 
             {errorMyOffers && <p className="text-red-600">Erreur lors du chargement de mes offres.</p>}
             {!isLoadingMyOffers && myOffersList.length === 0 && <p className="text-gray-600">Vous n'avez pas encore d'offres disponibles.</p>}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Carte d'ajout de produit en première position */}
+              {/* Carte d'ajout de produit en première position - même gabarit */}
               <button
                 onClick={() => {
                   onClose();
                   openCreateProduct();
                 }}
-                className="text-left border-2 border-dashed rounded-xl overflow-hidden hover:shadow transition flex items-center justify-center h-[168px] bg-white"
+                className="text-left border-2 border-dashed rounded-xl overflow-hidden hover:shadow transition bg-white"
               >
-                <div className="flex flex-col items-center text-gray-600">
-                  <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-2">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="aspect-[4/3] bg-gray-50 grid place-items-center">
+                  <div className="w-12 h-12 rounded-full bg-white border flex items-center justify-center">
+                    <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m6-6H6" />
                     </svg>
                   </div>
-                  <span className="font-medium">Ajouter un produit</span>
-                  <span className="text-xs text-gray-500 mt-1">Ouvrir le même formulaire que la navbar</span>
+                </div>
+                <div className="p-3">
+                  <p className="font-medium text-gray-900">Ajouter un produit</p>
+                  <p className="text-xs text-gray-500 mt-1">Ouvrir le même formulaire que la navbar</p>
                 </div>
               </button>
               {myOffersList.map(offer => (
                 <button key={offer.id} onClick={() => setSelectedMyOfferId(offer.id)} className={`text-left border rounded-xl overflow-hidden hover:shadow transition ${selectedMyOfferId === offer.id ? 'ring-2 ring-blue-600' : ''}`}>
                   <div className="aspect-[4/3] bg-gray-100">
-                    <img src={(offer.images && offer.images[0]) || '/placeholder.png'} alt={offer.title} className="w-full h-full object-cover" />
+                    <img src={getOfferMainImageUrl(offer)} alt={offer.title} className="w-full h-full object-cover" />
                   </div>
                   <div className="p-3">
                     <p className="font-medium text-gray-900 line-clamp-1">{offer.title}</p>
                     <p className="text-sm text-gray-600 mt-1">{Number(offer.price)} DH</p>
-                    <p className="text-xs text-gray-500 mt-1 capitalize">{offer.productCondition?.replace('_',' ')}</p>
+                    <p className="text-xs text-gray-500 mt-1 capitalize">{offer.productCondition?.replace(/_/g,' ')}</p>
                   </div>
                 </button>
               ))}
@@ -150,14 +161,10 @@ const RepriseOrderModal: React.FC<RepriseOrderModalProps> = ({ isOpen, onClose, 
                    const mineId = currentUser?.id;
                    const myOffer = myOffersList.find(o => o.id === selectedMyOfferId);
                    if (!myOffer) return;
-                   // Empêcher si mon offre ou le produit cible appartiennent au même user
-                   if (myOffer.sellerId === target.id) {
+                  // Empêcher si mon offre et le produit cible appartiennent au même vendeur
+                  if (typeof target.sellerId === 'number' && myOffer.sellerId === target.sellerId) {
                      toast.error('Produit invalide.');
                      return;
-                   }
-                   // Empêcher si je tente de reprendre mon propre produit cible
-                   if (mineId && mineId === myOffer.sellerId && mineId === (myOffer.sellerId)) {
-                     // no-op (condition redondante, garde-fou)
                    }
                    setStep(2);
                  }} disabled={!selectedMyOfferId} className={`px-5 py-2 rounded-lg font-medium ${selectedMyOfferId ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-200 text-gray-500 cursor-not-allowed'}`}>Continuer</button>
@@ -176,7 +183,7 @@ const RepriseOrderModal: React.FC<RepriseOrderModalProps> = ({ isOpen, onClose, 
               </div>
               <ArrowLeftRight size={28} className="text-blue-600 animate-pulse" />
               <div className="relative flex items-center gap-2">
-                <img src={selectedMyOffer.images[0]} alt={selectedMyOffer.title} className="w-16 h-16 rounded-lg object-cover border" />
+                <img src={getOfferMainImageUrl(selectedMyOffer)} alt={selectedMyOffer.title} className="w-16 h-16 rounded-lg object-cover border" />
                 <div className="min-w-[140px]"><span className="block text-sm font-medium line-clamp-1">{selectedMyOffer.title}</span><span className="block text-xs text-gray-500">{Number(selectedMyOffer.price)} DH</span></div>
                 {direction === 'payer' && (<div className="absolute -top-2 -right-2 px-2 py-0.5 rounded-full text-xs font-semibold shadow bg-amber-100 text-amber-700 border border-amber-300">+ {effectiveDiff} DH</div>)}
               </div>

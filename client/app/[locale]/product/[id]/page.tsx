@@ -1,20 +1,23 @@
 'use client'
 
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, MessageCircle, Plus, Star, MapPin, ArrowLeftRight, X, Coins, Truck, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MessageCircle, Plus, Star, MapPin, ArrowLeftRight, X, Coins, Truck, Search, ArrowRight } from 'lucide-react';
 import NavBar from '@/components/Header/NavBar';
 import { useGetOfferByIdQuery, useGetOffersBySellerQuery } from '@/services/api/OfferApi';
-import { useParams } from 'next/navigation';
+import { useGetOrderDetailsQuery } from '@/services/api/RepriseOrderApi';
+import { useParams, useRouter } from 'next/navigation';
 import Map from '@/components/ui/Map';
 import { useCurrentUser } from '@/services/hooks/useCurrentUser';
 import { useSearchLocationsMutation } from '@/services/api/AddressApi';
 import { Input } from '@/components/ui/input';
 import RepriseOrderModal from '@/components/products/RepriseOrderModal';
 
-interface ProductImage {
+interface OfferImage {
   id: number;
-  url: string;
-  alt: string;
+  imageUrl: string;
+  isMain: boolean;
+  color: string | null;
+  colorHex: string | null;
 }
 
 interface Brand {
@@ -97,7 +100,7 @@ interface Product {
   description: string;
   status: string;
   listingType: string;
-  images: string[];
+  images: OfferImage[];
   specificData: string;
   createdAt: string;
   brand: Brand | null;
@@ -118,22 +121,22 @@ const RepriseIcon: React.FC = () => (
 );
 
 const WhiteRepriseIcon: React.FC = () => (
-    <svg width="24" height="9" viewBox="0 0 36 13" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-8 h-5 ml-4 mt-1">
+  <svg width="24" height="9" viewBox="0 0 36 13" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-8 h-5 ml-4 mt-1">
     <path d="M33.9229 6.10925C33.9227 3.94264 32.1667 2.18633 30 2.18633C27.8335 2.18658 26.0773 3.94279 26.0771 6.10925C26.0771 8.27592 27.8334 10.0319 30 10.0322V12.1093C26.6862 12.109 24 9.42306 24 6.10925C24.0002 2.79565 26.6864 0.109496 30 0.109253C33.3138 0.109253 35.9998 2.7955 36 6.10925C36 9.42321 33.314 12.1093 30 12.1093V10.0322C32.1668 10.0322 33.9229 8.27607 33.9229 6.10925Z" fill="#ffffff" />
     <path d="M21 7.98169C21 7.98169 20.4 10.9817 17.9785 10.9817C15.5569 10.9817 15 10.1245 15 10.1245" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" />
     <path d="M15 4C15 4 15.6 1 18.0215 1C20.4431 1 21 1.85714 21 1.85714" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" />
     <path d="M9.92292 6.03638C9.92268 3.86977 8.16667 2.11346 6 2.11346C3.83354 2.1137 2.07732 3.86992 2.07708 6.03638C2.07708 8.20304 3.33339 9.95905 6 9.9593V12.0364C2.68625 12.0361 0 9.35018 0 6.03638C0.000243522 2.72278 2.6864 0.0366205 6 0.036377C9.31381 0.036377 11.9998 2.72263 12 6.03638C12 9.35033 9.31396 12.0364 6 12.0364V9.9593C8.16682 9.9593 9.92292 8.2032 9.92292 6.03638Z" fill="#ffffff" />
-    </svg>
-  );
+  </svg>
+);
 
-const StarRating: React.FC<{ rating: number; totalRatings: number; size?: 'sm' | 'md' }> = ({ 
-  rating, 
-  totalRatings, 
-  size = 'md' 
+const StarRating: React.FC<{ rating: number; totalRatings: number; size?: 'sm' | 'md' }> = ({
+  rating,
+  totalRatings,
+  size = 'md'
 }) => {
   const stars = [];
   const starSize = size === 'sm' ? 'text-xs' : 'text-sm';
-  
+
   for (let i = 1; i <= 5; i++) {
     stars.push(
       <Star
@@ -143,7 +146,7 @@ const StarRating: React.FC<{ rating: number; totalRatings: number; size?: 'sm' |
       />
     );
   }
-  
+
   return (
     <div className="flex items-center gap-1">
       <div className="flex">{stars}</div>
@@ -182,7 +185,7 @@ const ImageGallery: React.FC<{ images: string[] }> = ({ images }) => {
           alt={`Image ${currentIndex + 1}`}
           className="w-full h-full object-cover"
         />
-        
+
         {/* Navigation */}
         {images.length > 1 && (
           <>
@@ -209,7 +212,7 @@ const ImageGallery: React.FC<{ images: string[] }> = ({ images }) => {
                 key={index}
                 onClick={() => setCurrentIndex(index)}
                 className={`w-2 h-2 rounded-full transition-colors ${index === currentIndex ? 'bg-white' : 'bg-white/50'
-                }`}
+                  }`}
               />
             ))}
           </div>
@@ -224,7 +227,7 @@ const ImageGallery: React.FC<{ images: string[] }> = ({ images }) => {
               key={index}
               onClick={() => setCurrentIndex(index)}
               className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors ${index === currentIndex ? 'border-blue-600' : 'border-gray-200'
-              }`}
+                }`}
             >
               <img
                 src={image}
@@ -241,6 +244,9 @@ const ImageGallery: React.FC<{ images: string[] }> = ({ images }) => {
 
 const ProductDetails = () => {
   const { id } = useParams();
+  const router = useRouter();
+  const allParams = useParams() as any;
+  const localePrefix = allParams?.locale ? `/${allParams.locale}` : '';
   const { data: productdata, isLoading, error } = useGetOfferByIdQuery(id as string);
   const { currentUser } = useCurrentUser();
   const { data: MyOffers, isLoading: isLoadingMyOffers, error: errorMyOffers } = useGetOffersBySellerQuery(currentUser?.id);
@@ -274,7 +280,28 @@ const ProductDetails = () => {
     { value: 'laâyoune-sakia-el-hamra', label: 'Laâyoune-Sakia El Hamra' },
   ];
 
-  console.log( 'MyOffers', MyOffers?.data);
+  console.log('MyOffers', MyOffers?.data);
+
+  // Commandes déjà effectuées pour ce produit (offre)
+  const { data: orderDetailsData } = useGetOrderDetailsQuery({ offerId: id as string, page: 1, limit: 1 });
+  const lastOrder = Array.isArray(orderDetailsData?.data) && orderDetailsData.data.length > 0 ? orderDetailsData.data[0] : null;
+
+  const formatOrderDate = (createdAt: string) => {
+    const date = new Date(createdAt);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSec = Math.max(0, Math.floor(diffMs / 1000));
+    const hhmm = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', hour12: false }).format(date);
+    if (diffSec < 60) return `il y a ${diffSec} ${diffSec <= 1 ? 'seconde' : 'secondes'} (${hhmm})`;
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `il y a ${diffMin === 1 ? '1 minute' : `${diffMin} minutes`} (${hhmm})`;
+    const diffH = Math.floor(diffMin / 60);
+    if (diffH < 24) return `il y a ${diffH === 1 ? 'une heure' : `${diffH} heures`}`;
+    const diffDays = Math.floor(diffH / 24);
+    if (diffDays < 7) return `il y a ${diffDays === 1 ? 'un jour' : `${diffDays} jours`} (${hhmm})`;
+    const abs = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(date);
+    return `le ${abs}`;
+  };
 
 
   if (isLoading) {
@@ -300,6 +327,13 @@ const ProductDetails = () => {
 
   const product = productdata.data;
   const specificData = product.specificData ? JSON.parse(product.specificData) : {};
+
+  // Adapter les images du nouveau format (objets) vers une liste d'URLs, avec l'image principale en premier
+  const imageUrls: string[] = Array.isArray(product.images)
+    ? [...product.images]
+      .sort((a, b) => (a.isMain === b.isMain ? 0 : a.isMain ? -1 : 1))
+      .map((img) => img.imageUrl)
+    : [];
 
   const myOffersList = Array.isArray(MyOffers?.data) ? MyOffers?.data as any[] : [];
   const selectedMyOffer = myOffersList.find((o) => o.id === selectedMyOfferId) || null;
@@ -359,7 +393,7 @@ const ProductDetails = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           {/* Galerie d'images */}
           <div>
-            <ImageGallery images={product.images} />
+            <ImageGallery images={imageUrls} />
 
             {/* Description sous l'image */}
             <div className="mt-6">
@@ -373,9 +407,10 @@ const ProductDetails = () => {
             {/* Informations principales */}
             <div>
               <div className="text-sm text-gray-500 mb-2">{product.category?.name || 'Catégorie non définie'}</div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">{product.title}</h2>
-              <div className="flex items-center gap-4 mb-4">
-                <div className="text-2xl font-bold text-gray-900">{product.price} DH</div>
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">{product.title}</h2>
+              <div className="flex items-center gap-4 mb-2">
+                <div className="text-2xl font-bold text-gray-900">Valeur :</div>
+                <div className="text-2xl font-bold text-green-800">{product.price} DH</div>
                 <div className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
                   {product.productCondition === 'new' ? 'Neuf' :
                     product.productCondition === 'like_new' ? 'Comme neuf' :
@@ -383,9 +418,99 @@ const ProductDetails = () => {
                 </div>
               </div>
 
+              {lastOrder && (
+                <div className="mt-8 space-y-3 rounded-xl border px-4 py-3 bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <div className="inline-flex items-center gap-2 text-sm text-gray-700">
+                      <span className="font-medium">Commande déjà effectuée</span>
+                      <span className="text-gray-500">•</span>
+                      <span>{formatOrderDate(lastOrder.order.createdAt)}</span>
+                    </div>
+                  </div>
+
+                  {/* Bandeau style Étape 2: mon produit vs son produit + différence */}
+                  <div className="flex items-center justify-center gap-6">
+                    {/* Produit de l'autre (cible) */}
+                    <div className="relative flex items-center gap-2">
+                      <img src={product.images?.[0]?.imageUrl || '/placeholder.png'} alt={product.title} className="w-16 h-16 rounded-lg object-cover border" />
+                      <div className="min-w-[140px]">
+                        <span className="block text-sm font-medium line-clamp-1">{product.title}</span>
+                        <span className="block text-xs text-gray-500">{Number(product.price)} DH</span>
+                      </div>
+                    </div>
+                    <ArrowLeftRight size={24} className="text-blue-600" />
+                    {/* Mon produit ou celui de l'autre selon le sens snaps */}
+                    {(() => {
+                      const p = lastOrder.products || [];
+                      // Trouver l'offre autre que celle affichée (product.id)
+                      const other = p.map(x => x.offer).find(of => of && of.id !== product.id) || null;
+                      const otherSnap = p.find(x => x.offer && x.offer.id !== product.id)?.snapshot || null;
+                      if (!other) return (
+                        <div className="relative flex items-center gap-2">
+                          <div className="w-16 h-16 rounded-lg bg-gray-100 border" />
+                          <div className="min-w-[140px]"><span className="block text-sm font-medium line-clamp-1">Produit associé</span><span className="block text-xs text-gray-500">—</span></div>
+                        </div>
+                      );
+                      const img = other.mainImageUrl || '/placeholder.png';
+                      const otherPrice = Number(other.price);
+                      const myPrice = Number(product.price);
+                      const baseDiff = myPrice - otherPrice;
+                      const diff = Math.abs(baseDiff);
+                      const direction = baseDiff > 0 ? 'recevoir' : baseDiff < 0 ? 'payer' : 'egal';
+                      return (
+                        <div className="relative flex items-center gap-2">
+                          <img src={img} alt={other.title} className="w-16 h-16 rounded-lg object-cover border" />
+                          <div className="min-w-[140px]">
+                            <span className="block text-sm font-medium line-clamp-1">{other.title}</span>
+                            <span className="block text-xs text-gray-500">{otherPrice} DH</span>
+                          </div>
+                          {direction !== 'egal' && (
+                            <div className={`absolute -top-2 -right-2 px-2 py-0.5 rounded-full text-xs font-semibold shadow border ${direction === 'recevoir' ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-amber-100 text-amber-700 border-amber-300'}`}>
+                              + {diff} DH
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+
+                  {/* Profil de l'expéditeur */}
+                  {Array.isArray(lastOrder.participants) && (
+                    <div className="flex items-center gap-2 text-sm text-gray-700">
+                      {(() => {
+                        const sender = lastOrder.participants.find((p: any) => p?.snapshot?.isSender);
+                        const avatar = sender?.user?.profileImage || '/placeholder.png';
+                        const name = sender?.user ? `${sender.user.firstName || ''} ${sender.user.lastName || ''}`.trim() : (sender?.snapshot?.name || 'Utilisateur');
+                        return (
+                          <>
+                            <img src={avatar} alt={name} className="w-6 h-6 rounded-full object-cover border" />
+                            <span>Par {name}</span>
+                          </>
+                        );
+                      })()}
+                      {lastOrder.isOrderSender ? (
+                        <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800">Vous avez déjà fait une commande</span>
+                      ) : lastOrder.isProductOwner ? (
+                        <span className="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-800">Commande reçue sur votre produit</span>
+                      ) : null}
+                    </div>
+                  )}
+                  <div className="flex justify-center w-full">
+                  <button
+                    onClick={() => router.push(`${localePrefix}/user/orders/${lastOrder.isOrderSender ? 'sent' : 'received'}?orderid=${lastOrder.order.id}`)}
+                    className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 ml-auto"
+                  >
+                    Voir la commande
+                    <ArrowRight size={18} />
+                  </button>
+                  </div>
+                </div>
+              )}
+
               {/* Informations spécifiques pour les véhicules */}
               {product.listingType === 'vehicle' && specificData && (
-                <div className="grid grid-cols-2 gap-4 mt-4 p-4 bg-gray-50 rounded-lg">
+                <div className="grid grid-cols-2 gap-4 mt- p-4 bg-gray-50 rounded-lg">
                   {specificData.year && (
                     <div>
                       <span className="text-sm text-gray-500">Année:</span>
@@ -416,30 +541,30 @@ const ProductDetails = () => {
 
             {/* Section Reprise */}
             {product.repriseCategories && product.repriseCategories.length > 0 && (
-            <div className="bg-gray-50 rounded-2xl p-6">
-              <div className="flex items-center gap-3 mb-4">
+              <div className="bg-gray-50 rounded-2xl p-6">
+                <div className="flex items-center gap-3 mb-4">
                   <span className="text-lg font-semibold text-blue-600"> {product.seller?.firstName} {product.seller?.lastName} veux faire une reprise avec :</span>
-              </div>
-              
-              <div className="mb-4">
+                </div>
+
+                <div className="mb-4">
                   <h3 className="font-medium text-gray-900 mb-2"> les catégories acceptées :</h3>
                   <div className="flex flex-wrap gap-2">
                     {product.repriseCategories.map((category) => (
                       <div
                         key={category.id}
-                      className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-gray-200"
-                    >
-                      <img
+                        className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-gray-200"
+                      >
+                        <img
                           src={category.icon}
                           alt={category.name}
                           className="w-5 h-5 object-contain"
                         />
                         <span className="text-sm font-medium text-gray-700">{category.name}</span>
-                    </div>
-                  ))}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
             )}
 
             {/* Informations du vendeur et du magasin */}
@@ -479,8 +604,8 @@ const ProductDetails = () => {
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
                       <span className="text-blue-600 font-semibold text-sm">M</span>
-            </div>
-            <div>
+                    </div>
+                    <div>
                       <p className="font-medium text-gray-900">{product.store.name}</p>
                       <p className="text-sm text-gray-500">{product.store.description}</p>
                       <div className="flex items-center gap-2 mt-1">
@@ -488,9 +613,9 @@ const ProductDetails = () => {
                           }`}>
                           {product.store.isActive ? 'Actif' : 'Inactif'}
                         </span>
-            </div>
-          </div>
-        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -530,27 +655,27 @@ const ProductDetails = () => {
 
       {/* Bouton de reprise fixe (caché si ce produit est le mien) */}
       {currentUser?.id !== product.sellerId && (
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-50">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button className="w-12 h-12 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
-              <Plus size={24} className="text-gray-600" />
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-50">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button className="w-12 h-12 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
+                <Plus size={24} className="text-gray-600" />
+              </button>
+              <span className="text-sm text-gray-600">Ajouter un produit à cette reprise</span>
+            </div>
+            <button onClick={() => { setIsRepriseOpen(true); setRepriseStep(1); }} className=" flex bg-pink-500 hover:bg-pink-600 text-white px-8 py-3 rounded-lg font-semibold transition-colors">
+              REPRISE
+              <WhiteRepriseIcon />
             </button>
-            <span className="text-sm text-gray-600">Ajouter un produit à cette reprise</span>
           </div>
-          <button onClick={() => { setIsRepriseOpen(true); setRepriseStep(1); }} className=" flex bg-pink-500 hover:bg-pink-600 text-white px-8 py-3 rounded-lg font-semibold transition-colors">
-            REPRISE
-            <WhiteRepriseIcon />
-          </button>
         </div>
-      </div>
       )}
 
       {/* Modal Reprise (extrait en composant) */}
       <RepriseOrderModal
         isOpen={isRepriseOpen}
         onClose={() => setIsRepriseOpen(false)}
-        target={{ id: product.id, title: product.title, image: product.images[0], price: product.price }}
+        target={{ id: product.id, title: product.title, image: imageUrls[0], price: product.price, sellerId: product.sellerId }}
       />
     </div>
   );

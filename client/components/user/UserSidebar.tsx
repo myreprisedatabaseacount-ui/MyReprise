@@ -77,8 +77,8 @@ export const UserSidebar: React.FC = () => {
       <aside
         className={`
           fixed left-0 top-0 h-full bg-white/95 backdrop-blur-sm border-r border-gray-100 
-          transition-all duration-300 ease-out z-50 group
-          ${isMobile ? `${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} w-64` : `${isExpanded ? 'w-64' : 'w-16'} hover:w-64`}
+          transition-all duration-300 ease-out z-50 overflow-hidden
+          ${isMobile ? `${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} w-64` : `${isExpanded ? 'w-64' : 'w-16'}`}
         `}
         onMouseEnter={() => !isMobile && setIsExpanded(true)}
         onMouseLeave={() => !isMobile && setIsExpanded(false)}
@@ -97,14 +97,6 @@ export const UserSidebar: React.FC = () => {
             <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
               <div className="w-4 h-4 bg-white rounded-sm"></div>
             </div>
-            <span
-              className={`
-                font-semibold text-gray-800 transition-all duration-300 ease-out
-                ${isMobile || isExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2 md:group-hover:opacity-100 md:group-hover:translate-x-0'}
-              `}
-            >
-              Mon espace
-            </span>
           </div>
         </div>
 
@@ -130,7 +122,7 @@ export const UserSidebar: React.FC = () => {
                   <span
                     className={`
                       ml-3 font-medium transition-all duration-300 ease-out whitespace-nowrap
-                      ${isMobile || isExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2 md:group-hover:opacity-100 md:group-hover:translate-x-0'}
+                    ${isMobile || isExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2'}
                     `}
                   >
                     {item.label}
@@ -143,23 +135,6 @@ export const UserSidebar: React.FC = () => {
             );
           })}
         </nav>
-
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100 bg-white/80">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-blue-500 rounded-full flex items-center justify-center">
-              <span className="text-white text-sm font-medium">{initials || 'ME'}</span>
-            </div>
-            <div
-              className={`
-                transition-all duration-300 ease-out
-                ${isMobile || isExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2 md:group-hover:opacity-100 md:group-hover:translate-x-0'}
-              `}
-            >
-              <div className="text-sm font-medium text-gray-800">{userRole ? userRole.toString() : 'Utilisateur'}</div>
-              <div className="text-xs text-gray-500">Espace personnel</div>
-            </div>
-          </div>
-        </div>
       </aside>
     </div>
   );

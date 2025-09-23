@@ -61,6 +61,16 @@ async function initializeModels() {
       UserSnapshot = null;
     }
     
+    // Associer Order <-> UserSnapshot (pour jointures sur 'Order')
+    try {
+      if (Order && UserSnapshot) {
+        Order.hasMany(UserSnapshot, { foreignKey: 'order_id', as: 'UserSnapshots' });
+        UserSnapshot.belongsTo(Order, { foreignKey: 'order_id', as: 'Order' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association Order <-> UserSnapshot:', error.message);
+    }
+
     try {
       ProductSnapshot = createProductSnapshotModel(sequelize);
     } catch (error) {
