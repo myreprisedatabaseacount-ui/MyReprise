@@ -1,0 +1,237 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Settings,
+  Package,
+  RefreshCw,
+  BarChart3,
+  FileText,
+  Menu,
+  X,
+  Store,
+  LogOut
+} from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useCurrentUser } from '../../../../../../services/hooks/useCurrentUser';
+import { useResponsive } from '../hooks/useResponsive';
+
+interface NavItem {
+  id: string;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+}
+
+const navItems: NavItem[] = [
+  { id: 'content', icon: Settings, label: 'Gestion de contenu' },
+  { id: 'offers', icon: Package, label: 'Gestion des offres' },
+  { id: 'reprise', icon: RefreshCw, label: 'Demandes reprise' },
+  { id: 'recommendations', icon: FileText, label: 'Recommandations' },
+  { id: 'statistics', icon: BarChart3, label: 'Statistiques' },
+];
+
+interface StoreSidebarProps {
+  activeSection: string;
+  onSectionChange: (section: string) => void;
+  store?: any;
+}
+
+export const StoreSidebar: React.FC<StoreSidebarProps> = ({ 
+  activeSection, 
+  onSectionChange, 
+  store 
+}) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { logout } = useCurrentUser();
+  const router = useRouter();
+  const { isMobile, isDesktop } = useResponsive();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      // Attendre un peu pour que l'état Redux soit mis à jour et que le navbar se synchronise
+      await new Promise(resolve => setTimeout(resolve, 200));
+      // Redirection vers la page d'accueil après déconnexion
+      router.push('/');
+    } catch (error) {
+      console.error('Erreur lors de la déconnexion:', error);
+      // Redirection même en cas d'erreur pour s'assurer que l'utilisateur soit déconnecté
+      router.push('/');
+    }
+  };
+
+  // Fermer le menu mobile quand on change de section
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      setIsMobileMenuOpen(false);
+    }
+  }, [activeSection]);
+
+  return (
+    <div>
+      {/* Burger Menu Button - affiché quand la sidebar est cachée */}
+      <button
+        onClick={() => setIsMobileMenuOpen(true)}
+        className={`fixed top-4 left-4 z-50 p-2 bg-white shadow-lg rounded-lg hover:shadow-xl transition-shadow duration-200 ${
+          isDesktop ? 'hidden' : 'block'
+        }`}
+      >
+        <Menu className="w-6 h-6 text-gray-700" />
+      </button>
+
+      {/* Mobile Overlay */}
+      {isMobileMenuOpen && !isDesktop && (
+        <div 
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity duration-300"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={`
+          fixed left-0 top-0 h-full bg-white/95 backdrop-blur-sm border-r border-gray-100 
+          transition-all duration-300 ease-out z-50 group
+          ${isDesktop ? 
+            `${isExpanded ? 'w-64' : 'w-16'} hover:w-64` :
+            `${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} w-64`
+          }
+        `}
+        onMouseEnter={() => !isMobile && setIsExpanded(true)}
+        onMouseLeave={() => !isMobile && setIsExpanded(false)}
+      >
+        {/* Mobile Close Button */}
+        {isMobile && (
+          <button
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg transition-colors duration-200"
+          >
+            <X className="w-5 h-5 text-gray-600" />
+          </button>
+        )}
+
+        {/* Logo Area */}
+        <div className="p-4 border-b border-gray-100">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
+              {store?.logo ? (
+                <img
+                  src={store.logo}
+                  alt="Store Logo"
+                  className="w-full h-full object-cover rounded-lg"
+                />
+              ) : (
+                <div 
+                  className="w-full h-full rounded-lg flex items-center justify-center"
+                  style={{ 
+                    background: store?.primaryColor 
+                      ? `linear-gradient(135deg, ${store.primaryColor} 0%, ${store?.secondaryColor || '#ffa500'} 100%)`
+                      : 'linear-gradient(135deg, #4169e1 0%, #ffa500 100%)'
+                  }}
+                >
+                  <Store className="w-4 h-4 text-white" />
+                </div>
+              )}
+            </div>
+            <span 
+              className={`
+                font-semibold text-gray-800 transition-all duration-300 ease-out
+                ${isMobile || isExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2 md:group-hover:opacity-100 md:group-hover:translate-x-0'}
+              `}
+            >
+              {store?.name || 'Mon Store'}
+            </span>
+          </div>
+        </div>
+
+        {/* Navigation */}
+        <nav className="p-2 space-y-1">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeSection === item.id;
+            
+            return (
+              <div key={item.id} className="relative group/item">
+                <button
+                  onClick={() => {
+                    onSectionChange(item.id);
+                    if (isMobile) {
+                      setIsMobileMenuOpen(false);
+                    }
+                  }}
+                  className={`
+                    w-full relative flex items-center px-3 py-3 rounded-lg transition-all duration-200 ease-out
+                    ${isActive 
+                      ? 'text-white shadow-sm' 
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
+                    }
+                  `}
+                  style={isActive ? {
+                    backgroundColor: store?.primaryColor || '#4169e1'
+                  } : {}}
+                >
+                  <Icon 
+                    className={`
+                      w-5 h-5 flex-shrink-0 transition-colors duration-200
+                      ${isActive ? 'text-white' : 'text-gray-500 group-hover/item:text-gray-700'}
+                    `} 
+                  />
+                  <span 
+                    className={`
+                      ml-3 font-medium transition-all duration-300 ease-out whitespace-nowrap
+                      ${isMobile || isExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2 md:group-hover:opacity-100 md:group-hover:translate-x-0'}
+                    `}
+                  >
+                    {item.label}
+                  </span>
+
+                  {/* Active indicator */}
+                  {isActive && (
+                    <div 
+                      className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full"
+                      style={{ backgroundColor: store?.secondaryColor || '#ffa500' }}
+                    ></div>
+                  )}
+                </button>
+
+                {/* Tooltip for collapsed state */}
+                {!isMobile && !isExpanded && (
+                  <div className="
+                    absolute left-full ml-2 top-1/2 -translate-y-1/2 
+                    bg-gray-800 text-white text-sm py-1 px-3 rounded-lg 
+                    opacity-0 invisible group-hover/item:opacity-100 group-hover/item:visible
+                    transition-all duration-200 ease-out delay-300
+                    pointer-events-none z-50 whitespace-nowrap
+                    before:content-[''] before:absolute before:left-[-4px] before:top-1/2 before:-translate-y-1/2
+                    before:border-4 before:border-transparent before:border-r-gray-800
+                  ">
+                    {item.label}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </nav>
+
+        {/* Bottom Section - Logout Button */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100 bg-white/80">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center px-3 py-3 rounded-lg transition-all duration-200 ease-out text-red-600 hover:bg-red-50 hover:text-red-700"
+          >
+            <LogOut className="w-5 h-5 flex-shrink-0" />
+            <span 
+              className={`
+                ml-3 font-medium transition-all duration-300 ease-out whitespace-nowrap
+                ${isMobile || isExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2 md:group-hover:opacity-100 md:group-hover:translate-x-0'}
+              `}
+            >
+              Déconnexion
+            </span>
+          </button>
+        </div>
+      </aside>
+    </div>
+  );
+};
+
+export default StoreSidebar;

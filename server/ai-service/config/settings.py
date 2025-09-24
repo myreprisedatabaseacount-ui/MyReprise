@@ -3,9 +3,10 @@ Configuration des paramètres pour le service IA
 """
 
 import os
-from typing import List, Optional
+import json
+from typing import List, Optional, Union
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, field_validator
 
 class Settings(BaseSettings):
     """Configuration principale du service IA"""
@@ -48,15 +49,25 @@ class Settings(BaseSettings):
     algorithm: str = Field(default="HS256", env="ALGORITHM")
     access_token_expire_minutes: int = Field(default=30, env="ACCESS_TOKEN_EXPIRE_MINUTES")
     
-    # CORS
-    allowed_origins: List[str] = Field(
-        default=["http://localhost:3000", "https://myreprise.com"],
+    # CORS - Stockage temporaire en string pour éviter les problèmes de parsing
+    allowed_origins_str: str = Field(
+        default="http://localhost:3000,https://myreprise.com",
         env="ALLOWED_ORIGINS"
     )
-    allowed_hosts: List[str] = Field(
-        default=["localhost", "127.0.0.1", "myreprise.com"],
+    allowed_hosts_str: str = Field(
+        default="localhost,127.0.0.1,myreprise.com",
         env="ALLOWED_HOSTS"
     )
+    
+    @property
+    def allowed_origins(self) -> List[str]:
+        """Retourne la liste des origines autorisées"""
+        return [item.strip() for item in self.allowed_origins_str.split(',') if item.strip()]
+    
+    @property
+    def allowed_hosts(self) -> List[str]:
+        """Retourne la liste des hôtes autorisés"""
+        return [item.strip() for item in self.allowed_hosts_str.split(',') if item.strip()]
     
     # Configuration des modèles ML
     ai_model_cache_dir: str = Field(default="./models", env="MODEL_CACHE_DIR")
@@ -112,8 +123,11 @@ class Settings(BaseSettings):
     # Configuration de production
     class Config:
         env_file = ".env"
+        env_file_encoding = "utf-8"
         case_sensitive = False
         protected_namespaces = ('settings_',)  # Fix Pydantic conflict
+        # Ignorer les erreurs de parsing pour les champs optionnels
+        extra = "ignore"
         
     def get_database_url(self) -> str:
         """Retourne l'URL de la base de données avec le schéma MySQL"""

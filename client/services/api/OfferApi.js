@@ -100,8 +100,17 @@ export const OfferApi = createApi({
 
     // Query pour récupérer les offres par vendeur
     getOffersBySeller: builder.query({
-      query: (sellerId) => `/api/offers/seller/${sellerId}`,
-      providesTags: (result, error, sellerId) => [{ type: 'Offer', id: sellerId }],
+      query: ({ sellerId, page = 1, limit = 10, search, status, category }) => ({
+        url: `/api/offers/seller/${sellerId}`,
+        params: { 
+          page, 
+          limit,
+          ...(search && { search }),
+          ...(status && { status }),
+          ...(category && { category })
+        }
+      }),
+      providesTags: (result, error, { sellerId }) => [{ type: 'Offer', id: sellerId }],
     }),
 
     // Query pour récupérer les offres par catégorie
@@ -211,6 +220,17 @@ export const OfferApi = createApi({
       }),
       providesTags: ['Offer'],
     }),
+
+    // Mutation pour changer le statut d'une offre
+    updateOfferStatus: builder.mutation({
+      query: ({ id, status }) => ({
+        url: `/api/offers/${id}/status`,
+        method: 'PUT',
+        body: { status },
+      }),
+      invalidatesTags: (result, error, { id }) => [{ type: 'Offer', id }],
+    }),
+
   }),
 });
 
@@ -227,4 +247,5 @@ export const {
   useArchiveOfferMutation,
   useExchangeOfferMutation,
   useSearchOffersQuery,
+  useUpdateOfferStatusMutation,
 } = OfferApi;

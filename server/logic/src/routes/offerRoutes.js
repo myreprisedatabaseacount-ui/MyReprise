@@ -102,7 +102,11 @@ offerRoutes.put("/:id/archive", updateOffer);
 // Route pour échanger une offre
 offerRoutes.put("/:id/exchange", updateOffer);
 
+// Route pour changer le statut d'une offre
+offerRoutes.put("/:id/status", updateOffer);
+
 // Route pour supprimer une offre
 offerRoutes.delete("/:id", deleteOffer);
+
 
 module.exports = offerRoutes;
