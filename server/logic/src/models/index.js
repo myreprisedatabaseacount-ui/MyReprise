@@ -225,6 +225,42 @@ async function initializeModels() {
     }
     
     try {
+      if (Offer && Category) {
+        Offer.belongsTo(Category, { foreignKey: 'categoryId', as: 'category' });
+        Category.hasMany(Offer, { foreignKey: 'categoryId', as: 'offers' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association Offer <-> Category:', error.message);
+    }
+    
+    try {
+      if (Offer && Brand) {
+        Offer.belongsTo(Brand, { foreignKey: 'brandId', as: 'brand' });
+        Brand.hasMany(Offer, { foreignKey: 'brandId', as: 'offers' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association Offer <-> Brand:', error.message);
+    }
+    
+    try {
+      if (Offer && Subject) {
+        Offer.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
+        Subject.hasMany(Offer, { foreignKey: 'subjectId', as: 'offers' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association Offer <-> Subject:', error.message);
+    }
+    
+    try {
+      if (Offer && User) {
+        Offer.belongsTo(User, { foreignKey: 'sellerId', as: 'seller' });
+        User.hasMany(Offer, { foreignKey: 'sellerId', as: 'offers' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association Offer <-> User:', error.message);
+    }
+    
+    try {
       if (User && Delta) {
         User.hasMany(Delta, { foreignKey: 'sender_id', as: 'SentDeltas' });
         User.hasMany(Delta, { foreignKey: 'receiver_id', as: 'ReceivedDeltas' });
@@ -429,5 +465,14 @@ async function initializeModels() {
 }
 
 module.exports = {
+  Offer,
+  Product,
+  Category,
+  Brand,
+  Subject,
+  User,
+  Address,
+  Store,
+  Order,
   initializeModels
 };

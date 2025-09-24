@@ -1,7 +1,13 @@
 const { DataTypes } = require('sequelize');
 const db = require('../config/db');
 
+
 const sequelize = db.getSequelize();
+const Category = sequelize.models.Category;
+const Brand = sequelize.models.Brand;
+const Subject = sequelize.models.Subject;
+const Address = sequelize.models.Address;
+const User = sequelize.models.User;
 
 const Offer = sequelize.define('Offer', {
     id: {
@@ -645,6 +651,106 @@ Offer.findWithPagination = async function(page = 1, limit = 10, filters = {}) {
 };
 
 /**
+ * Méthode pour récupérer les offres avec leurs détails (category, brand, subject)
+ */
+Offer.getOffersWithDetails = async function(page = 1, limit = 10, filters = {}) {
+
+    // Récupérer les offres de base
+    const result = await Offer.findWithPagination(page, limit, filters);
+    
+    // Récupérer les détails pour chaque offre
+    const offersWithDetails = await Promise.all(result.offers.map(async (offer) => {
+        const offerData = offer.getPublicData();
+        
+        // Récupérer les détails de la catégorie
+        let categoryDetails = null;
+        if (offer.categoryId) {
+            const category = await Category.findByPk(offer.categoryId);
+            if (category) {
+                categoryDetails = {
+                    id: category.id,
+                    name: category.name,
+                    nameAr: category.nameAr,
+                    nameFr: category.nameFr
+                };
+            }
+        }
+        
+        // Récupérer les détails de la marque
+        let brandDetails = null;
+        if (offer.brandId) {
+            const brand = await Brand.findByPk(offer.brandId);
+            if (brand) {
+                brandDetails = {
+                    id: brand.id,
+                    name: brand.name,
+                    nameAr: brand.nameAr,
+                    nameFr: brand.nameFr
+                };
+            }
+        }
+        
+        // Récupérer les détails du sujet
+        let subjectDetails = null;
+        if (offer.subjectId) {
+            const subject = await Subject.findByPk(offer.subjectId);
+            if (subject) {
+                subjectDetails = {
+                    id: subject.id,
+                    name: subject.name,
+                    nameAr: subject.nameAr,
+                    nameFr: subject.nameFr
+                };
+            }
+        }
+        
+        // Récupérer les détails de l'adresse
+        let addressDetails = null;
+        if (offer.addressId) {
+            const address = await Address.findByPk(offer.addressId);
+            if (address) {
+                addressDetails = {
+                    id: address.id,
+                    city: address.city,
+                    region: address.region,
+                    country: address.country
+                };
+            }
+        }
+        
+        // Récupérer les détails du vendeur
+        let sellerDetails = null;
+        if (offer.sellerId) {
+            const seller = await User.findByPk(offer.sellerId);
+            if (seller) {
+                sellerDetails = {
+                    id: seller.id,
+                    firstName: seller.firstName,
+                    lastName: seller.lastName,
+                    email: seller.email
+                };
+            }
+        }
+        
+        return {
+            ...offerData,
+            category: categoryDetails,
+            brand: brandDetails,
+            subject: subjectDetails,
+            address: addressDetails,
+            seller: sellerDetails
+        };
+    }));
+    
+    return {
+        offers: offersWithDetails,
+        totalCount: result.totalCount,
+        totalPages: result.totalPages,
+        currentPage: result.currentPage
+    };
+};
+
+/**
  * Trouve les offres avec leurs adresses associées
  */
 Offer.findWithAddresses = async function(filters = {}) {
@@ -720,5 +826,6 @@ Offer.getOfferStats = async function() {
         availablePercentage: totalOffers > 0 ? Math.round((availableOffers / totalOffers) * 100) : 0
     };
 };
+
 
 module.exports = { Offer };

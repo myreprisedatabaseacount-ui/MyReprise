@@ -48,6 +48,7 @@ const authenticateToken = async (req, res, next) => {
             primaryIdentifier: decoded.primaryIdentifier,
             authProvider: decoded.authProvider
         };
+        req.isAuthenticated = true;
 
         next();
 

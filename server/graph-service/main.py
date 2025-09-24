@@ -13,6 +13,9 @@ import os
 import logging
 from datetime import datetime
 
+# Import des nouveaux endpoints
+from user_preferences import router as user_preferences_router
+
 # Configuration des logs
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -31,6 +34,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Inclure les routes des préférences utilisateur
+app.include_router(user_preferences_router)
 
 # Configuration Neo4j
 NEO4J_URI = os.getenv('NEO4J_URI', 'bolt://localhost:7687')

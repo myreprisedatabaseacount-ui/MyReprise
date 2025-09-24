@@ -78,6 +78,16 @@ export const useCurrentUser = () => {
     } finally {
       // Nettoyer l'état local dans tous les cas
       dispatch(clearCurrentUser());
+      
+      // Vider complètement le cache RTK Query
+      dispatch({ type: 'userApi/reset' });
+      dispatch({ type: 'offerApi/reset' });
+      dispatch({ type: 'storeApi/reset' });
+      
+      // Invalider tous les tags pour forcer un re-fetch
+      dispatch({ type: 'userApi/invalidateTags', payload: ['User', 'Users'] });
+      dispatch({ type: 'offerApi/invalidateTags', payload: ['Offer', 'Offers'] });
+      dispatch({ type: 'storeApi/invalidateTags', payload: ['UserStore', 'Store'] });
     }
   };
 

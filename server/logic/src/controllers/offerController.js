@@ -12,12 +12,12 @@ const OfferImage = createOfferImageModel(sequelize);
 // Fonction utilitaire pour extraire le public_id d'une URL Cloudinary
 const extractPublicIdFromUrl = (url) => {
   if (!url) return null;
-  
+
   try {
     // Format URL: https://res.cloudinary.com/.../image/upload/v1234567890/offers/images/uyh8qxffruxt1weq8e9y.jpg
     const urlParts = url.split('/');
     const uploadIndex = urlParts.findIndex(part => part === 'upload');
-    
+
     if (uploadIndex !== -1 && urlParts[uploadIndex + 2]) {
       // Prendre TOUS les segments après 'upload/v1234567890/' pour reconstituer le chemin complet
       const pathSegments = urlParts.slice(uploadIndex + 2);
@@ -27,7 +27,7 @@ const extractPublicIdFromUrl = (url) => {
       console.log("🔍 Public ID extrait:", publicId, "depuis:", url);
       return publicId;
     }
-    
+
     console.warn("⚠️ Impossible d'extraire le public_id de l'URL:", url);
     return null;
   } catch (error) {
@@ -39,7 +39,7 @@ const extractPublicIdFromUrl = (url) => {
 // Fonction utilitaire pour nettoyer les fichiers uploadés en cas d'erreur
 const cleanupUploadedFiles = async (publicIds) => {
   if (!publicIds || publicIds.length === 0) return;
-  
+
   try {
     await cloudinaryService.deleteMultipleFiles(publicIds);
     console.log("✅ Fichiers supprimés après erreur:", publicIds);
@@ -50,7 +50,7 @@ const cleanupUploadedFiles = async (publicIds) => {
 
 const createOffer = async (req, res) => {
   let uploadedPublicIds = [];
-  
+
   try {
     const {
       title,
@@ -200,7 +200,7 @@ const createOffer = async (req, res) => {
           color: null, // Peut être rempli plus tard si nécessaire
           colorHex: null
         };
-        
+
         const offerImage = await OfferImage.create(imageData);
         offerImages.push(offerImage);
         console.log(`✅ Image ${i + 1} créée avec ID:`, offerImage.id);
@@ -226,10 +226,10 @@ const createOffer = async (req, res) => {
 
       return res.status(201).json({
         success: true,
-        data: { 
-          id: offer.id, 
+        data: {
+          id: offer.id,
           productId: product.id,
-          title: offer.title, 
+          title: offer.title,
           price: offer.price,
           images: offerImagesData, // Images depuis OfferImage
           listingType: offer.listingType,
@@ -292,7 +292,7 @@ const getOffers = async (req, res) => {
 
     // Construire les filtres
     const filters = {};
-    
+
     if (listingType) filters.listingType = listingType;
     if (categoryId) filters.categoryId = parseInt(categoryId);
     if (brandId) filters.brandId = parseInt(brandId);
@@ -305,10 +305,10 @@ const getOffers = async (req, res) => {
     if (maxPrice) filters.maxPrice = parseFloat(maxPrice);
     if (search) filters.search = search;
 
-    // Récupérer les offres avec pagination
-    const result = await Offer.findWithPagination(
-      parseInt(page), 
-      parseInt(limit), 
+    // Récupérer les offres avec pagination et détails
+    const result = await Offer.getOffersWithDetails(
+      parseInt(page),
+      parseInt(limit),
       filters
     );
 
@@ -342,24 +342,22 @@ const getOffers = async (req, res) => {
 
     // Récupérer les images depuis OfferImage pour chaque offre
     const offersWithImages = await Promise.all(result.offers.map(async (offer) => {
-      const offerData = offer.getPublicData();
-      
       // Récupérer les images depuis OfferImage
       const offerImages = await OfferImage.findAll({
         where: { offerId: offer.id },
         order: [['isMain', 'DESC'], ['id', 'ASC']] // Image principale en premier
-        
       });
-      
-      offerData.images = offerImages.map(img => ({
-        id: img.id,
-        imageUrl: img.imageUrl,
-        isMain: img.isMain,
-        color: img.color,
-        colorHex: img.colorHex
-      }));
-      
-      return offerData;
+
+      return {
+        ...offer,
+        images: offerImages.map(img => ({
+          id: img.id,
+          imageUrl: img.imageUrl,
+          isMain: img.isMain,
+          color: img.color,
+          colorHex: img.colorHex
+        }))
+      };
     }));
 
     return res.status(200).json({
@@ -386,7 +384,7 @@ const getOffers = async (req, res) => {
 const getOfferById = async (req, res) => {
   try {
     const offerId = req.params.id;
-    
+
     if (!offerId) {
       return res.status(400).json({
         error: "ID d'offre requis"
@@ -395,20 +393,20 @@ const getOfferById = async (req, res) => {
 
     // Utiliser la nouvelle méthode pour récupérer l'offre avec toutes ses relations
     const offerData = await Offer.findCompleteById(offerId);
-    
+
     if (!offerData) {
       return res.status(404).json({
         error: "Offre non trouvée"
       });
     }
 
-    
+
     // Récupérer les images depuis OfferImage
     const offerImages = await OfferImage.findAll({
       where: { offerId: parseInt(offerId) },
       order: [['isMain', 'DESC'], ['id', 'ASC']] // Image principale en premier
     });
-    
+
     offerData.images = offerImages.map(img => ({
       id: img.id,
       imageUrl: img.imageUrl,
@@ -436,6 +434,7 @@ const updateOffer = async (req, res) => {
   try {
     const offerId = req.params.id;
     const updateData = req.body;
+    const route = req.route.path;
 
     const offer = await Offer.findByPk(offerId);
     if (!offer) {
@@ -444,13 +443,74 @@ const updateOffer = async (req, res) => {
       });
     }
 
-    const updatedOffer = await Offer.updateOffer(offerId, updateData);
+    // Gérer les différentes routes
+    if (route === '/:id/status') {
+      // Changer seulement le statut
+      if (!updateData.status) {
+        return res.status(400).json({
+          error: "Statut requis"
+        });
+      }
 
-    return res.status(200).json({
-      success: true,
-      data: updatedOffer.getPublicData(),
-      message: "Offre mise à jour avec succès"
-    });
+      const validStatuses = ['available', 'exchanged', 'archived'];
+      if (!validStatuses.includes(updateData.status)) {
+        return res.status(400).json({
+          error: "Statut invalide. Valeurs autorisées: available, exchanged, archived"
+        });
+      }
+
+      // Vérifier si l'offre a été échangée
+      if (offer.replacedByOfferId !== null && offer.replacedByOfferId !== undefined) {
+        return res.status(400).json({
+          error: "Cet article n'est pas disponible chez vous actuellement",
+          details: "Cette offre a été échangée et ne peut plus être modifiée"
+        });
+      }
+
+      await offer.update({ status: updateData.status });
+
+      return res.status(200).json({
+        success: true,
+        data: offer.getPublicData(),
+        message: `Statut de l'offre changé vers ${updateData.status}`
+      });
+    } else if (route === '/:id/archive') {
+      // Archiver l'offre
+      await offer.update({ status: 'archived' });
+
+      return res.status(200).json({
+        success: true,
+        data: offer.getPublicData(),
+        message: "Offre archivée avec succès"
+      });
+    } else if (route === '/:id/exchange') {
+      // Échanger l'offre
+      if (!updateData.replacedByOfferId) {
+        return res.status(400).json({
+          error: "ID de l'offre de remplacement requis"
+        });
+      }
+
+      await offer.update({
+        status: 'exchanged',
+        replacedByOfferId: updateData.replacedByOfferId
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: offer.getPublicData(),
+        message: "Offre échangée avec succès"
+      });
+    } else {
+      // Mise à jour complète de l'offre
+      const updatedOffer = await Offer.updateOffer(offerId, updateData);
+
+      return res.status(200).json({
+        success: true,
+        data: updatedOffer.getPublicData(),
+        message: "Offre mise à jour avec succès"
+      });
+    }
 
   } catch (error) {
     console.error("❌ Erreur updateOffer:", error);
@@ -464,6 +524,7 @@ const updateOffer = async (req, res) => {
 const deleteOffer = async (req, res) => {
   try {
     const offerId = req.params.id;
+    const route = req.route.path;
 
     const offer = await Offer.findByPk(offerId);
     if (!offer) {
@@ -472,6 +533,7 @@ const deleteOffer = async (req, res) => {
       });
     }
 
+    // Suppression logique uniquement (marquer comme supprimée)
     await Offer.deleteOffer(offerId);
 
     return res.status(200).json({
