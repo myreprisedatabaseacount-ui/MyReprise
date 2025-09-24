@@ -94,10 +94,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem = 'dashboard' }) =>
       <aside
         className={`
           fixed left-0 top-0 h-full bg-white/95 backdrop-blur-sm border-r border-gray-100 
-          transition-all duration-300 ease-out z-50 group
+          transition-all duration-300 ease-out z-50 overflow-hidden
           ${isMobile ? 
             `${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} w-64` : 
-            `${isExpanded ? 'w-64' : 'w-16'} hover:w-64`
+            `${isExpanded ? 'w-64' : 'w-16'}`
           }
         `}
         onMouseEnter={() => !isMobile && setIsExpanded(true)}
@@ -122,7 +122,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem = 'dashboard' }) =>
             <span 
               className={`
                 font-semibold text-gray-800 transition-all duration-300 ease-out
-                ${isMobile || isExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2 md:group-hover:opacity-100 md:group-hover:translate-x-0'}
+                ${isMobile || isExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2'}
               `}
             >
               Dashboard
@@ -157,7 +157,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem = 'dashboard' }) =>
                   <span 
                     className={`
                       ml-3 font-medium transition-all duration-300 ease-out whitespace-nowrap
-                      ${isMobile || isExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2 md:group-hover:opacity-100 md:group-hover:translate-x-0'}
+                      ${isMobile || isExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2'}
                     `}
                   >
                     {item.label}
@@ -195,7 +195,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem = 'dashboard' }) =>
             <div 
               className={`
                 transition-all duration-300 ease-out
-                ${isMobile || isExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2 md:group-hover:opacity-100 md:group-hover:translate-x-0'}
+                ${isMobile || isExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2'}
               `}
             >
               <div className="text-sm font-medium text-gray-800">John Doe</div>

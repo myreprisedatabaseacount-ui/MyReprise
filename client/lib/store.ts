@@ -12,6 +12,7 @@ import authReducer from '../services/slices/authSlice';
 import userReducer from '../services/slices/userSlice';
 import productReducer from '../services/slices/productSlice';
 import { callApi } from '../services/api/callApi';
+import { RepriseOrderApi } from '../services/api/RepriseOrderApi';
 
 const configurestore = configureStore({
   reducer: {
@@ -25,6 +26,7 @@ const configurestore = configureStore({
     [AddressApi.reducerPath]: AddressApi.reducer,
     [userStoreApi.reducerPath]: userStoreApi.reducer,
     [callApi.reducerPath]: callApi.reducer,
+    [RepriseOrderApi.reducerPath]: RepriseOrderApi.reducer,
     auth: authReducer,
     user: userReducer,
     product: productReducer,
@@ -54,6 +56,7 @@ const configurestore = configureStore({
       .concat(AddressApi.middleware)
       .concat(userStoreApi.middleware)
       .concat(callApi.middleware)
+      .concat(RepriseOrderApi.middleware)
 });
 export default configurestore;
 export type RootState = ReturnType<typeof configurestore.getState>;
