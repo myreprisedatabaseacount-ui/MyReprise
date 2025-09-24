@@ -111,10 +111,11 @@ Store.prototype.getPublicData = function() {
         id: this.id,
         name: this.name,
         description: this.description,
-        logo: this.logo,
-        banner: this.banner,
-        secondaryColor: this.secondaryColor,
-        primaryColor: this.primaryColor,
+        // logo et banner peuvent ne pas exister en base selon le schéma actuel
+        logo: this.logo || null,
+        banner: this.banner || null,
+        secondaryColor: this.secondaryColor || null,
+        primaryColor: this.primaryColor || null,
         isActive: this.isActive,
         createdAt: this.createdAt
     };
@@ -147,7 +148,9 @@ Store.prototype.isStoreActive = function() {
  */
 Store.findByUserId = function(userId) {
     return this.findOne({
-        where: { userId: userId }
+        where: { userId: userId },
+        // Limiter aux colonnes garanties pour éviter les erreurs de colonnes inconnues
+        attributes: ['id', 'userId', 'name', 'description', 'isActive', 'createdAt', 'updatedAt']
     });
 };
 

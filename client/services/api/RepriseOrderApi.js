@@ -39,9 +39,17 @@ export const RepriseOrderApi = createApi({
       providesTags: ['RepriseOrder'],
       keepUnusedDataFor: 60,
     }),
+    getNegotiationInitByOrderId: builder.query({
+      query: (orderId) => ({
+        url: `/api/reprise-orders/negotiation-init/${orderId}`,
+        method: 'GET',
+      }),
+      providesTags: ['RepriseOrder'],
+      keepUnusedDataFor: 60,
+    }),
   }),
 });
 
-export const { useCreateRepriseOrderMutation, useListReceivedOrdersOnMyOffersQuery, useGetOrderDetailsQuery } = RepriseOrderApi;
+export const { useCreateRepriseOrderMutation, useListReceivedOrdersOnMyOffersQuery, useGetOrderDetailsQuery, useGetNegotiationInitByOrderIdQuery } = RepriseOrderApi;
 
 

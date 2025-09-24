@@ -28,8 +28,8 @@ const { Subject } = require('./Subject');
 const { SubjectCategory } = require('./SubjectCategory');
 const { BrandCategory } = require('./BrandCategory');
 const createOfferImageModel = require('./OfferImage');
-const createUserSnapshotModel = require('./UserSnapshot');
-const createProductSnapshotModel = require('./ProductSnapshot');
+const { UserSnapshot } = require('./UserSnapshot');
+const { ProductSnapshot } = require('./ProductSnapshot');
 const createDeliveryCompanyModel = require('./DeliveryCompany');
 const createDeliveryInfoModel = require('./DeliveryInfo');
 const createSettingModel = require('./Setting');
@@ -40,7 +40,7 @@ async function initializeModels() {
     const sequelize = db.getSequelize();
     
     // Créer les modèles avec gestion d'erreur
-    let OfferImage, UserSnapshot, ProductSnapshot;
+    let OfferImage;
     let DeliveryCompany, DeliveryInfo, Setting;
     
     // Offer déjà importé
@@ -54,13 +54,6 @@ async function initializeModels() {
     
     // Order déjà importé
     
-    try {
-      UserSnapshot = createUserSnapshotModel(sequelize);
-    } catch (error) {
-      console.error('❌ Erreur création UserSnapshot:', error.message);
-      UserSnapshot = null;
-    }
-    
     // Associer Order <-> UserSnapshot (pour jointures sur 'Order')
     try {
       if (Order && UserSnapshot) {
@@ -69,13 +62,6 @@ async function initializeModels() {
       }
     } catch (error) {
       console.error('❌ Erreur association Order <-> UserSnapshot:', error.message);
-    }
-
-    try {
-      ProductSnapshot = createProductSnapshotModel(sequelize);
-    } catch (error) {
-      console.error('❌ Erreur création ProductSnapshot:', error.message);
-      ProductSnapshot = null;
     }
     
     try {

@@ -106,6 +106,14 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
   );
   const [showContactsList, setShowContactsList] = useState(true);
   const [showUserSearch, setShowUserSearch] = useState(false);
+  const [negotiation, setNegotiation] = useState<NegotiationState>({
+    isOpen: false,
+    target: { id: 0, title: '', image: '', price: 0, sellerId: 0 },
+    mine: null,
+    difference: 0,
+    direction: 'egal',
+    step: 1,
+  });
 
   // État pour les messages (maintenant basé sur la conversation sélectionnée)
   const [messages, setMessages] = useState<Message[]>([]);
@@ -156,6 +164,15 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const closeNegotiation = () => setNegotiation(prev => ({ ...prev, isOpen: false }));
+  const updateNegotiationValue = (value: number) => setNegotiation(prev => ({ ...prev, difference: value }));
+  const continueNegotiation = async () => {
+    // Mock API
+    await new Promise(res => setTimeout(res, 400));
+    setNegotiation((prev: any) => ({ ...prev, step: Math.min(3, (prev.step || 1) + 1) }));
+  };
+
 
   // Cleanup du timeout de typing au démontage du composant
   useEffect(() => {

@@ -5,6 +5,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import ReduxProvider from '../../lib/ReduxProvider';
+import ChatPanelWrapper from '@/components/ChatPanel/ChatPanelWrapper';
 import { Toaster } from '@/components/ui/sonner';
 
 // Police principale Cairo
