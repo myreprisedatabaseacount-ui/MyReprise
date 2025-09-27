@@ -1,12 +1,13 @@
-// Contrôleur de création d'une commande de reprise
-// - Auth via middleware (req.user)
-// - Validation et prévention XSS basique
-// - Persistance Order + Snapshots en transaction
 const db = require('../config/db');
 const { Offer } = require('../models/Offer');
 const { User } = require('../models/User');
 const { Address } = require('../models/Address');
 const { Order } = require('../models/Order');
+const { UserSnapshot } = require('../models/UserSnapshot');
+const { ProductSnapshot } = require('../models/ProductSnapshot');
+const sequelize = db.getSequelize();
+const { Op } = db.Sequelize;
+const OfferImage = sequelize.models.OfferImage;
 
 function sanitizeString(value) {
   if (typeof value !== 'string') return value;
@@ -43,7 +44,6 @@ const createRepriseOrder = async (req, res) => {
       return res.status(400).json({ error: 'locationId invalide' });
     }
 
-    const sequelize = db.getSequelize();
     const t = await sequelize.transaction();
     try {
       // Verrouiller les offres le temps des vérifications pour éviter les courses
@@ -121,9 +121,6 @@ const createRepriseOrder = async (req, res) => {
         status: 'pending',
         notes: null
       }, { transaction: t });
-
-      const UserSnapshot = sequelize.models.UserSnapshot;
-      const ProductSnapshot = sequelize.models.ProductSnapshot;
 
       // User snapshots
       await UserSnapshot.create({
@@ -212,14 +209,6 @@ const listReceivedOrdersOnMyOffers = async (req, res) => {
     if (!currentUserId) {
       return res.status(401).json({ error: 'Authentification requise' });
     }
-
-    const sequelize = db.getSequelize();
-    const { Op } = db.Sequelize;
-    const { Offer } = require('../models/Offer');
-    const { User } = require('../models/User');
-    const UserSnapshot = sequelize.models.UserSnapshot;
-    const ProductSnapshot = sequelize.models.ProductSnapshot;
-    const OfferImage = sequelize.models.OfferImage;
 
     // Pagination
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
@@ -314,6 +303,7 @@ const listReceivedOrdersOnMyOffers = async (req, res) => {
       order: [['created_at', 'DESC']]
     });
     const orderIdToOrder = new Map(orders.map(o => [o.id, o]));
+    const completedOrderIds = new Set(orders.filter(o => o.status === 'completed').map(o => o.id));
 
     // 7) Charger les UserSnapshots (destinataire = current user) pour ces orders
     const usRows = await UserSnapshot.findAll({
@@ -337,23 +327,13 @@ const listReceivedOrdersOnMyOffers = async (req, res) => {
     }
     const senderIdToUser = new Map(senderUsers.map(u => [u.id, u]));
 
-    // Compter le nombre de commandes réussies (status = 'completed') par expéditeur
+    // Compter le nombre de commandes réussies (status = 'completed') par expéditeur sans dépendre d'une association
     const completedBySenderId = new Map();
-    if (senderUserIds.length) {
-      const counts = await sequelize.models.UserSnapshot.findAll({
-        where: { isSender: true, userId: { [Op.in]: senderUserIds } },
-        include: [
-          { model: Order, as: 'Order', attributes: [], where: { status: 'completed' } }
-        ],
-        attributes: [
-          'userId',
-          [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('UserSnapshot.order_id'))), 'count']
-        ],
-        group: ['UserSnapshot.user_id'],
-        raw: true
-      });
-      for (const row of counts) {
-        completedBySenderId.set(row.userId, Number(row.count) || 0);
+    if (senderSnapshots.length) {
+      for (const snap of senderSnapshots) {
+        if (completedOrderIds.has(snap.orderId)) {
+          completedBySenderId.set(snap.userId, (completedBySenderId.get(snap.userId) || 0) + 1);
+        }
       }
     }
 
@@ -416,10 +396,6 @@ const listReceivedOrdersOnMyOffers = async (req, res) => {
         snapshotPrice: Number(row.price),
         currentPrice: Number(offer.price)
       } : null;
-      if (titleChanged) {
-        const existing = productChanges || {};
-        groups; // no-op to keep linter happy in diff context
-      }
       const finalProductChanges = (priceChanged || titleChanged) ? {
         ...(productChanges || {}),
         ...(titleChanged ? { titleChanged: true, snapshotTitle: row.title, currentTitle: offer.title } : {})
@@ -530,8 +506,6 @@ const listReceivedOrdersOnMyOffers = async (req, res) => {
   }
 };
 
-module.exports = { createRepriseOrder, listReceivedOrdersOnMyOffers };
-
 /**
  * Détails des commandes avec filtres:
  * - Filtrer par produit (offerId) et mois (YYYY-MM)
@@ -545,14 +519,6 @@ const getOrderDetails = async (req, res) => {
     if (!currentUserId) {
       return res.status(401).json({ error: 'Authentification requise' });
     }
-
-    const sequelize = db.getSequelize();
-    const { Op } = db.Sequelize;
-    const { Offer } = require('../models/Offer');
-    const { User } = require('../models/User');
-    const UserSnapshot = sequelize.models.UserSnapshot;
-    const ProductSnapshot = sequelize.models.ProductSnapshot;
-    const OfferImage = sequelize.models.OfferImage;
 
     const { offerId, month, senderId, page = 1, limit = 20 } = req.query;
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
@@ -688,4 +654,89 @@ const getOrderDetails = async (req, res) => {
 
 module.exports.getOrderDetails = getOrderDetails;
 
+// Endpoint: GET /api/reprise-orders/negotiation-init/:orderId
+// Retourne les données minimales pour initialiser l'étape 1 de négociation depuis un orderId
+const getNegotiationInitByOrderId = async (req, res) => {
+  try {
+    const user = req.user;
+    const currentUserId = user?.userId || user?.id;
+    if (!currentUserId) {
+      return res.status(401).json({ error: 'Authentification requise' });
+    }
 
+    const { orderId } = req.params;
+    const id = parseInt(orderId, 10);
+    if (!id || Number.isNaN(id)) {
+      return res.status(400).json({ error: 'orderId invalide' });
+    }
+
+    // Déjà importés en haut du fichier
+
+    const order = await Order.findByPk(id);
+    if (!order) return res.status(404).json({ error: 'Commande introuvable' });
+
+    // Snapshots liés
+    const ps = await ProductSnapshot.findAll({ where: { orderId: id }, raw: true });
+    const us = await UserSnapshot.findAll({ where: { orderId: id }, raw: true });
+    if (!ps.length || !us.length) return res.status(404).json({ error: 'Snapshots manquants pour cette commande' });
+
+    // Offres liées + image principale
+    const offerIds = [...new Set(ps.map(r => r.offerId))];
+    const offers = await Offer.findAll({ where: { id: { [Op.in]: offerIds } }, attributes: ['id','sellerId','title','price','productCondition','description'] });
+    const offerIdToOffer = new Map(offers.map(o => [o.id, o]));
+    if (OfferImage && offerIds.length) {
+      const imgs = await OfferImage.findAll({ where: { offerId: { [Op.in]: offerIds } }, attributes: ['offerId','imageUrl','isMain'], raw: true });
+      const mainByOffer = new Map();
+      for (const img of imgs) {
+        const current = mainByOffer.get(img.offerId);
+        if (!current || img.isMain) mainByOffer.set(img.offerId, img.imageUrl);
+      }
+      for (const [oid, off] of offerIdToOffer.entries()) {
+        off.mainImageUrl = mainByOffer.get(oid) || null;
+      }
+    }
+
+    // Déterminer mon offre vs l'autre
+    const offersForOrder = ps.map(r => offerIdToOffer.get(r.offerId)).filter(Boolean);
+    const myOffer = offersForOrder.find(of => of.sellerId === currentUserId) || null;
+    const otherOffer = offersForOrder.find(of => of && myOffer && of.id !== myOffer.id) || offersForOrder.find(of => !myOffer && of) || null;
+
+    // Direction basée sur payer/recevoir relatif à l'utilisateur courant
+    const difference = Number(order.balanceAmount) || 0;
+    const direction = difference === 0 ? 'egal' : (order.balancePayerId === currentUserId ? 'payer' : 'recevoir');
+
+    // Choix du "target" identique aux pages reçues: si je suis propriétaire produit -> target = mon offre
+    // sinon (je suis l'expéditeur) -> target = l'offre de l'autre.
+    const senderSnap = us.find(s => s.isSender);
+    const isOrderSender = senderSnap ? senderSnap.userId === currentUserId : false;
+    const isProductOwner = !!myOffer;
+
+    const targetOffer = isProductOwner ? myOffer : otherOffer;
+    const mineOffer = isProductOwner ? otherOffer : myOffer;
+
+    const toPublic = (of) => of ? ({ id: of.id, title: of.title, price: Number(of.price), sellerId: of.sellerId, image: of.mainImageUrl || null }) : null;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        orderId: order.id,
+        target: toPublic(targetOffer),
+        mine: toPublic(mineOffer),
+        difference,
+        direction,
+        isOrderSender,
+        isProductOwner,
+      }
+    });
+  } catch (error) {
+    console.error('❌ getNegotiationInitByOrderId error:', error);
+    return res.status(500).json({ error: 'Erreur interne', details: error.message || 'Erreur inconnue' });
+  }
+};
+
+module.exports = {
+  createRepriseOrder,
+  listReceivedOrdersOnMyOffers,
+  getOrderDetails,
+  getNegotiationInitByOrderId
+};
