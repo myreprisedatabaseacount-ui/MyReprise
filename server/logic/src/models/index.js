@@ -27,6 +27,7 @@ const { MessageReactions } = require('./MessageReactions');
 const { Subject } = require('./Subject');
 const { SubjectCategory } = require('./SubjectCategory');
 const { BrandCategory } = require('./BrandCategory');
+const { OfferBrand } = require('./OfferBrand');
 const createOfferImageModel = require('./OfferImage');
 const createUserSnapshotModel = require('./UserSnapshot');
 const createProductSnapshotModel = require('./ProductSnapshot');
@@ -250,7 +251,7 @@ async function initializeModels() {
     try {
       if (Offer && Brand) {
         Offer.belongsTo(Brand, { foreignKey: 'brandId', as: 'brand' });
-        Brand.hasMany(Offer, { foreignKey: 'brandId', as: 'offers' });
+        Brand.hasMany(Offer, { foreignKey: 'brandId', as: 'directOffers' });
       }
     } catch (error) {
       console.error('❌ Erreur association Offer <-> Brand:', error.message);
@@ -357,6 +358,34 @@ async function initializeModels() {
       console.error('❌ Erreur association User <-> MessageReactions:', error.message);
     }
     
+    // Associations pour OfferBrand
+    try {
+      if (Offer && Brand && OfferBrand) {
+        Offer.belongsToMany(Brand, {
+          through: OfferBrand,
+          as: 'exchangeBrands',
+          foreignKey: 'offerId',
+          otherKey: 'brandId'
+        });
+        Brand.belongsToMany(Offer, {
+          through: OfferBrand,
+          as: 'offers',
+          foreignKey: 'brandId',
+          otherKey: 'offerId'
+        });
+        OfferBrand.belongsTo(Offer, {
+          as: 'offer',
+          foreignKey: 'offerId'
+        });
+        OfferBrand.belongsTo(Brand, {
+          as: 'brand',
+          foreignKey: 'brandId'
+        });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association Offer <-> Brand (OfferBrand):', error.message);
+    }
+    
     // Synchroniser la base de données (créer les tables)
 
     // try {
@@ -455,6 +484,7 @@ async function initializeModels() {
       SubjectCategory, 
       BrandCategory,
       Offer, 
+      OfferBrand,
       OfferImage, 
       Order,
       UserSnapshot,

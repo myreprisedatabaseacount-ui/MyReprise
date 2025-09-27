@@ -120,6 +120,7 @@ class BrandService {
             });
             
             const result = {
+                success: true,
                 brands: brandsWithCategories,
                 totalCount: count,
                 totalPages: Math.ceil(count / limit),

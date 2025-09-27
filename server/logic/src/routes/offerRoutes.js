@@ -108,5 +108,14 @@ offerRoutes.put("/:id/status", updateOffer);
 // Route pour supprimer une offre
 offerRoutes.delete("/:id", deleteOffer);
 
+// Route pour récupérer les offres supprimées (corbeille) d'un vendeur
+offerRoutes.get("/trash/:sellerId", getOffers);
+
+// Route pour restaurer une offre depuis la corbeille
+offerRoutes.put("/:id/restore", updateOffer);
+
+// Route pour supprimer définitivement une offre
+offerRoutes.delete("/:id/permanent", deleteOffer);
+
 
 module.exports = offerRoutes;

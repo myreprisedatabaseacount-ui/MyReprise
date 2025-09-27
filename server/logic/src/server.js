@@ -19,7 +19,7 @@ const fs = require('fs');
 const { initializeModels } = require('./models');
 
 // Import des routes
-const { categoryRoutes, userRoutes, brandRoutes, whatsappRoutes, subjectRoutes, offerRoutes, offerCategoryRoutes, recommendationRoutes, addressRoutes, repriseOrderRoutes, storeRoutes } = require('./routes');
+const { categoryRoutes, userRoutes, brandRoutes, whatsappRoutes, subjectRoutes, offerRoutes, offerCategoryRoutes, offerBrandRoutes, recommendationRoutes, addressRoutes, repriseOrderRoutes, storeRoutes } = require('./routes');
 const conversationRoutes = require('./routes/conversationRoutes');
 const reactionRoutes = require('./routes/reactionRoutes');
 const callRoutes = require('./routes/callRoutes');
@@ -102,6 +102,7 @@ app.use("/api/brands", brandRoutes);
 app.use("/api/subjects", subjectRoutes);
 app.use("/api/offers", offerRoutes);
 app.use("/api/offer-categories", offerCategoryRoutes);
+app.use("/api/offer-brands", offerBrandRoutes);
 app.use("/api/recommendations", recommendationRoutes);
 app.use("/api/auth", userRoutes);
 app.use("/api/users", userRoutes);
@@ -130,6 +131,7 @@ async function startServer() {
     try {
       await initializeModels();
       await db.initializeDatabase();
+      // await db.dropProblematicIndexes();
     } catch (modelError) {
       console.error('❌ Erreur lors de l\'initialisation des modèles:', modelError.message);
       // Continuer même si les modèles échouent

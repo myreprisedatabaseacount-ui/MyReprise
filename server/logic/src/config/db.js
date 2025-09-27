@@ -46,8 +46,15 @@ class Database {
       
       // Synchronisation des modèles (optionnel)
       if (process.env.SYNC_DB === 'true') {
-        await this.sequelize.sync({ alter: true });
-        console.log("✅ Base de données synchronisée avec les modèles");
+        try {
+          await this.sequelize.sync({ alter: true });
+          console.log("✅ Base de données synchronisée avec les modèles");
+        } catch (syncError) {
+          console.warn("⚠️ Erreur lors de la synchronisation (non critique):", syncError.message);
+          // Ne pas faire échouer le serveur pour une erreur de synchronisation
+        }
+      } else {
+        console.log("ℹ️ Synchronisation désactivée (SYNC_DB != 'true')");
       }
       
     } catch (error) {
@@ -129,6 +136,76 @@ class Database {
   // Méthode pour annuler une transaction
   async rollbackTransaction(transaction) {
     await transaction.rollback();
+  }
+
+  // Méthode pour supprimer les index problématiques
+  async dropProblematicIndexes() {
+    try {
+      console.log("🔄 Vérification et suppression des index problématiques...");
+      
+      // D'abord, récupérer tous les index existants
+      const existingIndexes = await this.sequelize.query(`
+        SELECT 
+          TABLE_NAME,
+          INDEX_NAME,
+          COLUMN_NAME
+        FROM 
+          INFORMATION_SCHEMA.STATISTICS 
+        WHERE 
+          TABLE_SCHEMA = 'myreprise_new' 
+          AND INDEX_NAME != 'PRIMARY'
+          AND INDEX_NAME NOT LIKE '%_fk'
+          AND INDEX_NAME NOT LIKE '%_pkey'
+        ORDER BY TABLE_NAME, INDEX_NAME
+      `);
+      
+      console.log(`📊 ${existingIndexes[0].length} index trouvés dans la base de données`);
+      
+      // Grouper les index par table
+      const indexesByTable = {};
+      existingIndexes[0].forEach(index => {
+        if (!indexesByTable[index.TABLE_NAME]) {
+          indexesByTable[index.TABLE_NAME] = new Set();
+        }
+        indexesByTable[index.TABLE_NAME].add(index.INDEX_NAME);
+      });
+      
+      // Supprimer les index non essentiels (garder seulement les clés étrangères et primaires)
+      let droppedCount = 0;
+      let errorCount = 0;
+      
+      for (const [tableName, indexNames] of Object.entries(indexesByTable)) {
+        for (const indexName of indexNames) {
+          // Garder seulement les index de clés étrangères et les index essentiels
+          if (indexName.includes('_fk') || 
+              indexName.includes('_pkey') || 
+              indexName === 'PRIMARY' ||
+              indexName.includes('unique') ||
+              indexName.includes('UNIQUE')) {
+            continue;
+          }
+          
+          try {
+            await this.sequelize.query(`ALTER TABLE \`${tableName}\` DROP INDEX \`${indexName}\`;`);
+            console.log(`✅ Index \`${indexName}\` supprimé de la table \`${tableName}\``);
+            droppedCount++;
+          } catch (error) {
+            if (!error.message.includes("doesn't exist") && 
+                !error.message.includes("Unknown key") &&
+                !error.message.includes("check that column/key exists")) {
+              console.warn(`⚠️ Erreur lors de la suppression de l'index \`${indexName}\` de \`${tableName}\`: ${error.message}`);
+              errorCount++;
+            }
+          }
+        }
+      }
+
+      console.log(`✅ Suppression des index terminée: ${droppedCount} supprimés, ${errorCount} erreurs`);
+      
+    } catch (error) {
+      console.error("❌ Erreur lors de la suppression des index problématiques:", error);
+      // Ne pas faire échouer le serveur pour cette erreur
+    }
   }
 }
 

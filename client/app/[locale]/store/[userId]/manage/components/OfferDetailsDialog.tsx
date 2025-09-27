@@ -475,38 +475,20 @@ const OfferDetailsDialog: React.FC<OfferDetailsDialogProps> = ({
             </div>
           )}
 
-          {/* Actions */}
-          <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-gray-200">
-            {canChangeStatus && (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={() => onStatusChange(offer.id, 'available')}
-                  className="flex-1"
-                  disabled={offer.status === 'available'}
-                >
-                  Marquer comme disponible
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  onClick={() => onStatusChange(offer.id, 'archived')}
-                  className="flex-1"
-                  disabled={offer.status === 'archived'}
-                >
-                  Archiver
-                </Button>
-              </>
-            )}
-            
-            <Button
-              variant="destructive"
-              onClick={() => onDelete(offer.id)}
-              className="flex-1"
-            >
-              Supprimer
-            </Button>
-          </div>
+        {/* Actions */}
+        <div className="pt-6 border-t border-gray-200">
+          <Button
+            variant="destructive"
+            onClick={() => {
+              if (window.confirm('Êtes-vous sûr de vouloir supprimer cette offre ? Elle sera déplacée vers la corbeille.')) {
+                onDelete(offer.id);
+              }
+            }}
+            className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+          >
+            Supprimer cette offre
+          </Button>
+        </div>
         </div>
       </DialogContent>
     </Dialog>

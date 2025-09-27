@@ -31,6 +31,20 @@ export const OfferApi = createApi({
           formData.append('specificData', JSON.stringify(offerData.specificData));
         }
         
+        // Ajouter les catégories d'échange
+        if (offerData.exchangeCategories && offerData.exchangeCategories.length > 0) {
+          offerData.exchangeCategories.forEach((categoryId, index) => {
+            formData.append(`exchangeCategories[${index}]`, categoryId.toString());
+          });
+        }
+        
+        // Ajouter les marques d'échange
+        if (offerData.exchangeBrands && offerData.exchangeBrands.length > 0) {
+          offerData.exchangeBrands.forEach((brandId, index) => {
+            formData.append(`exchangeBrands[${index}]`, brandId.toString());
+          });
+        }
+        
         // Ajouter la localisation
         if (offerData.location) {
           formData.append('location', JSON.stringify(offerData.location));
@@ -231,6 +245,43 @@ export const OfferApi = createApi({
       invalidatesTags: (result, error, { id }) => [{ type: 'Offer', id }],
     }),
 
+    // Query pour récupérer les offres supprimées (corbeille) d'un vendeur
+    getTrashOffers: builder.query({
+      query: ({ sellerId, page = 1, limit = 10, search }) => ({
+        url: `/api/offers/trash/${sellerId}`,
+        params: { 
+          page, 
+          limit,
+          ...(search && { search })
+        }
+      }),
+      providesTags: (result, error, { sellerId }) => [{ type: 'Offer', id: `trash-${sellerId}` }],
+    }),
+
+    // Mutation pour restaurer une offre depuis la corbeille
+    restoreOffer: builder.mutation({
+      query: (id) => ({
+        url: `/api/offers/${id}/restore`,
+        method: 'PUT',
+      }),
+      invalidatesTags: (result, error, id) => [
+        { type: 'Offer', id },
+        { type: 'Offer', id: 'trash' }
+      ],
+    }),
+
+    // Mutation pour supprimer définitivement une offre
+    deleteOfferPermanently: builder.mutation({
+      query: (id) => ({
+        url: `/api/offers/${id}/permanent`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (result, error, id) => [
+        { type: 'Offer', id },
+        { type: 'Offer', id: 'trash' }
+      ],
+    }),
+
   }),
 });
 
@@ -248,4 +299,7 @@ export const {
   useExchangeOfferMutation,
   useSearchOffersQuery,
   useUpdateOfferStatusMutation,
+  useGetTrashOffersQuery,
+  useRestoreOfferMutation,
+  useDeleteOfferPermanentlyMutation,
 } = OfferApi;

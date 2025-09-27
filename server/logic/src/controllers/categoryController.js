@@ -1,6 +1,7 @@
 const cloudinaryService = require("../services/cloudinaryService.js");
 const { Category } = require('../models/Category.js');
 const Neo4jSyncService = require('../services/neo4jSyncService');
+const { Op, Sequelize } = require('sequelize');
 // Fonction utilitaire pour extraire le public_id d'une URL Cloudinary
 const extractPublicIdFromUrl = (url) => {
   if (!url) return null;
@@ -242,25 +243,90 @@ const createCategory = async (req, res) => {
   }
 }
 
-
 const getAllCategories = async (req, res) => {
   try {
-    const { language = 'fr' } = req.query;
+    const { language = 'fr', search } = req.query;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+    // Construire les conditions de recherche
+    let whereClause = {};
+    
+    if (search && search.trim()) {
+      const searchTerm = search.trim();
+      console.log(`🔍 Recherche multilingue pour: "${searchTerm}"`);
+      
+      whereClause = {
+        [Op.or]: [
+          // Recherche dans les champs français (insensible à la casse)
+          Sequelize.where(
+            Sequelize.fn('LOWER', Sequelize.col('Category.name_fr')),
+            'LIKE',
+            `%${searchTerm.toLowerCase()}%`
+          ),
+          Sequelize.where(
+            Sequelize.fn('LOWER', Sequelize.col('Category.description_fr')),
+            'LIKE',
+            `%${searchTerm.toLowerCase()}%`
+          ),
+          // Recherche dans les champs arabes (insensible à la casse)
+          Sequelize.where(
+            Sequelize.fn('LOWER', Sequelize.col('Category.name_ar')),
+            'LIKE',
+            `%${searchTerm.toLowerCase()}%`
+          ),
+          Sequelize.where(
+            Sequelize.fn('LOWER', Sequelize.col('Category.description_ar')),
+            'LIKE',
+            `%${searchTerm.toLowerCase()}%`
+          )
+        ]
+      };
+    }
 
-    console.log(`📥 Récupération de toutes les catégories (langue: ${language})`);
-
-    const categories = await Category.findAll({
-      order: [['nameFr', 'ASC']]
+    const { count, rows: categoriesWithBrands } = await Category.findAndCountAll({
+      where: whereClause,
+      include: [
+        {
+          model: require('../models/Brand').Brand,
+          as: 'brands',
+          through: { attributes: [] },
+          attributes: ['id', 'nameFr', 'nameAr', 'logo', 'descriptionFr', 'descriptionAr']
+        }
+      ],
+      order: [['nameFr', 'ASC']],
+      limit: limit,
+      offset: offset
     });
 
-    const publicCategories = categories.map(category => category.getLocalizedData(language));
-
-    console.log(`✅ ${publicCategories.length} catégories récupérées`);
+    // Transformer les données pour inclure les champs localisés
+    const transformedCategories = categoriesWithBrands.map(category => {
+      const categoryData = category.toJSON();
+      
+      // Ajouter les champs localisés pour la catégorie
+      categoryData.name = language === 'ar' ? categoryData.nameAr : categoryData.nameFr;
+      categoryData.description = language === 'ar' ? categoryData.descriptionAr : categoryData.descriptionFr;
+      
+      // Ajouter les champs localisés pour les marques
+      if (categoryData.brands) {
+        categoryData.brands = categoryData.brands.map(brand => ({
+          ...brand,
+          name: language === 'ar' ? brand.nameAr : brand.nameFr,
+          description: language === 'ar' ? brand.descriptionAr : brand.descriptionFr
+        }));
+      }
+      
+      return categoryData;
+    });
 
     return res.status(200).json({
       success: true,
-      data: publicCategories,
-      message: "Toutes les catégories récupérées avec succès"
+      data: transformedCategories,
+      totalCount: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+      searchTerm: search || null,
+      hasSearch: !!(search && search.trim())
     });
 
   } catch (error) {
@@ -507,7 +573,7 @@ const updateCategory = async (req, res) => {
 const getCategoryById = async (req, res) => {
   try {
     const categoryId = req.params.id;
-    
+
     if (!categoryId) {
       return res.status(400).json({
         error: "ID de catégorie requis"
@@ -515,7 +581,7 @@ const getCategoryById = async (req, res) => {
     }
 
     const category = await Category.findByPk(categoryId);
-    
+
     if (!category) {
       return res.status(404).json({
         error: "Catégorie non trouvée"
@@ -579,16 +645,42 @@ const getCategoriesByListingType = async (req, res) => {
       where: {
         listingType: listingType,
       },
+      include: [
+        {
+          model: require('../models/Brand').Brand,
+          as: 'brands',
+          through: { attributes: [] },
+          attributes: ['id', 'nameFr', 'nameAr', 'logo', 'descriptionFr', 'descriptionAr']
+        }
+      ],
       order: [['nameFr', 'ASC']]
     });
 
-    const publicCategories = categories.map(category => category.getLocalizedData(language));
+    // Transformer les données pour inclure les champs localisés
+    const transformedCategories = categories.map(category => {
+      const categoryData = category.toJSON();
+      
+      // Ajouter les champs localisés pour la catégorie
+      categoryData.name = language === 'ar' ? categoryData.nameAr : categoryData.nameFr;
+      categoryData.description = language === 'ar' ? categoryData.descriptionAr : categoryData.descriptionFr;
+      
+      // Ajouter les champs localisés pour les marques
+      if (categoryData.brands) {
+        categoryData.brands = categoryData.brands.map(brand => ({
+          ...brand,
+          name: language === 'ar' ? brand.nameAr : brand.nameFr,
+          description: language === 'ar' ? brand.descriptionAr : brand.descriptionFr
+        }));
+      }
+      
+      return categoryData;
+    });
 
-    console.log(`✅ ${publicCategories.length} catégories trouvées pour le type ${listingType}`);
+    console.log(`✅ ${transformedCategories.length} catégories trouvées pour le type ${listingType}`);
 
     return res.status(200).json({
       success: true,
-      data: publicCategories,
+      data: transformedCategories,
       message: `Catégories ${listingType} récupérées avec succès`
     });
 

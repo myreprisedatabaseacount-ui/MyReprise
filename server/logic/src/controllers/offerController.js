@@ -1,7 +1,9 @@
 const cloudinaryService = require("../services/cloudinaryService.js");
 const { Offer } = require("../models/Offer.js");
 const { Product } = require("../models/Product.js");
+const { Category } = require("../models/Category.js");
 const { OfferCategory } = require("../models/OfferCategory.js");
+const { OfferBrand } = require("../models/OfferBrand.js");
 const db = require("../config/db");
 const createOfferImageModel = require("../models/OfferImage.js");
 
@@ -66,7 +68,11 @@ const createOffer = async (req, res) => {
       // Données spécifiques (seront dans specificData)
       specificData,
       // Localisation
-      addressId
+      addressId,
+      // Catégories d'échange
+      exchangeCategories = [],
+      // Marques d'échange
+      exchangeBrands = []
     } = req.body;
 
     console.log('📥 Données reçues pour création d\'offre:', {
@@ -81,7 +87,9 @@ const createOffer = async (req, res) => {
       brandId,
       subjectId,
       specificData,
-      addressId
+      addressId,
+      exchangeCategories,
+      exchangeBrands
     });
 
     // ✅ Vérification des fichiers
@@ -123,10 +131,10 @@ const createOffer = async (req, res) => {
     }
 
     // ✅ Validation des données obligatoires
-    if (!title || !description || !price || !listingType) {
+    if (!title || !price || !listingType) {
       await cleanupUploadedFiles(uploadedPublicIds);
       return res.status(400).json({
-        error: "Titre, description, prix et type de listing sont obligatoires"
+        error: "Titre, prix et type de listing sont obligatoires"
       });
     }
 
@@ -156,8 +164,8 @@ const createOffer = async (req, res) => {
         createdBy: sellerId ? parseInt(sellerId) : 1, // TODO: Récupérer depuis l'auth
         nameAr: title.trim(), // Utiliser le titre comme nom arabe
         nameFr: title.trim(), // Utiliser le titre comme nom français
-        descriptionAr: description.trim(),
-        descriptionFr: description.trim(),
+        descriptionAr: description ? description.trim() : '', // Description optionnelle
+        descriptionFr: description ? description.trim() : '', // Description optionnelle
         brandId: brandId ? parseInt(brandId) : null,
         categoryId: categoryId ? parseInt(categoryId) : null,
         isActive: true
@@ -171,7 +179,7 @@ const createOffer = async (req, res) => {
       const offerData = {
         productId: product.id, // Référence vers le produit créé
         title: title.trim(),
-        description: description.trim(),
+        description: description ? description.trim() : '', // Description optionnelle
         price: priceNum,
         status,
         productCondition,
@@ -213,6 +221,47 @@ const createOffer = async (req, res) => {
         console.log(`✅ Offre ${offer.id} synchronisée vers Neo4j`);
       } catch (syncError) {
         console.error('⚠️ Erreur synchronisation offre vers Neo4j (non bloquant):', syncError);
+      }
+
+      // Ajouter les catégories d'échange si elles sont fournies
+      if (exchangeCategories && exchangeCategories.length > 0) {
+        console.log(`🔄 Ajout des catégories d'échange pour l'offre ${offer.id}:`, exchangeCategories);
+        
+        try {
+          for (const categoryId of exchangeCategories) {
+            // Vérifier que la catégorie existe
+            const category = await Category.findByPk(categoryId);
+            if (category) {
+              await OfferCategory.addCategoryToOffer(offer.id, categoryId);
+              console.log(`✅ Catégorie d'échange ${categoryId} ajoutée à l'offre ${offer.id}`);
+            } else {
+              console.warn(`⚠️ Catégorie ${categoryId} non trouvée, ignorée`);
+            }
+          }
+          
+          // Synchroniser les relations avec Neo4j (asynchrone, non bloquant)
+          for (const categoryId of exchangeCategories) {
+            Neo4jSyncService.syncOfferCategoryRelation(offer.id, categoryId, 'CREATE').catch(error => {
+              console.error('Erreur synchronisation Neo4j relation offre-catégorie (non bloquant):', error);
+            });
+          }
+        } catch (categoryError) {
+          console.error('❌ Erreur lors de l\'ajout des catégories d\'échange:', categoryError);
+          // Ne pas faire échouer la création de l'offre pour une erreur de catégories
+        }
+      }
+
+      // Ajouter les marques d'échange si elles sont fournies
+      if (exchangeBrands && exchangeBrands.length > 0) {
+        console.log(`🏷️ Ajout des marques d'échange pour l'offre ${offer.id}:`, exchangeBrands);
+        
+        try {
+          const brandRelations = await OfferBrand.createMultipleOfferBrands(offer.id, exchangeBrands);
+          console.log(`✅ ${brandRelations.length} marque(s) d'échange ajoutée(s) à l'offre ${offer.id}`);
+        } catch (brandError) {
+          console.error('❌ Erreur lors de l\'ajout des marques d\'échange:', brandError);
+          // Ne pas faire échouer la création de l'offre pour une erreur de marques
+        }
       }
 
       // Récupérer les images depuis OfferImage pour la réponse
@@ -304,6 +353,13 @@ const getOffers = async (req, res) => {
     if (minPrice) filters.minPrice = parseFloat(minPrice);
     if (maxPrice) filters.maxPrice = parseFloat(maxPrice);
     if (search) filters.search = search;
+
+    // Gestion spéciale pour la route corbeille
+    if (req.route.path === '/trash/:sellerId') {
+      filters.isDeleted = true; // Récupérer seulement les offres supprimées
+    } else {
+      filters.isDeleted = false; // Récupérer seulement les offres non supprimées
+    }
 
     // Récupérer les offres avec pagination et détails
     const result = await Offer.getOffersWithDetails(
@@ -501,6 +557,22 @@ const updateOffer = async (req, res) => {
         data: offer.getPublicData(),
         message: "Offre échangée avec succès"
       });
+    } else if (route === '/:id/restore') {
+      // Restaurer l'offre depuis la corbeille
+      console.log('🔍 Restauration de l\'offre:', offer);
+      if (!offer.isDeleted) {
+        return res.status(400).json({
+          error: "Cette offre n'est pas dans la corbeille"
+        });
+      }
+
+      await offer.update({ isDeleted: false });
+
+      return res.status(200).json({
+        success: true,
+        data: offer.getPublicData(),
+        message: "Offre restaurée avec succès"
+      });
     } else {
       // Mise à jour complète de l'offre
       const updatedOffer = await Offer.updateOffer(offerId, updateData);
@@ -533,13 +605,23 @@ const deleteOffer = async (req, res) => {
       });
     }
 
-    // Suppression logique uniquement (marquer comme supprimée)
-    await Offer.deleteOffer(offerId);
+    if (route === '/:id/permanent') {
+      // Suppression définitive (hard delete)
+      await offer.destroy();
+      
+      return res.status(200).json({
+        success: true,
+        message: "Offre supprimée définitivement"
+      });
+    } else {
+      // Suppression logique (soft delete)
+      await Offer.deleteOffer(offerId);
 
-    return res.status(200).json({
-      success: true,
-      message: "Offre supprimée avec succès"
-    });
+      return res.status(200).json({
+        success: true,
+        message: "Offre supprimée avec succès"
+      });
+    }
 
   } catch (error) {
     console.error("❌ Erreur deleteOffer:", error);

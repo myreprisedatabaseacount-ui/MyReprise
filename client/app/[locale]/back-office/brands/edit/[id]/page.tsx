@@ -4,9 +4,10 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { ArrowLeft, Upload, X, Save, Eye, FileImage, ChevronDown, ChevronRight, Folder, Check } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
 import { useUpdateBrandMutation, useGetBrandByIdQuery } from '../../../../../../services/api/BrandApi';
-import { useGetCategoriesQuery } from '../../../../../../services/api/CategoryApi';
+import { useGetAllCategoriesQuery } from '../../../../../../services/api/CategoryApi';
 import { toast } from 'sonner';
 import { compressImageByType } from '../../../../../../utils/imageCompression';
+import CategoryFiltersBar from '../../../../../../components/common/CategoryFiltersBar';
 
 interface BrandFormData {
     nameFr: string;
@@ -53,7 +54,16 @@ const EditBrandPage: React.FC = () => {
     const { data: brandResponse, isLoading: brandLoading, error: brandError } = useGetBrandByIdQuery({ id: brandId! }, {
         skip: !brandId,
     });
-    const { data: categoriesResponse, isLoading: categoriesLoading } = useGetCategoriesQuery({});
+    // États pour la pagination des catégories
+    const [categorySearchTerm, setCategorySearchTerm] = useState('');
+    const [categoryPage, setCategoryPage] = useState(1);
+    const [categoryLimit, setCategoryLimit] = useState(10);
+    
+    const { data: categoriesResponse, isLoading: categoriesLoading } = useGetAllCategoriesQuery({
+        search: categorySearchTerm || undefined,
+        page: categoryPage,
+        limit: categoryLimit
+    });
 
     const [formData, setFormData] = useState<BrandFormData>({
         nameFr: '',
@@ -154,6 +164,21 @@ const EditBrandPage: React.FC = () => {
                 : [...prev.categoryIds, categoryId];
             return { ...prev, categoryIds: newCategoryIds };
         });
+    };
+
+    // Fonctions de gestion de la pagination des catégories
+    const handleCategorySearchChange = (searchTerm: string) => {
+        setCategorySearchTerm(searchTerm);
+        setCategoryPage(1); // Reset à la première page lors de la recherche
+    };
+
+    const handleCategoryPageChange = (page: number) => {
+        setCategoryPage(page);
+    };
+
+    const handleCategoryLimitChange = (limit: number) => {
+        setCategoryLimit(limit);
+        setCategoryPage(1); // Reset à la première page lors du changement de limite
     };
 
     // Gestion de l'upload de logo avec compression
@@ -564,6 +589,19 @@ const EditBrandPage: React.FC = () => {
                                     <Folder className="w-4 h-4 inline mr-2" />
                                     Catégories associées *
                                 </label>
+
+                                {/* Barre de filtres pour les catégories */}
+                                <CategoryFiltersBar
+                                    searchTerm={categorySearchTerm}
+                                    currentPage={categoryPage}
+                                    totalPages={categoriesResponse?.totalPages || 0}
+                                    limit={categoryLimit}
+                                    onSearchChange={handleCategorySearchChange}
+                                    onPageChange={handleCategoryPageChange}
+                                    onLimitChange={handleCategoryLimitChange}
+                                    totalCount={categoriesResponse?.totalCount || 0}
+                                    isLoading={categoriesLoading}
+                                />
 
                                 {categoriesLoading ? (
                                     <div className="flex items-center justify-center py-8">

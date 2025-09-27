@@ -1,17 +1,17 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 
-import { ArrowLeft, Car, Bike, Truck, Anchor, Save, X, MapPin, Search, Map, User, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Car, Bike, Truck, Anchor, Save, X, MapPin, Search, Map, User, Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
+import CategoryFiltersBar from '../common/CategoryFiltersBar';
 import { useProduct } from '../../services/hooks/useProduct';
 import { useCreateOfferMutation } from '../../services/api/OfferApi';
 import { useSearchLocationsMutation } from '../../services/api/AddressApi';
 import { useGetCategoriesByListingTypeQuery, useGetAllCategoriesQuery } from '../../services/api/CategoryApi';
-import { useAddCategoryToOfferMutation, useRemoveCategoryFromOfferMutation } from '../../services/api/OfferCategoryApi';
 import { useCurrentUser, useUserDisplay } from '../../services/hooks/useCurrentUser';
 import MultipleImageUpload from './MultipleImageUpload';
 import OpenStreetMap from '../ui/OpenStreetMap';
@@ -23,6 +23,11 @@ interface VehicleFormProps {
   onClose?: () => void;
 }
 
+interface Characteristic {
+  key: string;
+  value: string;
+}
+
 const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
   const { updateData, setStep } = useProduct();
   const [createOffer, { isLoading }] = useCreateOfferMutation();
@@ -30,32 +35,43 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
   const { currentUser, isAuthenticated } = useCurrentUser();
   const { displayName, initials, fullName } = useUserDisplay();
   
+  // États pour la pagination des catégories d'échange
+  const [categorySearchTerm, setCategorySearchTerm] = useState<string>('');
+  const [categoryPage, setCategoryPage] = useState(1);
+  const [categoryLimit, setCategoryLimit] = useState(10);
+  
   // Récupérer les catégories pour les véhicules
   const { data: categoriesData, isLoading: isLoadingCategories } = useGetCategoriesByListingTypeQuery('vehicle');
-  // Récupérer toutes les catégories pour les échanges
-  const { data: allCategoriesData, isLoading: isLoadingAllCategories } = useGetAllCategoriesQuery({});
+  // Récupérer toutes les catégories pour les échanges avec pagination
+  const { data: allCategoriesData, isLoading: isLoadingAllCategories } = useGetAllCategoriesQuery({
+    search: categorySearchTerm || undefined,
+    page: categoryPage,
+    limit: categoryLimit
+  });
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   
   // États pour les catégories d'échange
   const [selectedExchangeCategories, setSelectedExchangeCategories] = useState<number[]>([]);
-  const [createdOfferId, setCreatedOfferId] = useState<number | null>(null);
-  const [isExchangeConfirmed, setIsExchangeConfirmed] = useState(false);
+  const [selectedExchangeBrands, setSelectedExchangeBrands] = useState<number[]>([]);
+  const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set());
   
-  // États pour les caractéristiques détaillées
-  const [characteristics, setCharacteristics] = useState<Array<{key: string, value: string}>>([
-    { key: '', value: '' }
-  ]);
-  
-  // Mutations pour les catégories d'échange
-  const [addCategoryToOffer] = useAddCategoryToOfferMutation();
-  const [removeCategoryFromOffer] = useRemoveCategoryFromOfferMutation();
+  // États pour la sélection de marque
+  const [selectedBrandId, setSelectedBrandId] = useState<number | null>(null);
+  const [selectedBrandName, setSelectedBrandName] = useState<string>('');
+  const [isCustomBrand, setIsCustomBrand] = useState<boolean>(false);
+  const [availableBrands, setAvailableBrands] = useState<any[]>([]);
 
   // États pour la recherche de localisation
   const [locationSearch, setLocationSearch] = useState('');
   const [locationResults, setLocationResults] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [showLocationResults, setShowLocationResults] = useState(false);
+
+  // États pour les caractéristiques détaillées
+  const [characteristics, setCharacteristics] = useState<Characteristic[]>([
+    { key: '', value: '' }
+  ]);
 
   // Valeurs initiales
   const initialValues = {
@@ -75,18 +91,15 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
 
   // Schéma de validation pour véhicule
   const vehicleSchema = Yup.object({
-    categoryId: Yup.number()
-      .required('La catégorie de véhicule est obligatoire'),
+    categoryId: Yup.number(),
     year: Yup.number()
       .min(1900, 'Année invalide')
-      .max(new Date().getFullYear() + 1, 'Année invalide')
-      .required('L\'année est obligatoire'),
-    brand: Yup.string().required('La marque est obligatoire'),
-    model: Yup.string().required('Le modèle est obligatoire'),
+      .max(new Date().getFullYear() + 1, 'Année invalide'),
+    brand: Yup.string(),
+    model: Yup.string(),
     mileage: Yup.string()
-      .required('Le kilométrage est obligatoire')
       .test('is-number', 'Le kilométrage doit être un nombre', (value) => {
-        if (!value) return false;
+        if (!value) return true; // Optionnel
         const num = Number(value);
         return !isNaN(num) && num >= 300 && num <= 1000000;
       }),
@@ -99,12 +112,9 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
       }),
     description: Yup.string()
       .min(20, 'La description doit contenir au moins 20 caractères')
-      .max(2000, 'La description ne peut pas dépasser 2000 caractères')
-      .required('La description est obligatoire'),
+      .max(2000, 'La description ne peut pas dépasser 2000 caractères'),
     productCondition: Yup.string()
-      .oneOf(['new', 'like_new', 'good', 'fair'], 'État invalide')
-      .required('L\'état du véhicule est obligatoire'),
-    // Les photos sont gérées séparément via l'état local
+      .oneOf(['new', 'like_new', 'good', 'fair'], 'État invalide'),
   });
 
 
@@ -134,7 +144,6 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
   // Fonction pour sélectionner une localisation
   const handleLocationSelect = (location: any) => {
     setSelectedLocation(location);
-    // Afficher seulement city et sector au lieu de displayName
     const locationText = location.sector ? `${location.city}, ${location.sector}` : location.city;
     setLocationSearch(locationText);
     setShowLocationResults(false);
@@ -148,50 +157,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
     setShowLocationResults(false);
   };
 
-  // Fonction pour gérer la sélection des catégories d'échange
-  const handleExchangeCategoryToggle = async (categoryId: number) => {
-    if (!createdOfferId) {
-      toast.error('Veuillez d\'abord créer l\'offre');
-      return;
-    }
-
-    const isSelected = selectedExchangeCategories.includes(categoryId);
-
-    try {
-      if (isSelected) {
-        // Supprimer la catégorie
-        await removeCategoryFromOffer({ offerId: createdOfferId, categoryId }).unwrap();
-        setSelectedExchangeCategories(prev => prev.filter(id => id !== categoryId));
-        toast.success('Catégorie d\'échange supprimée');
-      } else {
-        // Ajouter la catégorie
-        await addCategoryToOffer({ offerId: createdOfferId, categoryId }).unwrap();
-        setSelectedExchangeCategories(prev => [...prev, categoryId]);
-        toast.success('Catégorie d\'échange ajoutée');
-      }
-    } catch (error: any) {
-      console.error('Erreur lors de la gestion de la catégorie d\'échange:', error);
-      toast.error('Erreur lors de la gestion de la catégorie d\'échange');
-    }
-  };
-
-  // Fonction pour confirmer les catégories d'échange et fermer le formulaire
-  const handleConfirmExchange = () => {
-    setIsExchangeConfirmed(true);
-    toast.success('Configuration terminée !', {
-      description: 'Votre offre est maintenant complète avec les catégories d\'échange sélectionnées.',
-      duration: 3000,
-    });
-    
-    // Fermer le formulaire après confirmation
-    setTimeout(() => {
-      if (onClose) {
-        onClose();
-      }
-    }, 1500);
-  };
-
-  // Fonctions pour gérer les caractéristiques détaillées
+  // Gestion des caractéristiques détaillées
   const addCharacteristic = () => {
     setCharacteristics([...characteristics, { key: '', value: '' }]);
   };
@@ -208,6 +174,75 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
     setCharacteristics(updated);
   };
 
+  // Fonction pour gérer la sélection des catégories d'échange
+  const handleExchangeCategoryToggle = (categoryId: number) => {
+    const isSelected = selectedExchangeCategories.includes(categoryId);
+
+    if (isSelected) {
+      // Désélectionner la catégorie et ses marques
+      setSelectedExchangeCategories(prev => prev.filter(id => id !== categoryId));
+      setSelectedExchangeBrands(prev => {
+        // Trouver les marques de cette catégorie et les retirer
+        const category = allCategoriesData?.data?.find(c => c.id === categoryId);
+        if (category?.brands) {
+          const brandIds = category.brands.map(brand => brand.id);
+          return prev.filter(brandId => !brandIds.includes(brandId));
+        }
+        return prev;
+      });
+      // Fermer l'expansion de la catégorie
+      setExpandedCategories(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(categoryId);
+        return newSet;
+      });
+    } else {
+      // Sélectionner la catégorie
+      setSelectedExchangeCategories(prev => [...prev, categoryId]);
+      // Ouvrir l'expansion pour voir les marques
+      setExpandedCategories(prev => new Set([...prev, categoryId]));
+    }
+  };
+
+  // Fonction pour gérer la sélection des marques d'échange
+  const handleExchangeBrandToggle = (brandId: number) => {
+    const isSelected = selectedExchangeBrands.includes(brandId);
+    
+    if (isSelected) {
+      setSelectedExchangeBrands(prev => prev.filter(id => id !== brandId));
+    } else {
+      setSelectedExchangeBrands(prev => [...prev, brandId]);
+    }
+  };
+
+  // Fonctions de gestion de la pagination des catégories d'échange
+  const handleCategorySearchChange = (searchTerm: string) => {
+    setCategorySearchTerm(searchTerm);
+    setCategoryPage(1); // Reset à la première page lors de la recherche
+  };
+
+  const handleCategoryPageChange = (page: number) => {
+    setCategoryPage(page);
+  };
+
+  const handleCategoryLimitChange = (limit: number) => {
+    setCategoryLimit(limit);
+    setCategoryPage(1); // Reset à la première page lors du changement de limite
+  };
+
+  // Fonction pour basculer l'expansion d'une catégorie
+  const toggleCategoryExpansion = (categoryId: number) => {
+    setExpandedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(categoryId)) {
+        newSet.delete(categoryId);
+      } else {
+        newSet.add(categoryId);
+      }
+      return newSet;
+    });
+  };
+
   // Synchroniser currentPhotoIndex avec imageFiles
   useEffect(() => {
     if (imageFiles.length === 0) {
@@ -217,33 +252,80 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
     }
   }, [imageFiles, currentPhotoIndex]);
 
-  // Fonction pour publier l'offre (appelée par le bouton "Publier l'Offre")
+  // Mettre à jour les marques disponibles quand la catégorie principale change
+  useEffect(() => {
+    if (formValues.categoryId && categoriesData?.data) {
+      const selectedCategory = categoriesData.data.find(cat => cat.id === formValues.categoryId);
+      if (selectedCategory?.brands) {
+        setAvailableBrands(selectedCategory.brands);
+      } else {
+        setAvailableBrands([]);
+      }
+      // Réinitialiser la sélection de marque
+      setSelectedBrandId(null);
+      setSelectedBrandName('');
+      setIsCustomBrand(false);
+    } else {
+      setAvailableBrands([]);
+      setSelectedBrandId(null);
+      setSelectedBrandName('');
+      setIsCustomBrand(false);
+    }
+  }, [formValues.categoryId, categoriesData?.data]);
+
+  // Mettre à jour l'aperçu quand les champs de titre changent
+  useEffect(() => {
+    handleFormChange(formValues);
+  }, [selectedBrandName, formValues.model, formValues.year, formValues.description, formValues.value, formValues.productCondition, formValues.mileage, imageFiles, selectedLocation]);
+
+  // Fonction pour gérer la sélection d'une marque de la liste
+  const handleBrandSelect = (brand: any) => {
+    setSelectedBrandId(brand.id);
+    setSelectedBrandName(brand.name);
+    setIsCustomBrand(false);
+  };
+
+  // Fonction pour gérer la sélection "Autre"
+  const handleCustomBrandSelect = () => {
+    setSelectedBrandId(null);
+    setSelectedBrandName('');
+    setIsCustomBrand(true);
+  };
+
+  // Fonction pour gérer la saisie manuelle de marque
+  const handleCustomBrandChange = (brandName: string) => {
+    setSelectedBrandName(brandName);
+  };
+
+  // Fonction pour publier l'offre
   const handlePublishOffer = async (values: typeof initialValues) => {
     console.log('values', values);
-    // Validation des images
+    
     if (imageFiles.length === 0) {
       toast.error('Au moins une photo est obligatoire');
       return;
     }
 
-    // Validation de la localisation
-    if (!selectedLocation) {
-      toast.error('Veuillez sélectionner une localisation');
-      return;
-    }
+    // Validation de la localisation (optionnelle)
+    // if (!selectedLocation) {
+    //   toast.error('Veuillez sélectionner une localisation');
+    //   return;
+    // }
 
-    // Valider les caractéristiques
+    // Valider les caractéristiques (optionnelles)
     const validCharacteristics = characteristics.filter(c => c.key.trim() && c.value.trim());
-    if (validCharacteristics.length === 0) {
-      toast.error('Veuillez ajouter au moins une caractéristique détaillée');
-      return;
-    }
 
     try {
-      // Construire le titre pour l'offre avec format amélioré
-      const title = `${values.brand} ${values.model} (${values.year})`;
+      // Construire le titre pour l'offre
+      const title = selectedBrandName && values.model && values.year 
+        ? `${selectedBrandName} ${values.model} (${values.year})`
+        : selectedBrandName && values.model
+        ? `${selectedBrandName} ${values.model}`
+        : selectedBrandName || values.model || values.year
+        ? `${selectedBrandName || values.model || values.year}`
+        : 'Véhicule à vendre';
 
-      // Convertir les caractéristiques en objet
+      // Construire les caractéristiques en objet
       const characteristicsObj = validCharacteristics.reduce((acc, char) => {
         acc[char.key] = char.value;
         return acc;
@@ -252,7 +334,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
       // Données spécifiques au véhicule
       const specificData = {
         year: values.year,
-        brand: values.brand,
+        brand: selectedBrandName,
         model: values.model,
         mileage: Number(values.mileage),
         fuel: 'essence', // Valeur par défaut
@@ -261,7 +343,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
         characteristics: characteristicsObj
       };
 
-      // Préparer les données pour l'API selon la structure attendue
+      // Préparer les données pour l'API
       const apiData = {
         title: title,
         description: values.description,
@@ -271,33 +353,37 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
         listingType: 'vehicle',
         sellerId: currentUser?.id || 1,
         categoryId: values.categoryId,
-        addressId: selectedLocation.id,
+        brandId: selectedBrandId, // Ajouter le brandId principal
+        addressId: selectedLocation?.id || null,
         specificData: specificData,
-        images: imageFiles // Les objets File pour l'upload
+        exchangeCategories: selectedExchangeCategories || [], // Catégories d'échange sélectionnées
+        exchangeBrands: selectedExchangeBrands || [], // Marques d'échange sélectionnées
+        images: imageFiles
       };
 
       console.log('📤 Envoi des données offre véhicule:', apiData);
+      console.log('🔍 Debug - selectedExchangeCategories:', selectedExchangeCategories);
+      console.log('🔍 Debug - selectedExchangeBrands:', selectedExchangeBrands);
 
       const result = await createOffer(apiData).unwrap();
 
       console.log('✅ Offre créée avec succès:', result);
 
-      // Sauvegarder l'ID de l'offre créée pour les catégories d'échange
-      if (result.data?.id) {
-        setCreatedOfferId(result.data.id);
-      }
-
-      // Toast de succès
       toast.success('Offre créée avec succès !', {
-        description: `Votre véhicule "${result.data?.title || title}" est maintenant en ligne. Vous pouvez maintenant sélectionner les catégories d'échange.`,
+        description: `Votre véhicule "${result.data?.title || title}" est maintenant en ligne avec les catégories d'échange sélectionnées.`,
         duration: 4000,
       });
 
-      // Ne pas fermer automatiquement - laisser l'utilisateur sélectionner les catégories d'échange
+      // Fermer le formulaire après création
+      setTimeout(() => {
+        if (onClose) {
+          onClose();
+        }
+      }, 1500);
+
     } catch (error: any) {
       console.error('❌ Erreur lors de la création:', error);
 
-      // Gestion des erreurs avec toast
       if (error?.data?.error) {
         toast.error('Erreur lors de la création', {
           description: error.data.details || error.data.error,
@@ -317,22 +403,25 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
     }
   };
 
-  // Fonction pour mettre à jour l'aperçu (appelée par le formulaire)
+  // Fonction pour mettre à jour l'aperçu
   const handleFormChange = (values: typeof initialValues) => {
-    // Construire le titre pour l'offre avec format amélioré
-    const title = `${values.brand} ${values.model} (${values.year})`;
+    const title = selectedBrandName && values.model && values.year 
+      ? `${selectedBrandName} ${values.model} (${values.year})`
+      : selectedBrandName && values.model
+      ? `${selectedBrandName} ${values.model}`
+      : selectedBrandName || values.model || values.year
+      ? `${selectedBrandName || values.model || values.year}`
+      : 'Véhicule à vendre';
 
-    // Convertir les caractéristiques en objet
     const validCharacteristics = characteristics.filter(c => c.key.trim() && c.value.trim());
     const characteristicsObj = validCharacteristics.reduce((acc, char) => {
       acc[char.key] = char.value;
       return acc;
     }, {} as Record<string, string>);
 
-    // Données spécifiques au véhicule
     const specificData = {
       year: values.year,
-      brand: values.brand,
+      brand: selectedBrandName,
       model: values.model,
       mileage: Number(values.mileage),
       fuel: 'essence', // Valeur par défaut
@@ -341,7 +430,6 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
       characteristics: characteristicsObj
     };
 
-    // Sauvegarder les données dans le state (pour l'aperçu) - sans les objets File
     const offerData = {
       title: title,
       description: values.description,
@@ -354,7 +442,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
         size: file.size,
         type: file.type,
         lastModified: file.lastModified
-      })), // Convertir les File en objets sérialisables
+      })),
       specificData: specificData,
       addressId: selectedLocation?.id
     };
@@ -367,21 +455,21 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onBack}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onBack}
               className="p-2 hover:shadow-md hover:border-gray-300 border border-transparent rounded-lg transition-all duration-200"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
             <div className="flex items-center gap-2">
-              <Car className="w-6 h-6 text-blue-600" />
-              <Bike className="w-6 h-6 text-orange-600" />
-            </div>
-            <h2 className="text-xl font-semibold text-gray-900">
+            <Car className="w-6 h-6 text-blue-600" />
+            <Bike className="w-6 h-6 text-orange-600" />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900">
               Véhicule à vendre
-            </h2>
+          </h2>
           </div>
           <div className="flex items-center gap-3">
             
@@ -389,10 +477,6 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
               variant="ghost"
               size="sm"
               onClick={() => {
-                if (createdOfferId && !isExchangeConfirmed) {
-                  toast.error('Veuillez d\'abord confirmer vos sélections d\'échange');
-                  return;
-                }
                 if (onClose) onClose();
               }}
               className="p-2 hover:shadow-md hover:border-gray-400 border border-transparent rounded-lg transition-all duration-200"
@@ -406,16 +490,15 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
         <div className="flex h-[calc(95vh-80px)]">
           {/* Left Panel - Form */}
           <div className="w-full lg:w-1/2 p-6 overflow-y-auto">
-            <Formik
-              initialValues={initialValues}
-              validationSchema={vehicleSchema}
-              onSubmit={() => {}} // Pas de soumission automatique
+        <Formik
+          initialValues={initialValues}
+          validationSchema={vehicleSchema}
+              onSubmit={() => {}}
             >
               {({ values, setFieldValue }) => {
-                // Utiliser useEffect pour mettre à jour formValues et l'aperçu
                 useEffect(() => {
                   setFormValues(values);
-                  handleFormChange(values); // Mettre à jour l'aperçu
+                  handleFormChange(values);
                 }, [values]);
 
                 return (
@@ -423,7 +506,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                     {/* Catégorie de véhicule */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-3">
-                        Catégorie de véhicule *
+                        Catégorie de véhicule
                       </label>
                       {isLoadingCategories ? (
                         <div className="flex items-center justify-center p-4">
@@ -443,7 +526,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                                 }`}
                             >
                               <div className="flex items-center gap-3">
-                                <img src={category.icon} alt={category.name} className="w-6 h-6 text-blue-600" />
+                                <img src={category.icon} alt={category.name} className="w-6 h-6" />
                                 <span className="font-medium">{category.name}</span>
                               </div>
                             </button>
@@ -453,12 +536,11 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                       <ErrorMessage name="categoryId" component="div" className="text-red-500 text-sm mt-1" />
                     </div>
 
-
                     {/* Année, Marque, Modèle */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Année *
+                          Année
                         </label>
                         <Field
                           as={Input}
@@ -471,19 +553,74 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Marque *
+                          Marque
                         </label>
-                        <Field
-                          as={Input}
-                          name="brand"
-                          placeholder="Ex: Toyota, BMW..."
-                          className="w-full"
-                        />
-                        <ErrorMessage name="brand" component="div" className="text-red-500 text-sm mt-1" />
+                        {!isCustomBrand ? (
+                          <div className="relative">
+                            <select
+                              value={selectedBrandId || ''}
+                              onChange={(e) => {
+                                if (e.target.value === 'custom') {
+                                  handleCustomBrandSelect();
+                                } else {
+                                  const brand = availableBrands.find(b => b.id === parseInt(e.target.value));
+                                  if (brand) handleBrandSelect(brand);
+                                }
+                              }}
+                              disabled={!formValues.categoryId}
+                              className={`w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                                !formValues.categoryId ? 'bg-gray-100 cursor-not-allowed' : ''
+                              }`}
+                            >
+                              <option value="">
+                                {!formValues.categoryId ? 'Sélectionnez d\'abord une catégorie...' : 'Sélectionnez une marque...'}
+                              </option>
+                              {availableBrands.map((brand) => (
+                                <option key={brand.id} value={brand.id}>
+                                  {brand.name}
+                                </option>
+                              ))}
+                              <option value="custom">Autre...</option>
+                            </select>
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <Input
+                              value={selectedBrandName}
+                              onChange={(e) => handleCustomBrandChange(e.target.value)}
+                              placeholder="Ex: Toyota, BMW..."
+                              className="flex-1"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => {
+                                setIsCustomBrand(false);
+                                setSelectedBrandName('');
+                                setSelectedBrandId(null);
+                              }}
+                              className="px-3"
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        )}
+                        {selectedBrandName && (
+                          <div className="mt-2 flex items-center gap-2 text-sm text-blue-600">
+                            {selectedBrandId && availableBrands.find(b => b.id === selectedBrandId)?.logo && (
+                              <img 
+                                src={availableBrands.find(b => b.id === selectedBrandId)?.logo} 
+                                alt={selectedBrandName} 
+                                className="w-4 h-4" 
+                              />
+                            )}
+                            <span>Marque sélectionnée: {selectedBrandName}</span>
+                          </div>
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Modèle *
+                          Modèle
                         </label>
                         <Field
                           as={Input}
@@ -495,11 +632,24 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                       </div>
                     </div>
 
+                    {/* Upload d'images */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Photos du véhicule *
+                      </label>
+                      <MultipleImageUpload
+                        images={imageFiles}
+                        setImages={handleImagesChange}
+                        maxImages={10}
+                        minImages={1}
+                      />
+                    </div>
+
                     {/* Kilométrage et Valeur */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Kilométrage (km) *
+                          Kilométrage (km)
                         </label>
                         <Field
                           as={Input}
@@ -528,7 +678,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                     {/* État du véhicule */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        État du véhicule *
+                        État du véhicule
                       </label>
                       <Field
                         as="select"
@@ -546,7 +696,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                     {/* Description */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Description *
+                        Description
                       </label>
                       <Field
                         as="textarea"
@@ -561,7 +711,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                     {/* Caractéristiques détaillées */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-3">
-                        Caractéristiques détaillées *
+                        Caractéristiques détaillées
                         <span className="text-gray-500 text-sm font-normal ml-2">
                           (Ajoutez des spécifications techniques, équipements, etc.)
                         </span>
@@ -612,7 +762,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                     {/* Localisation */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Localisation *
+                        Localisation
                       </label>
                       <div className="relative">
                         <div className="relative">
@@ -690,102 +840,160 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                       )}
                     </div>
 
-                    {/* Upload d'images */}
+                    {/* Section des catégories d'échange */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Photos du véhicule *
+                      <label className="block text-sm font-medium text-gray-700 mb-3">
+                        Catégories d'échange souhaitées
+                        <span className="text-gray-500 text-sm font-normal ml-2">
+                          (Sélectionnez les catégories et marques que vous souhaitez recevoir en échange)
+                        </span>
                       </label>
-                      <MultipleImageUpload
-                        images={imageFiles}
-                        setImages={handleImagesChange}
-                        maxImages={10}
-                        minImages={1}
+                      
+                      {/* Barre de filtres pour les catégories d'échange */}
+                      <CategoryFiltersBar
+                        searchTerm={categorySearchTerm}
+                        currentPage={categoryPage}
+                        totalPages={allCategoriesData?.totalPages || 0}
+                        limit={categoryLimit}
+                        onSearchChange={handleCategorySearchChange}
+                        onPageChange={handleCategoryPageChange}
+                        onLimitChange={handleCategoryLimitChange}
+                        totalCount={allCategoriesData?.totalCount || 0}
+                        isLoading={isLoadingAllCategories}
                       />
-                    </div>
-
-                    {/* Section des catégories d'échange - affichée après création de l'offre */}
-                    {createdOfferId && (
-                      <div>
-                        <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                          <p className="text-sm text-green-800 font-medium">
-                            ✅ Offre créée avec succès ! 
-                          </p>
-                          <p className="text-xs text-green-700 mt-1">
-                            {selectedExchangeCategories.length === 0 
-                              ? "Sélectionnez au moins une catégorie d'échange souhaitée, puis cliquez sur 'Confirmer les échanges'."
-                              : `Vous avez sélectionné ${selectedExchangeCategories.length} catégorie(s). Cliquez sur 'Confirmer les échanges' pour terminer.`
-                            }
-                          </p>
+                      
+                      {isLoadingAllCategories ? (
+                        <div className="flex items-center justify-center p-4">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                          <span className="ml-2 text-gray-600">Chargement des catégories...</span>
                         </div>
-                        <label className="block text-sm font-medium text-gray-700 mb-3">
-                          Catégories d'échange souhaitées
-                          <span className="text-gray-500 text-sm font-normal ml-2">
-                            (Sélectionnez les catégories que vous souhaitez recevoir en échange)
-                          </span>
-                        </label>
-                        {isLoadingAllCategories ? (
-                          <div className="flex items-center justify-center p-4">
-                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                            <span className="ml-2 text-gray-600">Chargement des catégories...</span>
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-2 gap-3 max-h-60 overflow-y-auto">
-                            {allCategoriesData?.data?.map((category) => (
-                              <button
-                                key={category.id}
-                                type="button"
-                                onClick={() => handleExchangeCategoryToggle(category.id)}
-                                className={`p-3 border-2 rounded-lg text-left transition-all ${
-                                  selectedExchangeCategories.includes(category.id)
-                                    ? 'border-green-500 bg-green-50'
-                                    : 'border-gray-200 hover:border-gray-300'
-                                } cursor-pointer`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
-                                    selectedExchangeCategories.includes(category.id)
-                                      ? 'border-green-500 bg-green-500'
-                                      : 'border-gray-300'
-                                  }`}>
-                                    {selectedExchangeCategories.includes(category.id) && (
-                                      <div className="w-2 h-2 bg-white rounded-sm"></div>
+                      ) : (
+                        <div className="space-y-3 max-h-80 overflow-y-auto">
+                          {allCategoriesData?.data?.map((category) => {
+                            const isCategorySelected = selectedExchangeCategories.includes(category.id);
+                            const isExpanded = expandedCategories.has(category.id);
+                            const hasBrands = category.brands && category.brands.length > 0;
+                            
+                            return (
+                              <div key={category.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                                {/* En-tête de la catégorie */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleExchangeCategoryToggle(category.id)}
+                                  className={`w-full p-3 text-left transition-all ${
+                                    isCategorySelected
+                                      ? 'bg-green-50 border-green-200'
+                                      : 'bg-white hover:bg-gray-50'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                                        isCategorySelected
+                                          ? 'border-green-500 bg-green-500'
+                                          : 'border-gray-300'
+                                      }`}>
+                                        {isCategorySelected && (
+                                          <div className="w-2 h-2 bg-white rounded-sm"></div>
+                                        )}
+                                      </div>
+                                      <img src={category.icon} alt={category.name} className="w-5 h-5" />
+                                      <span className="font-medium text-sm">{category.name}</span>
+                                      {hasBrands && (
+                                        <span className="text-xs text-gray-500">
+                                          ({category.brands.length} marque{category.brands.length > 1 ? 's' : ''})
+                                        </span>
+                                      )}
+                                    </div>
+                                    {hasBrands && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          toggleCategoryExpansion(category.id);
+                                        }}
+                                        className="p-1 hover:bg-gray-200 rounded transition-colors duration-200"
+                                      >
+                                        {isExpanded ? (
+                                          <ChevronDown className="w-4 h-4 text-gray-500" />
+                                        ) : (
+                                          <ChevronRight className="w-4 h-4 text-gray-500" />
+                                        )}
+                                      </button>
                                     )}
                                   </div>
-                                  <img src={category.icon} alt={category.name} className="w-4 h-4" />
-                                  <span className="font-medium text-sm">{category.name}</span>
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
+                                </button>
 
-                    {/* Footer */}
-                    <div className="flex justify-between gap-3 pt-6 border-t">
-                      {createdOfferId && !isExchangeConfirmed && (
-                        <Button
-                          type="button"
-                          onClick={handleConfirmExchange}
-                          disabled={selectedExchangeCategories.length === 0}
-                          className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
-                        >
-                          <Save className="w-4 h-4" />
-                          Confirmer les échanges
-                        </Button>
-                      )}
-                      {createdOfferId && isExchangeConfirmed && (
-                        <div className="flex items-center gap-2 text-green-600">
-                          <div className="w-4 h-4 rounded-full bg-green-600 flex items-center justify-center">
-                            <div className="w-2 h-2 bg-white rounded-full"></div>
-                          </div>
-                          <span className="text-sm font-medium">Configuration terminée</span>
+                                {/* Marques de la catégorie */}
+                                {isExpanded && hasBrands && (
+                                  <div className="border-t border-gray-200 bg-gray-50 p-3">
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {category.brands.map((brand) => {
+                                        const isBrandSelected = selectedExchangeBrands.includes(brand.id);
+                                        return (
+                                          <button
+                                            key={brand.id}
+                                            type="button"
+                                            onClick={() => handleExchangeBrandToggle(brand.id)}
+                                            className={`p-2 border rounded-lg text-left transition-all ${
+                                              isBrandSelected
+                                                ? 'border-blue-500 bg-blue-50'
+                                                : 'border-gray-300 hover:border-gray-400'
+                                            }`}
+                                          >
+                                            <div className="flex items-center gap-2">
+                                              <div className={`w-3 h-3 rounded border flex items-center justify-center ${
+                                                isBrandSelected
+                                                  ? 'border-blue-500 bg-blue-500'
+                                                  : 'border-gray-300'
+                                              }`}>
+                                                {isBrandSelected && (
+                                                  <div className="w-1 h-1 bg-white rounded-sm"></div>
+                                                )}
+                                              </div>
+                                              {brand.logo && (
+                                                <img src={brand.logo} alt={brand.name} className="w-4 h-4 object-contain" />
+                                              )}
+                                              <span className="text-xs font-medium">{brand.name}</span>
+                                            </div>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
+                      
+                      {/* Résumé des sélections */}
+                      {(selectedExchangeCategories.length > 0 || selectedExchangeBrands.length > 0) && (
+                        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="text-sm text-blue-800">
+                            <div className="font-medium mb-1">Sélections d'échange :</div>
+                            {selectedExchangeCategories.length > 0 && (
+                              <div className="mb-1">
+                                <span className="font-medium">Catégories :</span> {selectedExchangeCategories.length}
+                              </div>
+                            )}
+                            {selectedExchangeBrands.length > 0 && (
+                              <div>
+                                <span className="font-medium">Marques :</span> {selectedExchangeBrands.length}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="flex justify-end gap-3 pt-6 border-t">
                       <Button
                         type="button"
                         onClick={() => handlePublishOffer(values)}
-                        disabled={isLoading || (createdOfferId && !isExchangeConfirmed)}
+                        disabled={isLoading}
                         className="flex items-center gap-2"
                       >
                         {isLoading ? (
@@ -839,8 +1047,12 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
               {/* Titre et prix */}
               <div className="mb-4">
                 <h4 className="text-xl font-semibold text-gray-900 mb-2">
-                  {formValues.brand && formValues.model && formValues.year
-                    ? `${formValues.brand} ${formValues.model} (${formValues.year})`
+                  {selectedBrandName && formValues.model && formValues.year
+                    ? `${selectedBrandName} ${formValues.model} (${formValues.year})`
+                    : selectedBrandName && formValues.model
+                    ? `${selectedBrandName} ${formValues.model}`
+                    : selectedBrandName || formValues.model || formValues.year
+                    ? `${selectedBrandName || formValues.model || formValues.year}`
                     : 'Titre de l\'annonce'
                   }
                 </h4>
@@ -867,19 +1079,52 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ onBack, onClose }) => {
                     formValues.productCondition
                   }</p>
                 )}
-                {selectedExchangeCategories.length > 0 && allCategoriesData?.data && (
+                {(selectedExchangeCategories.length > 0 || selectedExchangeBrands.length > 0) && allCategoriesData?.data && (
                   <div>
                     <p className="font-medium text-gray-700 mb-1">Échange souhaité contre:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {selectedExchangeCategories.map(categoryId => {
-                        const category = allCategoriesData.data.find(c => c.id === categoryId);
-                        return category ? (
-                          <span key={categoryId} className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
-                            <img src={category.icon} alt={category.name} className="w-3 h-3" />
-                            {category.name}
-                          </span>
-                        ) : null;
-                      })}
+                    <div className="space-y-2">
+                      {/* Catégories sélectionnées */}
+                      {selectedExchangeCategories.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-gray-600 mb-1">Catégories:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {selectedExchangeCategories.map(categoryId => {
+                              const category = allCategoriesData.data.find(c => c.id === categoryId);
+                              return category ? (
+                                <span key={categoryId} className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                                  <img src={category.icon} alt={category.name} className="w-3 h-3" />
+                                  {category.name}
+                                </span>
+                              ) : null;
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Marques sélectionnées */}
+                      {selectedExchangeBrands.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-gray-600 mb-1">Marques:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {selectedExchangeBrands.map(brandId => {
+                              // Trouver la marque dans toutes les catégories
+                              let brand = null;
+                              for (const category of allCategoriesData.data) {
+                                if (category.brands) {
+                                  brand = category.brands.find(b => b.id === brandId);
+                                  if (brand) break;
+                                }
+                              }
+                              return brand ? (
+                                <span key={brandId} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                                  {brand.logo && <img src={brand.logo} alt={brand.name} className="w-3 h-3" />}
+                                  {brand.name}
+                                </span>
+                              ) : null;
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
