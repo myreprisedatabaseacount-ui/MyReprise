@@ -111,11 +111,10 @@ Store.prototype.getPublicData = function() {
         id: this.id,
         name: this.name,
         description: this.description,
-        // logo et banner peuvent ne pas exister en base selon le schéma actuel
-        logo: this.logo || null,
-        banner: this.banner || null,
-        secondaryColor: this.secondaryColor || null,
-        primaryColor: this.primaryColor || null,
+        logo: this.logo,
+        banner: this.banner,
+        secondaryColor: this.secondaryColor,
+        primaryColor: this.primaryColor,
         isActive: this.isActive,
         createdAt: this.createdAt
     };
@@ -148,9 +147,7 @@ Store.prototype.isStoreActive = function() {
  */
 Store.findByUserId = function(userId) {
     return this.findOne({
-        where: { userId: userId },
-        // Limiter aux colonnes garanties pour éviter les erreurs de colonnes inconnues
-        attributes: ['id', 'userId', 'name', 'description', 'isActive', 'createdAt', 'updatedAt']
+        where: { userId: userId }
     });
 };
 
@@ -205,6 +202,14 @@ Store.createStore = async function(storeData) {
     storeData.name = storeData.name.trim();
     if (storeData.description) {
         storeData.description = storeData.description.trim();
+    }
+    
+    // Définir les valeurs par défaut si elles ne sont pas fournies
+    if (!storeData.primaryColor) {
+        storeData.primaryColor = '#4169e1'; // bleu royale
+    }
+    if (!storeData.secondaryColor) {
+        storeData.secondaryColor = '#ffa500'; // orange-jaune
     }
     
     return await Store.create(storeData);
@@ -327,6 +332,46 @@ Store.getStoreStats = async function() {
         inactive: inactiveStores,
         activePercentage: totalStores > 0 ? Math.round((activeStores / totalStores) * 100) : 0
     };
+};
+
+/**
+ * Met à jour les stores existants avec les valeurs par défaut manquantes
+ */
+Store.fixDefaultValues = async function() {
+    try {
+        const storesToUpdate = await Store.findAll({
+            where: {
+                [db.Sequelize.Op.or]: [
+                    { primaryColor: null },
+                    { secondaryColor: null }
+                ]
+            }
+        });
+
+        console.log(`🔧 Mise à jour de ${storesToUpdate.length} stores avec les valeurs par défaut`);
+
+        for (const store of storesToUpdate) {
+            const updateData = {};
+            
+            if (!store.primaryColor) {
+                updateData.primaryColor = '#4169e1'; // bleu royale
+            }
+            if (!store.secondaryColor) {
+                updateData.secondaryColor = '#ffa500'; // orange-jaune
+            }
+            
+            if (Object.keys(updateData).length > 0) {
+                await store.update(updateData);
+                console.log(`✅ Store ${store.id} mis à jour avec les valeurs par défaut`);
+            }
+        }
+
+        console.log(`✅ Mise à jour terminée pour ${storesToUpdate.length} stores`);
+        return storesToUpdate.length;
+    } catch (error) {
+        console.error('❌ Erreur lors de la mise à jour des valeurs par défaut:', error);
+        throw error;
+    }
 };
 
 module.exports = { Store };

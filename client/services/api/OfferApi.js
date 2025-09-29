@@ -133,6 +133,19 @@ export const OfferApi = createApi({
       providesTags: (result, error, categoryId) => [{ type: 'Offer', id: categoryId }],
     }),
 
+    // Query pour récupérer les offres groupées par catégorie (top 3 catégories)
+    getOffersGroupedByTopCategories: builder.query({
+      query: (params = {}) => ({
+        url: '/api/offers/grouped-by-top-categories',
+        params: {
+          limit: params.limit || 3,
+          offersLimit: params.offersLimit || 8,
+          ...params
+        }
+      }),
+      providesTags: ['Offer'],
+    }),
+
     // Query pour récupérer une offre par ID
     getOfferById: builder.query({
       query: (id) => `/api/offers/${id}`,
@@ -157,13 +170,47 @@ export const OfferApi = createApi({
         if (offerData.categoryId) formData.append('categoryId', offerData.categoryId.toString());
         if (offerData.brandId) formData.append('brandId', offerData.brandId.toString());
         if (offerData.subjectId) formData.append('subjectId', offerData.subjectId.toString());
+        if (offerData.addressId) formData.append('addressId', offerData.addressId.toString());
         
-        // Ajouter les fichiers si ce sont des objets File
-        if (offerData.images && offerData.images.length > 0) {
-          offerData.images.forEach((image) => {
+        // Ajouter les données spécifiques au type de listing
+        if (offerData.specificData) {
+          formData.append('specificData', JSON.stringify(offerData.specificData));
+        }
+        
+        // Ajouter les catégories d'échange
+        if (offerData.exchangeCategories && offerData.exchangeCategories.length > 0) {
+          offerData.exchangeCategories.forEach((categoryId, index) => {
+            formData.append(`exchangeCategories[${index}]`, categoryId.toString());
+          });
+        }
+        
+        // Ajouter les marques d'échange
+        if (offerData.exchangeBrands && offerData.exchangeBrands.length > 0) {
+          offerData.exchangeBrands.forEach((brandId, index) => {
+            formData.append(`exchangeBrands[${index}]`, brandId.toString());
+          });
+        }
+        
+        // Ajouter les images à supprimer (IDs des images existantes)
+        if (offerData.imagesToDelete && offerData.imagesToDelete.length > 0) {
+          offerData.imagesToDelete.forEach((imageId, index) => {
+            formData.append(`imagesToDelete[${index}]`, imageId.toString());
+          });
+        }
+        
+        // Ajouter les nouvelles images (fichiers)
+        if (offerData.newImages && offerData.newImages.length > 0) {
+          offerData.newImages.forEach((image) => {
             if (image instanceof File) {
-              formData.append('images', image);
+              formData.append('newImages', image);
             }
+          });
+        }
+        
+        // Ajouter les images existantes à conserver (URLs)
+        if (offerData.existingImages && offerData.existingImages.length > 0) {
+          offerData.existingImages.forEach((image, index) => {
+            formData.append(`existingImages[${index}]`, JSON.stringify(image));
           });
         }
         
@@ -299,6 +346,7 @@ export const {
   useGetOffersQuery,
   useGetOffersBySellerQuery,
   useGetOffersByCategoryQuery,
+  useGetOffersGroupedByTopCategoriesQuery,
   useGetOfferByIdQuery,
   useUpdateOfferMutation,
   useUpdateOfferWithUrlsMutation,

@@ -1,6 +1,6 @@
 const express = require("express");
 const multer = require("multer");
-const { createOffer, getOffers, getOfferById, updateOffer, deleteOffer, getCategoriesToExchange, getMyOffers } = require("../controllers/offerController.js");
+const { createOffer, getOffers, getOfferById, updateOffer, deleteOffer, getCategoriesToExchange, getMyOffers, getOffersGroupedByTopCategories } = require("../controllers/offerController.js");
 const { authenticateToken } = require('../middleware/authEnhanced');
 
 const offerRoutes = express.Router();
@@ -17,12 +17,20 @@ try {
     },
     fileFilter: (req, file, cb) => {
       try {
-        // Pour les images
+        // Pour les images (création)
         if (file.fieldname === 'images') {
           if (file.mimetype.startsWith('image/')) {
             cb(null, true);
           } else {
             cb(new Error('Seules les images sont autorisées pour le champ images'), false);
+          }
+        }
+        // Pour les nouvelles images (mise à jour)
+        else if (file.fieldname === 'newImages') {
+          if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+          } else {
+            cb(new Error('Seules les images sont autorisées pour le champ newImages'), false);
           }
         }
         else {
@@ -74,6 +82,9 @@ offerRoutes.get("/seller/:sellerId", getOffers);
 // Route pour récupérer les offres par catégorie
 offerRoutes.get("/category/:categoryId", getOffers);
 
+// Route pour récupérer les offres groupées par les catégories les plus populaires
+offerRoutes.get("/grouped-by-top-categories", getOffersGroupedByTopCategories);
+
 // Route pour récupérer une offre par ID
 offerRoutes.get("/:id", getOfferById);
 
@@ -92,7 +103,10 @@ offerRoutes.post("/create-with-urls", createOffer);
 
 // Route pour mettre à jour une offre avec uploads multiples
 offerRoutes.put("/:id",
-  upload.array('images', 10),
+  upload.fields([
+    { name: 'images', maxCount: 10 },      // Pour la création
+    { name: 'newImages', maxCount: 10 }    // Pour la mise à jour
+  ]),
   handleMulterError,
   updateOffer
 );

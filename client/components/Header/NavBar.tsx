@@ -5,7 +5,7 @@ import { Button } from '../ui/button';
 import { useAuth } from '../../services/hooks/useAuth';
 import { useProduct } from '../../services/hooks/useProduct';
 import { useCurrentUser, useUserDisplay } from '../../services/hooks/useCurrentUser';
-import { User, LogOut, Settings, Store } from 'lucide-react';
+import { User, LogOut, Settings, Store, ShoppingBag } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,6 +52,17 @@ const NavBar: React.FC<NavBarProps> = ({ className = '' }) => {
 
           {/* Action Buttons */}
           <div className="flex items-center gap-3">
+            {/* Bouton Boutique */}
+            <Link href="/fr/boutique">
+              <Button 
+                variant="outline" 
+                className="flex items-center gap-2"
+              >
+                <ShoppingBag className="w-4 h-4" />
+                Boutique
+              </Button>
+            </Link>
+            
             {/* Bouton créer un produit - affiché seulement si authentifié */}
             {isAuthenticated && currentUser && (
               <Button 

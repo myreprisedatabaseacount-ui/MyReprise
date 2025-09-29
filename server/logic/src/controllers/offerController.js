@@ -14,12 +14,12 @@ const OfferImage = createOfferImageModel(sequelize);
 // Fonction utilitaire pour extraire le public_id d'une URL Cloudinary
 const extractPublicIdFromUrl = (url) => {
   if (!url) return null;
-
+  
   try {
     // Format URL: https://res.cloudinary.com/.../image/upload/v1234567890/offers/images/uyh8qxffruxt1weq8e9y.jpg
     const urlParts = url.split('/');
     const uploadIndex = urlParts.findIndex(part => part === 'upload');
-
+    
     if (uploadIndex !== -1 && urlParts[uploadIndex + 2]) {
       // Prendre TOUS les segments après 'upload/v1234567890/' pour reconstituer le chemin complet
       const pathSegments = urlParts.slice(uploadIndex + 2);
@@ -29,7 +29,7 @@ const extractPublicIdFromUrl = (url) => {
       console.log("🔍 Public ID extrait:", publicId, "depuis:", url);
       return publicId;
     }
-
+    
     console.warn("⚠️ Impossible d'extraire le public_id de l'URL:", url);
     return null;
   } catch (error) {
@@ -41,7 +41,7 @@ const extractPublicIdFromUrl = (url) => {
 // Fonction utilitaire pour nettoyer les fichiers uploadés en cas d'erreur
 const cleanupUploadedFiles = async (publicIds) => {
   if (!publicIds || publicIds.length === 0) return;
-
+  
   try {
     await cloudinaryService.deleteMultipleFiles(publicIds);
     console.log("✅ Fichiers supprimés après erreur:", publicIds);
@@ -52,7 +52,7 @@ const cleanupUploadedFiles = async (publicIds) => {
 
 const createOffer = async (req, res) => {
   let uploadedPublicIds = [];
-
+  
   try {
     const {
       title,
@@ -168,7 +168,6 @@ const createOffer = async (req, res) => {
         descriptionFr: description ? description.trim() : '', // Description optionnelle
         brandId: brandId ? parseInt(brandId) : null,
         categoryId: categoryId ? parseInt(categoryId) : null,
-        isActive: true
       };
 
       console.log('📦 Création du produit:', productData);
@@ -208,7 +207,7 @@ const createOffer = async (req, res) => {
           color: null, // Peut être rempli plus tard si nécessaire
           colorHex: null
         };
-
+        
         const offerImage = await OfferImage.create(imageData);
         offerImages.push(offerImage);
         console.log(`✅ Image ${i + 1} créée avec ID:`, offerImage.id);
@@ -275,10 +274,10 @@ const createOffer = async (req, res) => {
 
       return res.status(201).json({
         success: true,
-        data: {
-          id: offer.id,
+        data: { 
+          id: offer.id, 
           productId: product.id,
-          title: offer.title,
+          title: offer.title, 
           price: offer.price,
           images: offerImagesData, // Images depuis OfferImage
           listingType: offer.listingType,
@@ -318,6 +317,7 @@ const getOffers = async (req, res) => {
       search,
       listingType,
       categoryId,
+      category, // Ajouter le paramètre 'category' de l'URL
       brandId,
       sellerId,
       minPrice,
@@ -341,9 +341,17 @@ const getOffers = async (req, res) => {
 
     // Construire les filtres
     const filters = {};
-
+    
     if (listingType) filters.listingType = listingType;
-    if (categoryId) filters.categoryId = parseInt(categoryId);
+    // Prioriser categoryId, sinon utiliser category
+    let effectiveCategoryId = categoryId || category;
+    if (effectiveCategoryId !== undefined && isNaN(parseInt(effectiveCategoryId))) {
+      effectiveCategoryId = undefined;
+    }
+    if (effectiveCategoryId) {
+      filters.categoryId = parseInt(effectiveCategoryId);
+      console.log(`🔍 Filtre par catégorie appliqué: categoryId=${filters.categoryId}`);
+    }
     if (brandId) filters.brandId = parseInt(brandId);
     // Prioriser l'ID vendeur provenant de l'URL /seller/:sellerId
     const effectiveSellerId = req.params && req.params.sellerId ? parseInt(req.params.sellerId) : (sellerId ? parseInt(sellerId) : undefined);
@@ -363,8 +371,8 @@ const getOffers = async (req, res) => {
 
     // Récupérer les offres avec pagination et détails
     const result = await Offer.getOffersWithDetails(
-      parseInt(page),
-      parseInt(limit),
+      parseInt(page), 
+      parseInt(limit), 
       filters
     );
 
@@ -403,15 +411,15 @@ const getOffers = async (req, res) => {
         where: { offerId: offer.id },
         order: [['isMain', 'DESC'], ['id', 'ASC']] // Image principale en premier
       });
-
+      
       return {
         ...offer,
         images: offerImages.map(img => ({
-          id: img.id,
-          imageUrl: img.imageUrl,
-          isMain: img.isMain,
-          color: img.color,
-          colorHex: img.colorHex
+        id: img.id,
+        imageUrl: img.imageUrl,
+        isMain: img.isMain,
+        color: img.color,
+        colorHex: img.colorHex
         }))
       };
     }));
@@ -526,7 +534,7 @@ const getMyOffers = async (req, res) => {
 const getOfferById = async (req, res) => {
   try {
     const offerId = req.params.id;
-
+    
     if (!offerId) {
       return res.status(400).json({
         error: "ID d'offre requis"
@@ -535,20 +543,20 @@ const getOfferById = async (req, res) => {
 
     // Utiliser la nouvelle méthode pour récupérer l'offre avec toutes ses relations
     const offerData = await Offer.findCompleteById(offerId);
-
+    
     if (!offerData) {
       return res.status(404).json({
         error: "Offre non trouvée"
       });
     }
 
-
+    
     // Récupérer les images depuis OfferImage
     const offerImages = await OfferImage.findAll({
       where: { offerId: parseInt(offerId) },
       order: [['isMain', 'DESC'], ['id', 'ASC']] // Image principale en premier
     });
-
+    
     offerData.images = offerImages.map(img => ({
       id: img.id,
       imageUrl: img.imageUrl,
@@ -661,13 +669,195 @@ const updateOffer = async (req, res) => {
       });
     } else {
       // Mise à jour complète de l'offre
-      const updatedOffer = await Offer.updateOffer(offerId, updateData);
+      try {
+        const {
+          title,
+          description,
+          price,
+          status = 'available',
+          productCondition = 'good',
+          listingType,
+          sellerId,
+          categoryId,
+          brandId,
+          subjectId,
+          addressId,
+          specificData,
+          exchangeCategories = [],
+          exchangeBrands = [],
+          imagesToDelete = [],
+          existingImages = []
+        } = updateData;
 
-      return res.status(200).json({
-        success: true,
-        data: updatedOffer.getPublicData(),
-        message: "Offre mise à jour avec succès"
-      });
+        // Extraire les nouvelles images depuis req.files
+        const newImages = req.files && req.files.newImages ? req.files.newImages : [];
+        
+        console.log('🔍 Fichiers reçus pour mise à jour:', {
+          filesKeys: req.files ? Object.keys(req.files) : 'Aucun fichier',
+          newImagesCount: newImages.length,
+          newImages: newImages.map(img => ({ fieldname: img.fieldname, originalname: img.originalname, mimetype: img.mimetype }))
+        });
+
+        let uploadedPublicIds = [];
+
+        // 1. Supprimer les images marquées pour suppression
+        if (imagesToDelete && imagesToDelete.length > 0) {
+          console.log(`🗑️ Suppression de ${imagesToDelete.length} image(s) de l'offre ${offerId}`);
+          
+          for (const imageId of imagesToDelete) {
+            try {
+              // Récupérer l'image depuis la base de données
+              const imageToDelete = await OfferImage.findByPk(imageId);
+              if (imageToDelete) {
+                // Extraire le public_id de l'URL Cloudinary
+                const publicId = extractPublicIdFromUrl(imageToDelete.imageUrl);
+                if (publicId) {
+                  // Supprimer de Cloudinary
+                  await cloudinaryService.deleteFile(publicId);
+                  console.log(`✅ Image ${imageId} supprimée de Cloudinary`);
+                }
+                
+                // Supprimer de la base de données
+                await imageToDelete.destroy();
+                console.log(`✅ Image ${imageId} supprimée de la base de données`);
+              }
+            } catch (deleteError) {
+              console.error(`❌ Erreur lors de la suppression de l'image ${imageId}:`, deleteError);
+              // Continuer même en cas d'erreur pour ne pas bloquer la mise à jour
+            }
+          }
+        }
+
+        // 2. Uploader les nouvelles images
+        if (newImages && newImages.length > 0) {
+          console.log(`📤 Upload de ${newImages.length} nouvelle(s) image(s) pour l'offre ${offerId}`);
+          
+          try {
+            for (const imageFile of newImages) {
+              const imageUploadResult = await cloudinaryService.uploadFromBuffer(
+                imageFile.buffer,
+                "offers/images",
+                {
+                  resource_type: "image",
+                  transformation: [
+                    {
+                      quality: "auto:best",
+                      fetch_format: "auto",
+                      flags: "lossy",
+                      bytes_limit: 400000
+                    }
+                  ],
+                }
+              );
+              
+              // Créer l'enregistrement dans la base de données
+              const imageData = {
+                offerId: parseInt(offerId),
+                imageUrl: imageUploadResult.secure_url,
+                isMain: false, // Sera géré plus tard
+                color: null,
+                colorHex: null
+              };
+              
+              const newImage = await OfferImage.create(imageData);
+              uploadedPublicIds.push(imageUploadResult.public_id);
+              console.log(`✅ Nouvelle image créée avec ID: ${newImage.id}`);
+            }
+          } catch (uploadError) {
+            console.error("❌ Erreur upload nouvelles images:", uploadError);
+            // Nettoyer les fichiers uploadés en cas d'erreur
+            await cleanupUploadedFiles(uploadedPublicIds);
+            return res.status(500).json({
+              error: "Erreur lors de l'upload des nouvelles images",
+              details: uploadError.message || "Erreur inconnue",
+            });
+          }
+        }
+
+        // 3. Mettre à jour les données de l'offre
+        const offerUpdateData = {
+          title: title ? title.trim() : offer.title,
+          description: description ? description.trim() : offer.description,
+          price: price ? parseFloat(price) : offer.price,
+          status: status || offer.status,
+          productCondition: productCondition || offer.productCondition,
+          listingType: listingType || offer.listingType,
+          categoryId: categoryId ? parseInt(categoryId) : offer.categoryId,
+          brandId: brandId ? parseInt(brandId) : offer.brandId,
+          subjectId: subjectId ? parseInt(subjectId) : offer.subjectId,
+          addressId: addressId ? parseInt(addressId) : offer.addressId,
+          specificData: specificData ? JSON.stringify(specificData) : offer.specificData,
+        };
+
+        await offer.update(offerUpdateData);
+
+        // 4. Mettre à jour les catégories d'échange
+        if (exchangeCategories && exchangeCategories.length > 0) {
+          console.log(`🔄 Mise à jour des catégories d'échange pour l'offre ${offerId}`);
+          
+          try {
+            // Supprimer les anciennes catégories d'échange
+            await OfferCategory.deleteByOfferId(offerId);
+            
+            // Ajouter les nouvelles catégories d'échange
+            for (const categoryId of exchangeCategories) {
+              const category = await Category.findByPk(categoryId);
+              if (category) {
+                await OfferCategory.addCategoryToOffer(offerId, categoryId);
+                console.log(`✅ Catégorie d'échange ${categoryId} ajoutée`);
+              }
+            }
+          } catch (categoryError) {
+            console.error('❌ Erreur lors de la mise à jour des catégories d\'échange:', categoryError);
+          }
+        }
+
+        // 5. Mettre à jour les marques d'échange
+        if (exchangeBrands && exchangeBrands.length > 0) {
+          console.log(`🏷️ Mise à jour des marques d'échange pour l'offre ${offerId}`);
+          
+          try {
+            // Supprimer les anciennes marques d'échange
+            await OfferBrand.deleteByOffer(offerId);
+            
+            // Ajouter les nouvelles marques d'échange
+            const brandRelations = await OfferBrand.createMultipleOfferBrands(offerId, exchangeBrands);
+            console.log(`✅ ${brandRelations.length} marque(s) d'échange ajoutée(s)`);
+          } catch (brandError) {
+            console.error('❌ Erreur lors de la mise à jour des marques d\'échange:', brandError);
+          }
+        }
+
+        // 6. Récupérer l'offre mise à jour avec toutes ses relations
+        const updatedOffer = await Offer.findCompleteById(offerId);
+        
+        // Récupérer les images depuis OfferImage
+        const offerImages = await OfferImage.findAll({
+          where: { offerId: parseInt(offerId) },
+          order: [['isMain', 'DESC'], ['id', 'ASC']]
+        });
+
+        updatedOffer.images = offerImages.map(img => ({
+          id: img.id,
+          imageUrl: img.imageUrl,
+          isMain: img.isMain,
+          color: img.color,
+          colorHex: img.colorHex
+        }));
+
+    return res.status(200).json({
+      success: true,
+          data: updatedOffer,
+      message: "Offre mise à jour avec succès"
+    });
+
+      } catch (updateError) {
+        console.error("❌ Erreur lors de la mise à jour de l'offre:", updateError);
+        return res.status(500).json({
+          error: "Erreur lors de la mise à jour de l'offre",
+          details: updateError.message || "Erreur inconnue"
+        });
+      }
     }
 
   } catch (error) {
@@ -701,12 +891,12 @@ const deleteOffer = async (req, res) => {
       });
     } else {
       // Suppression logique (soft delete)
-      await Offer.deleteOffer(offerId);
+    await Offer.deleteOffer(offerId);
 
-      return res.status(200).json({
-        success: true,
-        message: "Offre supprimée avec succès"
-      });
+    return res.status(200).json({
+      success: true,
+      message: "Offre supprimée avec succès"
+    });
     }
 
   } catch (error) {
@@ -759,6 +949,133 @@ const getCategoriesToExchange = async (req, res) => {
   }
 };
 
+const getOffersGroupedByTopCategories = async (req, res) => {
+  try {
+    const { limit = 3, offersLimit = 8 } = req.query;
+    const { Op, Sequelize } = require('sequelize');
+    const db = require('../config/db');
+    const sequelize = db.getSequelize();
+    const Category = sequelize.models.Category;
+
+    console.log(`📊 Récupération des offres groupées par les ${limit} catégories les plus populaires`);
+
+    // 1. Récupérer les catégories avec le plus grand nombre d'offres
+    const topCategories = await Category.findAll({
+      attributes: [
+        'id',
+        'nameFr',
+        'nameAr',
+        'descriptionFr',
+        'descriptionAr',
+        'image',
+        'icon',
+        'createdAt',
+        'updatedAt',
+        [
+          Sequelize.literal('(SELECT COUNT(*) FROM offers WHERE offers.category_id = Category.id AND offers.is_deleted = false AND offers.status = "available")'),
+          'offersCount'
+        ]
+      ],
+      having: Sequelize.literal('offersCount > 0'),
+      order: [
+        [Sequelize.literal('offersCount'), 'DESC']
+      ],
+      limit: parseInt(limit)
+    });
+
+    // 2. Pour chaque catégorie, récupérer les offres
+    const categoriesWithOffers = await Promise.all(
+      topCategories.map(async (category) => {
+        const categoryData = category.toJSON();
+        
+        // Récupérer les offres pour cette catégorie avec une requête directe
+        const offers = await sequelize.query(`
+          SELECT 
+            o.id,
+            o.product_id as productId,
+            o.seller_id as sellerId,
+            o.category_id as categoryId,
+            o.brand_id as brandId,
+            o.subject_id as subjectId,
+            o.address_id as addressId,
+            o.title,
+            o.description,
+            o.price,
+            o.status,
+            o.product_condition as productCondition,
+            o.listing_type as listingType,
+            o.specific_data as specificData,
+            o.is_deleted as isDeleted,
+            o.created_at as createdAt,
+            o.updated_at as updatedAt
+          FROM offers o
+          WHERE o.category_id = :categoryId 
+            AND o.is_deleted = false 
+            AND o.status = 'available'
+          ORDER BY o.created_at DESC
+          LIMIT :limit
+        `, {
+          replacements: { 
+            categoryId: category.id, 
+            limit: parseInt(offersLimit) 
+          },
+          type: sequelize.QueryTypes.SELECT
+        });
+
+        // Récupérer les images pour chaque offre
+        const offersWithImages = await Promise.all(offers.map(async (offer) => {
+          const offerImages = await OfferImage.findAll({
+            where: { offerId: offer.id },
+            order: [['isMain', 'DESC'], ['id', 'ASC']]
+          });
+
+          return {
+            ...offer,
+            images: offerImages.map(img => ({
+              id: img.id,
+              imageUrl: img.imageUrl,
+              isMain: img.isMain,
+              color: img.color,
+              colorHex: img.colorHex
+            }))
+          };
+        }));
+
+        return {
+          id: categoryData.id,
+          name: categoryData.nameFr,
+          nameFr: categoryData.nameFr,
+          nameAr: categoryData.nameAr,
+          description: categoryData.descriptionFr,
+          descriptionFr: categoryData.descriptionFr,
+          descriptionAr: categoryData.descriptionAr,
+          image: categoryData.image,
+          icon: categoryData.icon,
+          offersCount: categoryData.offersCount,
+          offers: offersWithImages,
+          createdAt: categoryData.createdAt,
+          updatedAt: categoryData.updatedAt
+        };
+      })
+    );
+
+    console.log(`✅ ${categoriesWithOffers.length} catégories avec offres récupérées`);
+
+    return res.status(200).json({
+      success: true,
+      data: categoriesWithOffers,
+      message: `Offres groupées par les ${limit} catégories les plus populaires récupérées avec succès`
+    });
+
+  } catch (error) {
+    console.error("❌ Erreur getOffersGroupedByTopCategories:", error);
+    return res.status(500).json({
+      error: "Erreur lors de la récupération des offres groupées par catégories",
+      details: error.message || "Erreur inconnue"
+    });
+  }
+};
+
 module.exports = {
   createOffer,
   getOffers,
@@ -767,4 +1084,5 @@ module.exports = {
   deleteOffer,
   getCategoriesToExchange,
   getMyOffers,
+  getOffersGroupedByTopCategories,
 };

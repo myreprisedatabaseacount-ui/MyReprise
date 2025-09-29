@@ -693,10 +693,70 @@ const getCategoriesByListingType = async (req, res) => {
   }
 };
 
+const getTopCategoriesByOffers = async (req, res) => {
+  try {
+    const { limit = 3 } = req.query;
+    const { Offer } = require('../models/Offer.js');
+
+    console.log(`📊 Récupération des ${limit} catégories avec le plus grand nombre d'offres`);
+
+    // Requête pour récupérer les catégories avec le nombre d'offres
+    const topCategories = await Category.findAll({
+      attributes: [
+        'id',
+        'nameFr',
+        'nameAr',
+        'descriptionFr',
+        'descriptionAr',
+        'image',
+        'icon',
+        'createdAt',
+        'updatedAt',
+        [
+          Sequelize.literal('(SELECT COUNT(*) FROM offers WHERE offers.category_id = Category.id AND offers.is_deleted = false AND offers.status = "available")'),
+          'offersCount'
+        ]
+      ],
+      having: Sequelize.literal('offersCount > 0'), // Seulement les catégories qui ont des offres
+      order: [
+        [Sequelize.literal('offersCount'), 'DESC']
+      ],
+      limit: parseInt(limit)
+    });
+
+    // Transformer les données pour inclure les champs localisés
+    const transformedCategories = topCategories.map(category => {
+      const categoryData = category.toJSON();
+      
+      // Ajouter les champs localisés
+      categoryData.name = categoryData.nameFr;
+      categoryData.description = categoryData.descriptionFr;
+      
+      return categoryData;
+    });
+
+    console.log(`✅ ${transformedCategories.length} catégories populaires trouvées`);
+
+    return res.status(200).json({
+      success: true,
+      data: transformedCategories,
+      message: `Top ${limit} catégories récupérées avec succès`
+    });
+
+  } catch (error) {
+    console.error("❌ Erreur getTopCategoriesByOffers:", error);
+    return res.status(500).json({
+      error: "Erreur lors de la récupération des catégories populaires",
+      details: error.message || "Erreur inconnue"
+    });
+  }
+};
+
 module.exports = {
   createCategory,
   updateCategory,
   getAllCategories,
   getCategoryById,
-  getCategoriesByListingType
+  getCategoriesByListingType,
+  getTopCategoriesByOffers
 };
