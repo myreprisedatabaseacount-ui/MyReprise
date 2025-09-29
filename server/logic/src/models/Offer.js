@@ -616,10 +616,13 @@ Offer.searchOffers = async function(searchTerm, filters = {}) {
  */
 Offer.findWithPagination = async function(page = 1, limit = 10, filters = {}) {
     const offset = (page - 1) * limit;
+    const whereClause = {};
+    if(filters.isDeleted) {
+        whereClause.isDeleted = filters.isDeleted;
+    } else {
+        whereClause.isDeleted = false;
+    }
     
-    const whereClause = {
-        isDeleted: false
-    };
     
     if (filters.categoryId) whereClause.categoryId = filters.categoryId;
     if (filters.brandId) whereClause.brandId = filters.brandId;

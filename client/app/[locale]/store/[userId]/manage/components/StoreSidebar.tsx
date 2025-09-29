@@ -8,7 +8,8 @@ import {
   Menu,
   X,
   Store,
-  LogOut
+  LogOut,
+  Trash2
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCurrentUser } from '../../../../../../services/hooks/useCurrentUser';
@@ -26,6 +27,7 @@ const navItems: NavItem[] = [
   { id: 'reprise', icon: RefreshCw, label: 'Demandes reprise' },
   { id: 'recommendations', icon: FileText, label: 'Recommandations' },
   { id: 'statistics', icon: BarChart3, label: 'Statistiques' },
+  { id: 'trash', icon: Trash2, label: 'Corbeille' },
 ];
 
 interface StoreSidebarProps {

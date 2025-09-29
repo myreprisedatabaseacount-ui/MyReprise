@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Package, Plus, Edit, Trash2, Eye, Search, Filter, ChevronLeft, ChevronRight, MoreVertical, AlertCircle } from 'lucide-react';
-import { useGetOffersBySellerQuery, useUpdateOfferStatusMutation, useDeleteOfferMutation } from '../../../../../../services/api/OfferApi';
+import { useGetOffersBySellerQuery, useUpdateOfferStatusMutation, useDeleteOfferMutation, OfferApi } from '../../../../../../services/api/OfferApi';
 import { useGetAllCategoriesQuery } from '../../../../../../services/api/CategoryApi';
 import { useProduct } from '../../../../../../services/hooks/useProduct';
 import { useCurrentUser } from '../../../../../../services/hooks/useCurrentUser';
+import { useDispatch } from 'react-redux';
 import { toast } from 'sonner';
 import {
   DropdownMenu,
@@ -20,6 +21,7 @@ interface StoreOffersManagementProps {
 const StoreOffersManagement: React.FC<StoreOffersManagementProps> = ({ userId }) => {
   const { openCreateProduct } = useProduct();
   const { isAuthenticated } = useCurrentUser();
+  const dispatch = useDispatch();
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -71,7 +73,10 @@ const StoreOffersManagement: React.FC<StoreOffersManagementProps> = ({ userId })
   const handleStatusChange = async (offerId: string, newStatus: string) => {
     try {
       await updateOfferStatus({ id: offerId, status: newStatus }).unwrap();
-      toast.success(`Statut de l'offre changé vers ${newStatus}`);
+      toast.success(`Statut de l'offre changé vers ${getStatusText(newStatus)}`);
+      
+      // Synchroniser le frontend : forcer un refetch des données
+      dispatch(OfferApi.util.invalidateTags([{ type: 'Offer', id: userId }]));
     } catch (error: any) {
       console.error('Erreur lors du changement de statut:', error);
       if (error?.data?.error) {
@@ -84,13 +89,15 @@ const StoreOffersManagement: React.FC<StoreOffersManagementProps> = ({ userId })
 
   // Fonction pour gérer la suppression
   const handleDelete = async (offerId: string) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer cette offre ?')) {
+    if (window.confirm('Êtes-vous sûr de vouloir supprimer cette offre ? Elle sera déplacée vers la corbeille.')) {
       try {
         await deleteOffer(offerId).unwrap();
         toast.success('Offre supprimée avec succès');
         // Fermer le dialog après suppression réussie
         setIsDetailsDialogOpen(false);
         setSelectedOffer(null);
+        // Synchroniser le frontend : forcer un refetch des données
+        dispatch(OfferApi.util.invalidateTags([{ type: 'Offer', id: userId }]));
       } catch (error) {
         console.error('Erreur lors de la suppression:', error);
         toast.error('Erreur lors de la suppression');
@@ -328,28 +335,35 @@ const StoreOffersManagement: React.FC<StoreOffersManagementProps> = ({ userId })
                         <DropdownMenuContent align="end" className="w-48">
                           <DropdownMenuItem
                             onClick={() => handleStatusChange(offer.id, 'available')}
-                            className="flex items-center gap-2 cursor-pointer"
+                            disabled={offer.status === 'available'}
+                            className={`flex items-center gap-2 ${
+                              offer.status === 'available' 
+                                ? 'cursor-not-allowed opacity-50 bg-green-50 text-green-700' 
+                                : 'cursor-pointer hover:bg-gray-50'
+                            }`}
                           >
-                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                            Marquer comme disponible
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleStatusChange(offer.id, 'exchanged')}
-                            className="flex items-center gap-2 cursor-pointer"
-                          >
-                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                            Marquer comme échangé
+                            <div className={`w-2 h-2 rounded-full ${
+                              offer.status === 'available' ? 'bg-green-600' : 'bg-green-500'
+                            }`}></div>
+                            {offer.status === 'available' ? '✓ Disponible' : 'Marquer comme disponible'}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => handleStatusChange(offer.id, 'archived')}
-                            className="flex items-center gap-2 cursor-pointer"
+                            disabled={offer.status === 'archived'}
+                            className={`flex items-center gap-2 ${
+                              offer.status === 'archived' 
+                                ? 'cursor-not-allowed opacity-50 bg-gray-50 text-gray-700' 
+                                : 'cursor-pointer hover:bg-gray-50'
+                            }`}
                           >
-                            <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
-                            Archiver
+                            <div className={`w-2 h-2 rounded-full ${
+                              offer.status === 'archived' ? 'bg-gray-600' : 'bg-gray-500'
+                            }`}></div>
+                            {offer.status === 'archived' ? '✓ Archivé' : 'Archiver'}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => handleDelete(offer.id)}
-                            className="flex items-center gap-2 cursor-pointer text-red-600 focus:text-red-600"
+                            className="flex items-center gap-2 cursor-pointer text-red-600 focus:text-red-600 hover:bg-red-50"
                           >
                             <Trash2 className="w-4 h-4" />
                             Supprimer

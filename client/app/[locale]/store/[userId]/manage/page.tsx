@@ -14,6 +14,7 @@ import StoreOffersManagement from './components/StoreOffersManagement';
 import StoreRepriseRequests from './components/StoreRepriseRequests';
 import StoreRecommendations from './components/StoreRecommendations';
 import StoreStatistics from './components/StoreStatistics';
+import StoreTrashManagement from './components/StoreTrashManagement';
 import { useResponsive } from './hooks/useResponsive';
 
 interface StoreFormData {
@@ -289,6 +290,8 @@ const StoreManagePage: React.FC = () => {
         return <StoreRecommendations userId={userId} />;
       case 'statistics':
         return <StoreStatistics userId={userId} store={store} stats={stats} />;
+      case 'trash':
+        return <StoreTrashManagement userId={userId} />;
       default:
         return <StoreContentManagement userId={userId} store={store} />;
     }

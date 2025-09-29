@@ -2,7 +2,9 @@
 
 import React, { useState, useMemo } from 'react';
 import { ChevronDown, ChevronRight, Folder, Image, Code, Palette, Database, Globe, Smartphone, Monitor, Edit3, ArrowRightLeft, Trash2, MoreHorizontal, Plus } from 'lucide-react';
-import { useGetAllCategoriesQuery } from '@/services/api/CategoryApi';
+import useCategoriesWithPaginationAndFilters from '@/hooks/useCategoriesWithPaginationAndFilters';
+import CategoryFilters from '@/components/common/CategoryFilters';
+import CategoryPagination from '@/components/common/CategoryPagination';
 
 // Interface pour les données de l'API
 interface ApiCategory {
@@ -332,13 +334,31 @@ const CategoryCard: React.FC<CategoryCardProps> = ({ category, isExpanded, onTog
 
 const CategoriesContent: React.FC = () => {
   const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set());
-  const { data: categoriesResponse, isLoading, error } = useGetAllCategoriesQuery({});
+  
+  // Utiliser le hook personnalisé pour la pagination et les filtres
+  const {
+    categories,
+    isLoading,
+    error,
+    totalCount,
+    totalPages,
+    currentPage,
+    filters,
+    isSearching,
+    hasSearch,
+    searchTerm,
+    setLanguage,
+    setLimit,
+    setSearchTerm,
+    setPage,
+    resetFilters
+  } = useCategoriesWithPaginationAndFilters();
 
-  // Construire l'arbre des catégories à partir des données de l'API
+  // Construire l'arbre des catégories à partir des données filtrées
   const categoriesTree = useMemo(() => {
-    if (!categoriesResponse?.data) return [];
-    return buildCategoryTree(categoriesResponse.data);
-  }, [categoriesResponse]);
+    if (!categories) return [];
+    return buildCategoryTree(categories);
+  }, [categories]);
 
   const toggleCategory = (categoryId: number) => {
     setExpandedCategories(prev => {
@@ -421,11 +441,25 @@ const CategoriesContent: React.FC = () => {
         </div>
       </div>
 
+      {/* Filtres */}
+      <CategoryFilters
+        language={filters.language}
+        limit={filters.limit}
+        searchTerm={searchTerm}
+        onLanguageChange={setLanguage}
+        onLimitChange={setLimit}
+        onSearchChange={setSearchTerm}
+        onReset={resetFilters}
+        isSearching={isSearching}
+      />
+
       {/* Loading State */}
       {isLoading && (
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <span className="ml-2 text-gray-600">Chargement des catégories...</span>
+          <span className="ml-2 text-gray-600">
+            {hasSearch ? 'Recherche en cours...' : 'Chargement des catégories...'}
+          </span>
         </div>
       )}
 
@@ -454,17 +488,36 @@ const CategoriesContent: React.FC = () => {
       {!isLoading && !error && categoriesTree.length === 0 && (
         <div className="text-center py-12">
           <Folder className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">Aucune catégorie</h3>
-          <p className="mt-1 text-sm text-gray-500">Commencez par créer votre première catégorie.</p>
-          <div className="mt-6">
-            <button
-              onClick={handleAddParentCategory}
-              className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Ajouter une catégorie
-            </button>
-          </div>
+          {hasSearch ? (
+            <>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">Aucune catégorie trouvée</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Aucune catégorie ne correspond à votre recherche "{searchTerm}".
+              </p>
+              <div className="mt-6">
+                <button
+                  onClick={resetFilters}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Effacer la recherche
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">Aucune catégorie</h3>
+              <p className="mt-1 text-sm text-gray-500">Commencez par créer votre première catégorie.</p>
+              <div className="mt-6">
+                <button
+                  onClick={handleAddParentCategory}
+                  className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Ajouter une catégorie
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -487,6 +540,17 @@ const CategoriesContent: React.FC = () => {
             />
           ))}
         </div>
+      )}
+
+      {/* Pagination */}
+      {!isLoading && !error && totalPages > 1 && (
+        <CategoryPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalCount={totalCount}
+          limit={filters.limit}
+          onPageChange={setPage}
+        />
       )}
     </div>
   );

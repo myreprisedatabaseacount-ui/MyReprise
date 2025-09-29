@@ -322,7 +322,9 @@ const ProductDetails = () => {
   }
 
   const product = productdata.data;
-  const specificData = product.specificData ? JSON.parse(product.specificData) : {};
+  const specificData = product.specificData ? 
+    (typeof product.specificData === 'string' ? JSON.parse(product.specificData) : product.specificData) 
+    : {};
 
   // Adapter les images du nouveau format (objets) vers une liste d'URLs, avec l'image principale en premier
   const imageUrls: string[] = Array.isArray(product.images)
