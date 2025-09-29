@@ -44,9 +44,9 @@ export default function ReceivedOrdersPage() {
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [animatingId, setAnimatingId] = useState<string | null>(null);
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
-  const [chatPanelOrderId, setChatPanelOrderId] = useState<number | null>(null);
   const [orderNegotiationCardOpen, setOrderNegotiationCardOpen] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
 
   // Scroll + animation 2s, puis conserver le fond vert
   useEffect(() => {
@@ -76,17 +76,19 @@ export default function ReceivedOrdersPage() {
     return cond ? (map[cond] || 'Occasion') : 'Occasion';
   };
 
-  const handleOpenNegotiation = (orderId: number) => {
+  const handleOpenNegotiation = (orderId: number, userId: number) => {
     setChatPanelOpen(true);
-    setChatPanelOrderId(orderId);
     setOrderNegotiationCardOpen(true);
     setSelectedOrderId(orderId);
+    setSelectedUserId(userId);
   };
 
   return (
     <>
       {orderNegotiationCardOpen && <OrderNegotiationCard orderId={selectedOrderId} />}
-      {chatPanelOpen && <ChatPanel isOpen={chatPanelOpen} onToggle={() => { setChatPanelOpen(!chatPanelOpen), setOrderNegotiationCardOpen(false), setSelectedOrderId(null) }} />}
+      <div className="max-h-90 h-90 mt-[100px] relative overflow-y-hidden flex-1 bg-red-500" >
+        {chatPanelOpen && <ChatPanel isOpen={chatPanelOpen} onToggle={() => { setChatPanelOpen(!chatPanelOpen), setOrderNegotiationCardOpen(false), setSelectedOrderId(null) }} selectedUserId={selectedUserId} orderId={selectedOrderId} />}
+      </div>
       <div className="space-y-4 ">
         <h1 className="text-xl font-semibold">Commandes reçues</h1>
 
@@ -177,13 +179,12 @@ export default function ReceivedOrdersPage() {
                         </div>
                       </div>
 
-                      {/* Bandeau comparatif avec différence de prix (comme sur la page produit) */}
+                      {/* Bandeau comparatif avec balanceAmount du serveur */}
                       {(() => {
                         const senderPrice = Number(o.senderProductSnapshot?.price ?? o.senderOffer?.price ?? 0);
                         const myPrice = Number(group.offer?.price ?? 0);
-                        const baseDiff = myPrice - senderPrice;
-                        const diff = Math.abs(baseDiff);
-                        const direction = baseDiff > 0 ? 'recevoir' : baseDiff < 0 ? 'payer' : 'egal';
+                        const balance = Number(o.order?.balanceAmount ?? 0);
+                        const payerId = o.order?.balancePayerId;
                         return (
                           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                             {o.senderOffer && (
@@ -201,9 +202,9 @@ export default function ReceivedOrdersPage() {
                                     <div className="mt-1 text-[11px] text-gray-500 line-clamp-2">{o.senderOffer.description}</div>
                                   )}
                                 </div>
-                                {direction === 'recevoir' && (
+                                {(balance > 0 && payerId !== group.offer.sellerId) && (
                                   <div className={`absolute -top-2 -right-2 px-2 py-0.5 rounded-full text-xs font-semibold shadow border bg-emerald-100 text-emerald-700 border-emerald-300`}>
-                                    + {diff} DH
+                                    + {Number(balance)} DH
                                   </div>
                                 )}
                               </Link>
@@ -225,9 +226,9 @@ export default function ReceivedOrdersPage() {
                                   <div className="mt-1 text-[11px] text-gray-500 line-clamp-2">{group.offer.description}</div>
                                 )}
                               </div>
-                              {direction === 'payer' && (
+                              {(balance > 0 && payerId === group.offer.sellerId) && (
                                 <div className={`absolute -top-2 -right-2 px-2 py-0.5 rounded-full text-xs font-semibold shadow border bg-amber-100 text-amber-700 border-amber-300`}>
-                                  + {diff} DH
+                                  + {Number(balance)} DH
                                 </div>
                               )}
                             </Link>
@@ -248,19 +249,30 @@ export default function ReceivedOrdersPage() {
                       )}
 
                       {/* Message si l'autre a demandé un prix (balanceAmount > 0 et payerId = moi) */}
-                      {o.order.balanceAmount > 0 && o.order.balancePayerId === group.offer.sellerId && (
-                        <div className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">
-                          {o.sender?.name || 'L’utilisateur'} demande d’ajouter <span className="font-bold text-a">{Number(o.order.balanceAmount)} DH</span> sur votre produit.
-                        </div>
-                      )}
+                      {(() => {
+                        return (o.order.balanceAmount > 0 && o.order.balancePayerId === group.offer.sellerId) ? (
+                          <div className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">
+                            {o.sender?.name || 'L’utilisateur'} demande d’ajouter <span className="font-bold text-a">{Number(o.order.balanceAmount)} DH</span> sur votre produit.
+                          </div>
+                        ) : null;
+                      })()}
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-2 gap-2">
                         <div className="text-sm text-gray-700">
-                          Différence: <span className="font-bold text-emerald-600">{Number(o.order.balanceAmount)} DH</span>
+                          {(() => {
+                            const sp = Number(o.senderProductSnapshot?.price ?? o.senderOffer?.price ?? 0);
+                            const mp = Number(group.offer?.price ?? 0);
+                            const df = Math.abs(mp - sp);
+                            return (
+                              <>
+                                Différence: <span className="font-bold text-emerald-600">{Number(df)} DH</span>
+                              </>
+                            );
+                          })()}
                         </div>
                         <div className="flex flex-row items-stretch gap-2 w-full sm:w-auto max-w-sm sm:max-w-none">
                           <button className="inline-flex items-center justify-center rounded-md border px-3 py-2 text-md font-medium text-gray-700 hover:bg-gray-50 flex-1 sm:flex-none">Refuser</button>
                           <button
-                            onClick={() => handleOpenNegotiation(o.order.id)}
+                            onClick={() => handleOpenNegotiation(o.order.id, o.sender.userId)}
                             className="inline-flex items-center justify-center gap-3 rounded-md bg-emerald-600 px-4 py-2 text-md font-medium text-white hover:bg-emerald-700 flex-1 sm:flex-none"
                           >
                             <span>Accepter et négocier</span>

@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { ArrowLeftRight, Coins, MapPin, Search, Truck, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useCurrentUser } from '@/services/hooks/useCurrentUser';
-import { useGetOffersBySellerQuery } from '@/services/api/OfferApi';
+import { useGetMyOffersQuery } from '@/services/api/OfferApi';
 import { useSearchLocationsMutation } from '@/services/api/AddressApi';
 import { useCreateRepriseOrderMutation } from '@/services/api/RepriseOrderApi';
 import { toast } from 'sonner';
@@ -28,7 +28,7 @@ export interface RepriseOrderModalProps {
 // ha target kifach dayar : {{ id: product.id, title: product.title, image: product.images[0], price: product.price }}
 const RepriseOrderModal: React.FC<RepriseOrderModalProps> = ({ isOpen, onClose, target }) => {
   const { currentUser } = useCurrentUser();
-  const { data: myOffersData, isLoading: isLoadingMyOffers, error: errorMyOffers } = useGetOffersBySellerQuery(currentUser?.id);
+  const { data: myOffersData, isLoading: isLoadingMyOffers, error: errorMyOffers } = useGetMyOffersQuery({});
   const myOffersList: any[] = Array.isArray(myOffersData?.data) ? myOffersData.data : [];
   const { openCreateProduct } = useProduct();
 

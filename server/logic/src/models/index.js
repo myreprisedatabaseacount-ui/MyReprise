@@ -22,6 +22,8 @@ const { Delta } = require('./Delta');
 const { ConversationParticipants } = require('./ConversationParticipants');
 const { MessageReads } = require('./MessageReads');
 const { MessageReactions } = require('./MessageReactions');
+const { Notification } = require('./Notification');
+const { UserDevice } = require('./UserDevice');
 
 // Import des modèles non encore refactorisés
 const { Subject } = require('./Subject');
@@ -93,6 +95,25 @@ async function initializeModels() {
       }
     } catch (error) {
       console.error('❌ Erreur association User <-> Address:', error.message);
+    }
+
+    // Associations Notifications / UserDevices
+    try {
+      if (User && Notification) {
+        User.hasMany(Notification, { foreignKey: 'user_id', as: 'Notifications' });
+        Notification.belongsTo(User, { foreignKey: 'user_id', as: 'User' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association User <-> Notification:', error.message);
+    }
+
+    try {
+      if (User && UserDevice) {
+        User.hasMany(UserDevice, { foreignKey: 'user_id', as: 'Devices' });
+        UserDevice.belongsTo(User, { foreignKey: 'user_id', as: 'User' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association User <-> UserDevice:', error.message);
     }
     
     try {
@@ -297,6 +318,16 @@ async function initializeModels() {
     } catch (error) {
       console.error('❌ Erreur association Conversation <-> ConversationParticipants:', error.message);
     }
+
+    // Association Order <-> Conversation (order a plusieurs conversations potentielles, ex: renegociation)
+    try {
+      if (Order && Conversation) {
+        Order.hasMany(Conversation, { foreignKey: 'order_id', as: 'Conversations' });
+        Conversation.belongsTo(Order, { foreignKey: 'order_id', as: 'Order' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association Order <-> Conversation:', error.message);
+    }
     
     try {
       if (User && ConversationParticipants) {
@@ -455,7 +486,9 @@ async function initializeModels() {
       Delta,
       ConversationParticipants,
       MessageReads,
-      MessageReactions
+      MessageReactions,
+      Notification,
+      UserDevice
     };
     
   } catch (error) {

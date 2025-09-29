@@ -6,8 +6,30 @@ import { useCurrentUser } from '@/services/hooks/useCurrentUser';
 import { useSocket } from '@/services/hooks/useSocket';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Search, MessageCircle, Clock } from 'lucide-react';
+import { Search, MessageCircle, Clock, ArrowLeftRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+interface NegotiationProduct {
+  offerId: number;
+  title: string;
+  price: number;
+  productCondition: string;
+  userId: number;
+  images: string[];
+}
+
+interface NegotiationOrder {
+  id: number;
+  status: 'pending' | 'completed' | 'cancelled' | 'refunded';
+  balanceAmount: number;
+  balancePayerId: number | null;
+  createdAt: string;
+}
+
+interface NegotiationData {
+  order: NegotiationOrder;
+  products: NegotiationProduct[];
+}
 
 interface Contact {
   conversationId: number;
@@ -26,6 +48,7 @@ interface Contact {
   unreadCount: number;
   conversationType: 'chat' | 'negotiation';
   lastActivity: string;
+  negotiation?: NegotiationData;
 }
 
 interface ContactsListProps {
@@ -40,6 +63,8 @@ export default function ContactsList({ onContactSelect, selectedContactId }: Con
   const { data: conversationsData, isLoading, error, refetch } = useGetConversationsQuery({});
 
   const contacts = conversationsData?.conversations || [];
+  const [hoveredId, setHoveredId] = useState<number | null>(null);
+  const myAvatar = (currentUser as any)?.profileImage || (currentUser as any)?.avatar || null;
 
   // Écouter les mises à jour en temps réel
   useEffect(() => {
@@ -179,18 +204,34 @@ export default function ContactsList({ onContactSelect, selectedContactId }: Con
           </div>
         ) : (
           <div className="space-y-1 p-2">
-            {filteredContacts.map((contact: Contact) => (
+            {filteredContacts.map((contact: Contact) => {
+              const isNegotiation = contact.conversationType === 'negotiation' && !!contact.negotiation;
+              const products = isNegotiation ? (contact.negotiation!.products || []) : [];
+              const order = isNegotiation ? contact.negotiation!.order : null;
+              const payerId = order?.balanceAmount && order.balanceAmount > 0 ? order.balancePayerId : null;
+              const diffAmount = order?.balanceAmount || 0;
+
+              const getOwnerAvatar = (userId: number) => {
+                if (currentUser?.id === userId) return myAvatar;
+                return contact.friendId === userId ? (contact.friendImage || null) : null;
+              };
+
+              return (
               <div
                 key={contact.conversationId}
+                onMouseEnter={() => setHoveredId(contact.conversationId)}
+                onMouseLeave={() => setHoveredId((prev) => (prev === contact.conversationId ? null : prev))}
                 onClick={() => onContactSelect(contact)}
                 className={cn(
-                  "flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-colors hover:bg-gray-50",
+                  "rounded-lg cursor-pointer transition-colors hover:bg-gray-50",
                   selectedContactId === contact.friendId && "bg-blue-50 border border-blue-200"
                 )}
               >
-                {/* Avatar */}
-                <div className="relative">
-                  <Avatar className="w-12 h-12">
+                <div className="flex items-center space-x-3 p-3">
+                {/* Avatar remplacé par deux images superposées: ami + son produit de reprise */}
+                <div className="relative w-12 h-12">
+                  {/* Ami */}
+                  <Avatar className="absolute left-0 top-0 w-10 h-10">
                     <AvatarImage 
                       src={contact.friendImage || undefined} 
                       alt={contact.friendName}
@@ -199,8 +240,21 @@ export default function ContactsList({ onContactSelect, selectedContactId }: Con
                       {getInitials(contact.friendName)}
                     </AvatarFallback>
                   </Avatar>
+                  {/* Produit ami (si négociation) */}
+                  {isNegotiation && (() => {
+                    const friendProduct = products.find(p => p.userId === contact.friendId) || null;
+                    return friendProduct ? (
+                      <Avatar className="absolute top-0 left-7 bottom-0 w-10 h-10 border border-white">
+                        <AvatarImage 
+                          src={friendProduct.images?.[0] || undefined} 
+                          alt={friendProduct.title}
+                        />
+                        <AvatarFallback className="bg-gray-100 text-gray-500 text-[10px]">IMG</AvatarFallback>
+                      </Avatar>
+                    ) : null;
+                  })()}
                   {/* Indicateur de statut en ligne */}
-                  <div className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-white ${
+                  <div className={`absolute -bottom-0 ${isNegotiation ? '-right-5' : 'right-1'} w-4 h-4 rounded-full border-2 border-white ${
                     isContactOnline(contact) ? 'bg-green-500' : 'bg-gray-400'
                   }`} title={isContactOnline(contact) ? 'En ligne' : 'Hors ligne'}></div>
                   {contact.unreadCount > 0 && (
@@ -211,7 +265,7 @@ export default function ContactsList({ onContactSelect, selectedContactId }: Con
                 </div>
 
                 {/* Informations du contact */}
-                <div className="flex-1 min-w-0">
+                <div className={`flex-1 min-w-0 ${isNegotiation ? 'pl-5' : ''}`}>
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center space-x-2">
                       <h3 className="font-semibold text-gray-900 truncate">
@@ -220,6 +274,7 @@ export default function ContactsList({ onContactSelect, selectedContactId }: Con
                       {isContactOnline(contact) && (
                         <span className="text-xs text-green-600 font-medium">En ligne</span>
                       )}
+                      {/* (Supprimé) on n'affiche plus les doubles avatars ici */}
                     </div>
                     <div className="flex items-center space-x-1 text-xs text-gray-500">
                       <Clock className="w-3 h-3" />
@@ -236,15 +291,78 @@ export default function ContactsList({ onContactSelect, selectedContactId }: Con
                       {contact.lastMessage.type === 'audio' ? '🎤 Message vocal' : contact.lastMessage.text}
                     </p>
                     
-                    {contact.conversationType === 'negotiation' && (
+                    {isNegotiation && (
                       <Badge variant="secondary" className="text-xs">
-                        Négociation
+                        Reprise
                       </Badge>
                     )}
                   </div>
                 </div>
+                </div>
+
+                {/* Panneau hover (animation drop) */}
+                <div
+                  className={cn(
+                    "px-4 transition-all duration-300 ease-out",
+                    hoveredId === contact.conversationId && isNegotiation && products.length >= 2
+                      ? "opacity-100 max-h-[120px] translate-y-0 pb-3"
+                      : "opacity-0 max-h-0 -translate-y-1 pointer-events-none"
+                  )}
+                >
+                  {isNegotiation && products.length >= 2 && (
+                    <div className="flex items-center justify-between gap-3 p-2 border rounded-lg bg-white shadow-sm overflow-hidden">
+                      {/* Produit A */}
+                      <div className="relative flex-1 min-w-0 flex items-center gap-2">
+                        <div className="relative">
+                          <img
+                            src={products[0].images?.[0] || '/placeholder.png'}
+                            alt={products[0].title}
+                            className="w-14 h-14 rounded object-cover border"
+                          />
+                          {/* Badge différence si payeur = owner A */}
+                          {payerId && products[0].userId === payerId && diffAmount > 0 && (
+                            <span className="absolute -top-2 -left-2 text-[7px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300 font-semibold">
+                              + {diffAmount} DH
+                            </span>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-medium truncate">{products[0].title}</div>
+                          <div className="text-[11px] text-gray-600">{Number(products[0].price)} DH</div>
+                        </div>
+                      </div>
+
+                      {/* Icône échange au centre */}
+                      <div className="flex items-center justify-center">
+                        <ArrowLeftRight className="text-blue-600" size={18} />
+                      </div>
+
+                      {/* Produit B */}
+                      <div className="relative flex-1 min-w-0 flex items-center gap-2 justify-end">
+                        <div className="min-w-0 text-right">
+                          <div className="text-xs font-medium truncate">{products[1].title}</div>
+                          <div className="text-[11px] text-gray-600">{Number(products[1].price)} DH</div>
+                        </div>
+                        <div className="relative">
+                          <img
+                            src={products[1].images?.[0] || '/placeholder.png'}
+                            alt={products[1].title}
+                            className="w-14 h-14 rounded object-cover border"
+                          />
+                          {/* Badge différence si payeur = owner B */}
+                          {payerId && products[1].userId === payerId && diffAmount > 0 && (
+                            <span className="absolute -top-2 -right-2 text-[7px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300 font-semibold">
+                              + {diffAmount} DH
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

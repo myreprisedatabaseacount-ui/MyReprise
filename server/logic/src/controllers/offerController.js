@@ -381,6 +381,92 @@ const getOffers = async (req, res) => {
   }
 };
 
+const getMyOffers = async (req, res) => {
+  try {
+    const {
+      search,
+      listingType,
+      categoryId,
+      brandId,
+      minPrice,
+      maxPrice,
+      productCondition,
+      status = 'available',
+      page = 1,
+      limit = 10
+    } = req.query;
+    
+    const sellerId = req.user.userId;
+
+    // L'utilisateur doit être authentifié
+    if (!sellerId) {
+      return res.status(401).json({ error: "Authentification requise" });
+    }
+
+    // Construire les filtres
+    const filters = {};
+
+    // Forcer le filtrage par l'utilisateur authentifié uniquement
+    filters.sellerId = parseInt(sellerId);
+    if (listingType) filters.listingType = listingType;
+    if (categoryId) filters.categoryId = parseInt(categoryId);
+    if (brandId) filters.brandId = parseInt(brandId);
+    if (productCondition) filters.productCondition = productCondition;
+    if (status) filters.status = status;
+    if (minPrice) filters.minPrice = parseFloat(minPrice);
+    if (maxPrice) filters.maxPrice = parseFloat(maxPrice);
+    if (search) filters.search = search;
+
+    // Récupérer les offres avec pagination et détails
+    const result = await Offer.getOffersWithDetails(
+      parseInt(page),
+      parseInt(limit),
+      filters
+    );
+
+    // Vérifications liées à req.params.sellerId non nécessaires ici: on filtre toujours par l'utilisateur connecté
+
+    // Récupérer les images depuis OfferImage pour chaque offre
+    const offersWithImages = await Promise.all(result.offers.map(async (offer) => {
+      // Récupérer les images depuis OfferImage
+      const offerImages = await OfferImage.findAll({
+        where: { offerId: offer.id },
+        order: [['isMain', 'DESC'], ['id', 'ASC']] // Image principale en premier
+      });
+
+      return {
+        ...offer,
+        images: offerImages.map(img => ({
+          id: img.id,
+          imageUrl: img.imageUrl,
+          isMain: img.isMain,
+          color: img.color,
+          colorHex: img.colorHex
+        }))
+      };
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: offersWithImages,
+      pagination: {
+        totalCount: result.totalCount,
+        totalPages: result.totalPages,
+        currentPage: result.currentPage,
+        limit: parseInt(limit)
+      },
+      message: "Offres récupérées avec succès"
+    });
+
+  } catch (error) {
+    console.error("❌ Erreur getOffers:", error);
+    return res.status(500).json({
+      error: "Erreur lors de la récupération des offres",
+      details: error.message || "Erreur inconnue"
+    });
+  }
+};
+
 const getOfferById = async (req, res) => {
   try {
     const offerId = req.params.id;
@@ -598,4 +684,5 @@ module.exports = {
   updateOffer,
   deleteOffer,
   getCategoriesToExchange,
+  getMyOffers,
 };

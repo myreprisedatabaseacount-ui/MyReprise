@@ -5,6 +5,9 @@ const { Address } = require('../models/Address');
 const { Order } = require('../models/Order');
 const { UserSnapshot } = require('../models/UserSnapshot');
 const { ProductSnapshot } = require('../models/ProductSnapshot');
+const { Conversation } = require('../models/Conversation');
+const { ConversationParticipants } = require('../models/ConversationParticipants');
+const { broadcastConversationsUpdate } = require('../sockets');
 const sequelize = db.getSequelize();
 const { Op } = db.Sequelize;
 const OfferImage = sequelize.models.OfferImage;
@@ -16,6 +19,69 @@ function sanitizeString(value) {
     .replace(/javascript:/gi, '')
     .replace(/on\w+=/gi, '')
     .trim();
+}
+
+// Helper réutilisable: retourne un résumé de négociation avec order + produits enrichis (userId, images)
+async function getNegotiationSummary(orderId) {
+  const id = parseInt(orderId, 10);
+  if (!id || Number.isNaN(id)) {
+    throw new Error('orderId invalide');
+  }
+
+  const order = await Order.findByPk(id);
+  if (!order) {
+    throw new Error('Commande introuvable');
+  }
+
+  // Snapshots produits pour cet order
+  const ps = await ProductSnapshot.findAll({ where: { orderId: id }, raw: true });
+  const offerIds = [...new Set(ps.map(r => r.offerId))];
+
+  // Offres pour récupérer sellerId (userId du produit)
+  const offers = offerIds.length
+    ? await Offer.findAll({ where: { id: { [Op.in]: offerIds } }, attributes: ['id', 'sellerId', 'title', 'price', 'productCondition', 'description'] })
+    : [];
+  const offerIdToOffer = new Map(offers.map(o => [o.id, o]));
+
+  // Images pour chaque offre
+  let imagesByOffer = new Map();
+  if (offerIds.length && OfferImage) {
+    const imgs = await OfferImage.findAll({
+      where: { offerId: { [Op.in]: offerIds } },
+      attributes: ['offerId', 'imageUrl', 'isMain'],
+      raw: true
+    });
+    imagesByOffer = imgs.reduce((map, img) => {
+      const arr = map.get(img.offerId) || [];
+      arr.push(img);
+      map.set(img.offerId, arr);
+      return map;
+    }, new Map());
+  }
+
+  const products = ps.map(snap => {
+    const of = offerIdToOffer.get(snap.offerId);
+    const images = (imagesByOffer.get(snap.offerId) || []).map(i => i.imageUrl);
+    return {
+      offerId: snap.offerId,
+      title: snap.title,
+      price: Number(snap.price),
+      productCondition: snap.productCondition,
+      userId: of ? of.sellerId : null,
+      images
+    };
+  });
+
+  return {
+    order: {
+      id: order.id,
+      status: order.status,
+      balanceAmount: Number(order.balanceAmount),
+      balancePayerId: order.balancePayerId,
+      createdAt: order.createdAt
+    },
+    products
+  };
 }
 
 const createRepriseOrder = async (req, res) => {
@@ -164,7 +230,26 @@ const createRepriseOrder = async (req, res) => {
         isFromProduct: true
       }, { transaction: t });
 
+      // Créer une conversation de négociation liée à l'order
+      const conversation = await Conversation.create({
+        type: 'negotiation',
+        order_id: newOrder.id
+      }, { transaction: t });
+
+      // Ajouter les deux participants (expéditeur et destinataire)
+      await ConversationParticipants.bulkCreate([
+        { conversation_id: conversation.id, user_id: senderUser.id, role: 'membre' },
+        { conversation_id: conversation.id, user_id: receiverUser.id, role: 'membre' }
+      ], { transaction: t, ignoreDuplicates: true });
+
       await t.commit();
+
+      try {
+        await broadcastConversationsUpdate(conversation.id);
+      } catch (broadcastError) {
+        logger.error('Erreur lors du broadcast de la nouvelle conversation:', broadcastError);
+        // Ne pas faire échouer la création de conversation pour une erreur de broadcast
+      }
 
       return res.status(201).json({
         success: true,
@@ -175,16 +260,22 @@ const createRepriseOrder = async (req, res) => {
             balancePayerId: newOrder.balancePayerId,
             status: newOrder.status
           },
+          conversation: {
+            id: conversation.id,
+            type: conversation.type,
+            orderId: conversation.order_id,
+            createdAt: conversation.created_at
+          },
           balanceLogic: {
             senderPrice,
             receiverPrice,
             cheaperUserId: cheaperUserId,
           }
         },
-        message: 'Commande de reprise créée avec snapshots'
+        message: 'Commande de reprise créée avec snapshots et conversation de négociation'
       });
     } catch (innerError) {
-      try { await t.rollback(); } catch {}
+      try { await t.rollback(); } catch { }
       console.error('❌ createRepriseOrder tx error:', innerError);
       return res.status(500).json({ error: 'Erreur interne', details: innerError.message || 'Erreur inconnue' });
     }
@@ -194,14 +285,6 @@ const createRepriseOrder = async (req, res) => {
   }
 };
 
-/**
- * Liste les commandes reçues sur les offres de l'utilisateur connecté.
- * - Utilise req.user (middleware d'auth) pour récupérer l'id utilisateur
- * - Ne retourne que les commandes où l'utilisateur est destinataire (is_sender = 0)
- * - Agrège par offre (offer) et trie les groupes par date de commande la plus récente
- * - Compare ProductSnapshot avec l'offre et UserSnapshot avec l'utilisateur courant
- * - Implémente la pagination (page, limit) sur les offres de l'utilisateur
- */
 const listReceivedOrdersOnMyOffers = async (req, res) => {
   try {
     const user = req.user;
@@ -466,12 +549,12 @@ const listReceivedOrdersOnMyOffers = async (req, res) => {
 
       const senderProductSnapshot = otherSnap ? { title: otherSnap.title, price: Number(otherSnap.price) } : null;
 
-      existing.orders.push({ 
-        order: orderPublic, 
-        productChanges: finalProductChanges, 
-        userChanges, 
-        recipient, 
-        sender, 
+      existing.orders.push({
+        order: orderPublic,
+        productChanges: finalProductChanges,
+        userChanges,
+        recipient,
+        sender,
         senderOffer: otherOfferPublic,
         senderProductSnapshot
       });
@@ -506,12 +589,6 @@ const listReceivedOrdersOnMyOffers = async (req, res) => {
   }
 };
 
-/**
- * Détails des commandes avec filtres:
- * - Filtrer par produit (offerId) et mois (YYYY-MM)
- * - Ou par expéditeur vers moi (senderId)
- * Retourne aussi isOrderSender et isProductOwner par rapport à req.user
- */
 const getOrderDetails = async (req, res) => {
   try {
     const user = req.user;
@@ -579,11 +656,11 @@ const getOrderDetails = async (req, res) => {
 
     // Offres et utilisateurs liés
     const offerIds = [...new Set(ps.map(r => r.offerId))];
-    const offers = await Offer.findAll({ where: { id: { [Op.in]: offerIds } }, attributes: ['id','sellerId','title','price','productCondition','description','createdAt'] });
+    const offers = await Offer.findAll({ where: { id: { [Op.in]: offerIds } }, attributes: ['id', 'sellerId', 'title', 'price', 'productCondition', 'description', 'createdAt'] });
     const offerIdToOffer = new Map(offers.map(o => [o.id, o]));
     // Charger les images principales des offres
     if (offerIds.length && OfferImage) {
-      const imgs = await OfferImage.findAll({ where: { offerId: { [Op.in]: offerIds } }, attributes: ['offerId','imageUrl','isMain'], raw: true });
+      const imgs = await OfferImage.findAll({ where: { offerId: { [Op.in]: offerIds } }, attributes: ['offerId', 'imageUrl', 'isMain'], raw: true });
       const mainByOffer = new Map();
       for (const img of imgs) {
         const current = mainByOffer.get(img.offerId);
@@ -598,7 +675,7 @@ const getOrderDetails = async (req, res) => {
     }
 
     const userIds = [...new Set(us.map(r => r.userId).filter(Boolean))];
-    const users = await User.findAll({ where: { id: { [Op.in]: userIds } }, attributes: ['id','firstName','lastName','email','profileImage'] });
+    const users = await User.findAll({ where: { id: { [Op.in]: userIds } }, attributes: ['id', 'firstName', 'lastName', 'email', 'profileImage'] });
     const userIdToUser = new Map(users.map(u => [u.id, u]));
 
     const data = orders.map(order => {
@@ -652,9 +729,6 @@ const getOrderDetails = async (req, res) => {
   }
 };
 
-module.exports.getOrderDetails = getOrderDetails;
-
-// Endpoint: GET /api/reprise-orders/negotiation-init/:orderId
 // Retourne les données minimales pour initialiser l'étape 1 de négociation depuis un orderId
 const getNegotiationInitByOrderId = async (req, res) => {
   try {
@@ -672,20 +746,18 @@ const getNegotiationInitByOrderId = async (req, res) => {
 
     // Déjà importés en haut du fichier
 
-    const order = await Order.findByPk(id);
-    if (!order) return res.status(404).json({ error: 'Commande introuvable' });
+    const summary = await getNegotiationSummary(id);
 
-    // Snapshots liés
-    const ps = await ProductSnapshot.findAll({ where: { orderId: id }, raw: true });
+    // Snapshots utilisateurs
     const us = await UserSnapshot.findAll({ where: { orderId: id }, raw: true });
-    if (!ps.length || !us.length) return res.status(404).json({ error: 'Snapshots manquants pour cette commande' });
+    if (!summary.products.length || !us.length) return res.status(404).json({ error: 'Snapshots manquants pour cette commande' });
 
-    // Offres liées + image principale
-    const offerIds = [...new Set(ps.map(r => r.offerId))];
-    const offers = await Offer.findAll({ where: { id: { [Op.in]: offerIds } }, attributes: ['id','sellerId','title','price','productCondition','description'] });
+    // Récupérer aussi les offres pour sellerId et image principale
+    const offerIds = summary.products.map(p => p.offerId);
+    const offers = await Offer.findAll({ where: { id: { [Op.in]: offerIds } }, attributes: ['id', 'sellerId', 'title', 'price', 'productCondition', 'description'] });
     const offerIdToOffer = new Map(offers.map(o => [o.id, o]));
     if (OfferImage && offerIds.length) {
-      const imgs = await OfferImage.findAll({ where: { offerId: { [Op.in]: offerIds } }, attributes: ['offerId','imageUrl','isMain'], raw: true });
+      const imgs = await OfferImage.findAll({ where: { offerId: { [Op.in]: offerIds } }, attributes: ['offerId', 'imageUrl', 'isMain'], raw: true });
       const mainByOffer = new Map();
       for (const img of imgs) {
         const current = mainByOffer.get(img.offerId);
@@ -696,14 +768,14 @@ const getNegotiationInitByOrderId = async (req, res) => {
       }
     }
 
-    // Déterminer mon offre vs l'autre
-    const offersForOrder = ps.map(r => offerIdToOffer.get(r.offerId)).filter(Boolean);
+    // Déterminer mon offre vs l'autre à partir des offers
+    const offersForOrder = summary.products.map(p => offerIdToOffer.get(p.offerId)).filter(Boolean);
     const myOffer = offersForOrder.find(of => of.sellerId === currentUserId) || null;
     const otherOffer = offersForOrder.find(of => of && myOffer && of.id !== myOffer.id) || offersForOrder.find(of => !myOffer && of) || null;
 
     // Direction basée sur payer/recevoir relatif à l'utilisateur courant
-    const difference = Number(order.balanceAmount) || 0;
-    const direction = difference === 0 ? 'egal' : (order.balancePayerId === currentUserId ? 'payer' : 'recevoir');
+    const difference = Number(summary.order.balanceAmount) || 0;
+    const direction = difference === 0 ? 'egal' : (summary.order.balancePayerId === currentUserId ? 'payer' : 'recevoir');
 
     // Choix du "target" identique aux pages reçues: si je suis propriétaire produit -> target = mon offre
     // sinon (je suis l'expéditeur) -> target = l'offre de l'autre.
@@ -719,13 +791,15 @@ const getNegotiationInitByOrderId = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: {
-        orderId: order.id,
+        orderId: summary.order.id,
         target: toPublic(targetOffer),
         mine: toPublic(mineOffer),
         difference,
         direction,
         isOrderSender,
         isProductOwner,
+        // Ajouter aussi les produits enrichis (userId, images)
+        products: summary.products
       }
     });
   } catch (error) {
@@ -734,9 +808,284 @@ const getNegotiationInitByOrderId = async (req, res) => {
   }
 };
 
+const listSendedOrdersOnMyOffers = async (req, res) => {
+  try {
+    const user = req.user;
+    const currentUserId = user?.userId || user?.id;
+    if (!currentUserId) {
+      return res.status(401).json({ error: 'Authentification requise' });
+    }
+
+    // Pagination des groupes mensuels
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
+
+    // 1) Trouver les orders envoyés par l'utilisateur
+    const sentSnapshots = await UserSnapshot.findAll({
+      where: { userId: currentUserId, isSender: true },
+      attributes: ['orderId'],
+      group: ['order_id'],
+      raw: true
+    });
+    const sentOrderIds = sentSnapshots.map(r => r.orderId);
+    if (!sentOrderIds.length) {
+      return res.status(200).json({
+        success: true,
+        pagination: { page, limit, totalOffers: 0, offersReturned: 0 },
+        data: []
+      });
+    }
+
+    // 2) Récupérer les couples (orderId, offerId) pour ces orders via ProductSnapshot
+    const psRows = await ProductSnapshot.findAll({
+      where: { orderId: { [Op.in]: sentOrderIds } },
+      attributes: ['orderId', 'offerId', 'price', 'title'],
+      raw: true
+    });
+    if (!psRows.length) {
+      return res.status(200).json({
+        success: true,
+        pagination: { page, limit, totalOffers: 0, offersReturned: 0 },
+        data: []
+      });
+    }
+
+    // 3) Charger les offres impliquées et isoler MES offres
+    const offerIdsFromSnapshots = [...new Set(psRows.map(r => r.offerId))];
+    const offers = await Offer.findAll({
+      where: { id: { [Op.in]: offerIdsFromSnapshots }, isDeleted: false },
+      attributes: ['id', 'price', 'title', 'description', 'productCondition', 'sellerId', 'status', 'createdAt']
+    });
+    const offerIdToOffer = new Map(offers.map(o => [o.id, o]));
+    const myOfferIds = offers.filter(o => o.sellerId === currentUserId).map(o => o.id);
+    if (!myOfferIds.length) {
+      return res.status(200).json({
+        success: true,
+        pagination: { page, limit, totalOffers: 0, offersReturned: 0 },
+        data: []
+      });
+    }
+
+    // 4) Images principales pour toutes les offres impliquées
+    const allOfferIds = [...new Set(offers.map(o => o.id))];
+    const offerIdToImages = new Map();
+    if (allOfferIds.length && OfferImage) {
+      const imgs = await OfferImage.findAll({
+        where: { offerId: { [Op.in]: allOfferIds } },
+        attributes: ['offerId', 'imageUrl', 'isMain'],
+        raw: true
+      });
+      for (const img of imgs) {
+        const arr = offerIdToImages.get(img.offerId) || [];
+        arr.push(img);
+        offerIdToImages.set(img.offerId, arr);
+      }
+    }
+
+    // 5) Charger les Orders concernés
+    const orders = await Order.findAll({
+      where: { id: { [Op.in]: sentOrderIds } },
+      order: [['created_at', 'DESC']]
+    });
+    if (!orders.length) {
+      return res.status(200).json({
+        success: true,
+        pagination: { page, limit, totalOffers: 0, offersReturned: 0 },
+        data: []
+      });
+    }
+    const orderIdToOrder = new Map(orders.map(o => [o.id, o]));
+
+    // 6) Snapshots utilisateurs (receiver pour affichage), et stats completed par receiver
+    const usRowsSender = await UserSnapshot.findAll({
+      where: { isSender: true, orderId: { [Op.in]: sentOrderIds } },
+      attributes: ['orderId', 'userId'],
+      raw: true
+    });
+    const usRowsReceiver = await UserSnapshot.findAll({
+      where: { isSender: false, orderId: { [Op.in]: sentOrderIds } },
+      attributes: ['orderId', 'userId', 'name', 'email', 'phone'],
+      raw: true
+    });
+    const orderIdToReceiverSnap = new Map(usRowsReceiver.map(r => [r.orderId, r]));
+    const receiverIds = [...new Set(usRowsReceiver.map(r => r.userId).filter(Boolean))];
+    const receivers = receiverIds.length ? await User.findAll({ where: { id: { [Op.in]: receiverIds } }, attributes: ['id', 'profileImage'] }) : [];
+    const receiverIdToUser = new Map(receivers.map(u => [u.id, u]));
+
+    const completedOrderIds = new Set(orders.filter(o => o.status === 'completed').map(o => o.id));
+    const completedByReceiverId = new Map();
+    for (const snap of usRowsReceiver) {
+      if (completedOrderIds.has(snap.orderId)) {
+        completedByReceiverId.set(snap.userId, (completedByReceiverId.get(snap.userId) || 0) + 1);
+      }
+    }
+
+    // 7) Préparer un accès rapide aux snapshots produits par order
+    const orderIdToProductSnaps = new Map();
+    for (const row of psRows) {
+      const arr = orderIdToProductSnaps.get(row.orderId) || [];
+      arr.push(row);
+      orderIdToProductSnaps.set(row.orderId, arr);
+    }
+
+    // 8) Groupement par offre (même forme que listReceivedOrdersOnMyOffers)
+    const currentUser = await User.findByPk(currentUserId, {
+      attributes: ['id', 'firstName', 'lastName', 'email', 'profileImage', 'isVerified']
+    });
+
+    // utiliser le mapping déjà défini plus haut: offerIdToOffer
+    const groups = new Map(); // offerId -> { offer, orders: [], latestOrderAt }
+
+    // Itérer par snapshots produits, ne garder que ceux de MES offres
+    for (const row of psRows) {
+      if (!myOfferIds.includes(row.offerId)) continue; // On MyOffers
+      const offer = offerIdToOffer.get(row.offerId);
+      const order = orderIdToOrder.get(row.orderId);
+      if (!offer || !order) continue;
+
+      const offerPublic = typeof offer.getPublicData === 'function' ? offer.getPublicData() : {
+        id: offer.id,
+        price: parseFloat(offer.price),
+        title: offer.title,
+        description: offer.description,
+        productCondition: offer.productCondition,
+        status: offer.status,
+        createdAt: offer.createdAt
+      };
+      // Annoter info vendeur (moi)
+      offerPublic.seller = {
+        id: currentUser?.id || currentUserId,
+        name: `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim(),
+        avatar: currentUser?.profileImage || null,
+        verified: !!currentUser?.isVerified
+      };
+
+      // Images de l'offre (principale + liste)
+      const imgs = offerIdToImages.get(offer.id) || [];
+      const mainImage = imgs.find(i => i.isMain) || imgs[0] || null;
+      if (mainImage) offerPublic.mainImageUrl = mainImage.imageUrl;
+      if (imgs.length) offerPublic.images = imgs.map(i => i.imageUrl);
+
+      // Comparaison ProductSnapshot vs Offer
+      const priceChanged = Number(row.price) !== Number(offer.price);
+      const titleChanged = (row.title || '').trim() !== (offer.title || '').trim();
+      const productChanges = priceChanged ? {
+        priceChanged: true,
+        snapshotPrice: Number(row.price),
+        currentPrice: Number(offer.price)
+      } : null;
+      const finalProductChanges = (priceChanged || titleChanged) ? {
+        ...(productChanges || {}),
+        ...(titleChanged ? { titleChanged: true, snapshotTitle: row.title, currentTitle: offer.title } : {})
+      } : null;
+
+      // Snap destinataire (receiver) et expéditeur (moi)
+      const receiverSnap = orderIdToReceiverSnap.get(row.orderId) || null;
+      const receiverUser = receiverSnap ? receiverIdToUser.get(receiverSnap.userId) : null;
+      const recipient = receiverSnap ? {
+        userId: receiverSnap.userId,
+        name: receiverSnap.name,
+        email: receiverSnap.email,
+        phone: receiverSnap.phone,
+        profileImage: receiverUser?.profileImage || null,
+        completedOrdersCount: completedByReceiverId.get(receiverSnap.userId) || 0
+      } : null;
+
+      // Charger le sender (moi) pour cohérence avec la 1ère fonction
+      const mySenderSnap = usRowsSender.find(s => s.orderId === row.orderId) || null;
+      const myUser = currentUser;
+      const sender = mySenderSnap ? {
+        userId: currentUserId,
+        name: `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim(),
+        email: currentUser?.email || '',
+        phone: null,
+        profileImage: myUser?.profileImage || null,
+        completedOrdersCount: 0 // compteur non pertinent pour moi ici
+      } : null;
+
+      // Autre offre (côté destinataire)
+      const snapsForOrder = orderIdToProductSnaps.get(row.orderId) || [];
+      const otherSnap = snapsForOrder.find(s => s.offerId !== row.offerId) || null;
+      let otherOfferPublic = null;
+      if (otherSnap) {
+        const otherOffer = offerIdToOffer.get(otherSnap.offerId);
+        if (otherOffer) {
+          otherOfferPublic = typeof otherOffer.getPublicData === 'function' ? otherOffer.getPublicData() : {
+            id: otherOffer.id,
+            price: parseFloat(otherOffer.price),
+            title: otherOffer.title,
+            description: otherOffer.description,
+            productCondition: otherOffer.productCondition,
+            status: otherOffer.status,
+            createdAt: otherOffer.createdAt
+          };
+          const imgs2 = offerIdToImages.get(otherOffer.id) || [];
+          const main2 = imgs2.find(i => i.isMain) || imgs2[0] || null;
+          if (main2) otherOfferPublic.mainImageUrl = main2.imageUrl;
+          if (imgs2.length) otherOfferPublic.images = imgs2.map(i => i.imageUrl);
+        }
+      }
+
+      const orderPublic = typeof order.getPublicData === 'function' ? order.getPublicData() : {
+        id: order.id,
+        balanceAmount: Number(order.balanceAmount),
+        balancePayerId: order.balancePayerId,
+        status: order.status,
+        createdAt: order.createdAt
+      };
+
+      const existing = groups.get(row.offerId) || {
+        offer: offerPublic,
+        orders: [],
+        latestOrderAt: null
+      };
+
+      existing.orders.push({
+        order: orderPublic,
+        productChanges: finalProductChanges,
+        userChanges: null, // pas de comparaison user côté envoyé
+        recipient,
+        sender,
+        senderOffer: otherOfferPublic,
+        senderProductSnapshot: otherSnap ? { title: otherSnap.title, price: Number(otherSnap.price) } : null
+      });
+      if (!existing.latestOrderAt || new Date(order.createdAt) > new Date(existing.latestOrderAt)) {
+        existing.latestOrderAt = order.createdAt;
+      }
+      groups.set(row.offerId, existing);
+    }
+
+    // 9) Transformer en tableau et trier par latestOrderAt DESC
+    const groupedArray = Array.from(groups.values()).sort((a, b) => {
+      return new Date(b.latestOrderAt) - new Date(a.latestOrderAt);
+    });
+
+    // 10) Pagination par offres
+    const totalOffersWithOrders = groupedArray.length;
+    const offset = (page - 1) * limit;
+    const paginated = groupedArray.slice(offset, offset + limit);
+
+    return res.status(200).json({
+      success: true,
+      pagination: {
+        page,
+        limit,
+        totalOffers: totalOffersWithOrders,
+        offersReturned: paginated.length
+      },
+      data: paginated
+    });
+  } catch (error) {
+    console.error('❌ listSendedOrdersOnMyOffers error:', error);
+    return res.status(500).json({ error: 'Erreur interne', details: error.message || 'Erreur inconnue' });
+  }
+};
+
 module.exports = {
   createRepriseOrder,
   listReceivedOrdersOnMyOffers,
   getOrderDetails,
-  getNegotiationInitByOrderId
+  getNegotiationInitByOrderId,
+  listSendedOrdersOnMyOffers,
+  getNegotiationSummary
 };

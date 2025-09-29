@@ -6,6 +6,7 @@ const { validationResult } = require('express-validator');
 const logger = require('../utils/logger.js');
 const AuthService = require('../services/authService.js');
 const OTPService = require('../services/otpService.js');
+const notificationService = require('../services/notificationService.js');
 
 // ========================================
 // CONFIGURATION JWT
@@ -978,5 +979,16 @@ module.exports = {
     // OTP (TODO)
     sendOTP,
     verifyOTP,
-    updateVerificationStatus
+    updateVerificationStatus,
+
+    // Exemple générique d'envoi de notification
+    // sendTestNotification: async (req, res) => {
+    //     try {
+    //         const { userId, title, body, data } = req.body;
+    //         const notif = await notificationService.sendAndStoreNotification(Number(userId), { title, body, data });
+    //         return res.json({ success: true, notification: notif });
+    //     } catch (error) {
+    //         return res.status(500).json({ success: false, message: error.message });
+    //     }
+    // }
 };

@@ -10,6 +10,15 @@ const Conversation = sequelize.define('Conversation', {
         primaryKey: true,
         allowNull: false
     },
+    order_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        field: 'order_id',
+        references: {
+            model: 'orders',
+            key: 'id'
+        }
+    },
     type: {
         type: DataTypes.ENUM('chat', 'negotiation'),
         allowNull: false,
@@ -34,6 +43,9 @@ const Conversation = sequelize.define('Conversation', {
     createdAt: 'created_at',
     updatedAt: 'updated_at',
     indexes: [
+        {
+            fields: ['order_id']
+        },
         {
             fields: ['type']
         },

@@ -221,6 +221,14 @@ export const OfferApi = createApi({
       providesTags: ['Offer'],
     }),
 
+    // Query pour récupérer les offres de l'utilisateur connecté
+    getMyOffers: builder.query({
+      query: () => ({
+        url: '/api/offers/my-offers',
+      }),
+      providesTags: ['Offer'],
+    }),
+
     // Mutation pour changer le statut d'une offre
     updateOfferStatus: builder.mutation({
       query: ({ id, status }) => ({
@@ -248,4 +256,5 @@ export const {
   useExchangeOfferMutation,
   useSearchOffersQuery,
   useUpdateOfferStatusMutation,
+  useGetMyOffersQuery,
 } = OfferApi;

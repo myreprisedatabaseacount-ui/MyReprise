@@ -3,13 +3,12 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, MessageCircle, Plus, Star, MapPin, ArrowLeftRight, X, Coins, Truck, Search, ArrowRight } from 'lucide-react';
 import NavBar from '@/components/Header/NavBar';
-import { useGetOfferByIdQuery, useGetOffersBySellerQuery } from '@/services/api/OfferApi';
+import { useGetMyOffersQuery, useGetOfferByIdQuery } from '@/services/api/OfferApi';
 import { useGetOrderDetailsQuery } from '@/services/api/RepriseOrderApi';
 import { useParams, useRouter } from 'next/navigation';
 import Map from '@/components/ui/Map';
 import { useCurrentUser } from '@/services/hooks/useCurrentUser';
 import { useSearchLocationsMutation } from '@/services/api/AddressApi';
-import { Input } from '@/components/ui/input';
 import RepriseOrderModal from '@/components/products/RepriseOrderModal';
 
 interface OfferImage {
@@ -249,7 +248,6 @@ const ProductDetails = () => {
   const localePrefix = allParams?.locale ? `/${allParams.locale}` : '';
   const { data: productdata, isLoading, error } = useGetOfferByIdQuery(id as string);
   const { currentUser } = useCurrentUser();
-  const { data: MyOffers, isLoading: isLoadingMyOffers, error: errorMyOffers } = useGetOffersBySellerQuery(currentUser?.id);
 
   // État du flux de reprise (déclaré avant tout return conditionnel)
   const [isRepriseOpen, setIsRepriseOpen] = useState(false);
@@ -279,8 +277,6 @@ const ProductDetails = () => {
     { value: 'dakhla-oued-ed-dahab', label: 'Dakhla-Oued Ed-Dahab' },
     { value: 'laâyoune-sakia-el-hamra', label: 'Laâyoune-Sakia El Hamra' },
   ];
-
-  console.log('MyOffers', MyOffers?.data);
 
   // Commandes déjà effectuées pour ce produit (offre)
   const { data: orderDetailsData } = useGetOrderDetailsQuery({ offerId: id as string, page: 1, limit: 1 });
@@ -334,51 +330,6 @@ const ProductDetails = () => {
       .sort((a, b) => (a.isMain === b.isMain ? 0 : a.isMain ? -1 : 1))
       .map((img) => img.imageUrl)
     : [];
-
-  const myOffersList = Array.isArray(MyOffers?.data) ? MyOffers?.data as any[] : [];
-  const selectedMyOffer = myOffersList.find((o) => o.id === selectedMyOfferId) || null;
-  const baseDifference = selectedMyOffer ? Number(product.price) - Number(selectedMyOffer.price) : 0;
-  const absDifference = Math.abs(baseDifference);
-  const differenceDirection = baseDifference > 0 ? 'payer' : baseDifference < 0 ? 'recevoir' : 'egal';
-  // Différence affichée (réagit en temps réel à la saisie utilisateur)
-  const effectiveDifference = customDifference !== '' && !isNaN(Number(customDifference))
-    ? Math.max(0, Number(customDifference))
-    : absDifference;
-
-  // Recherche de régions (même UX que création produit)
-  const handleRegionSearch = async (searchTerm: string) => {
-    setLocationSearch(searchTerm);
-    setSelectedRegion(searchTerm);
-    if (searchTerm.length < 3) {
-      setLocationResults([]);
-      setShowLocationResults(false);
-      return;
-    }
-    try {
-      const result = await searchLocations(searchTerm).unwrap();
-      setLocationResults(result.data || []);
-      setShowLocationResults(true);
-    } catch (e) {
-      setLocationResults([]);
-      setShowLocationResults(false);
-    }
-  };
-
-  const handleRegionSelect = (location: any) => {
-    setSelectedLocation(location);
-    const text = location.sector ? `${location.city}, ${location.sector}` : location.city;
-    setSelectedRegion(text);
-    setLocationSearch(text);
-    setShowLocationResults(false);
-  };
-
-  const handleRegionClear = () => {
-    setSelectedLocation(null);
-    setSelectedRegion('');
-    setLocationSearch('');
-    setLocationResults([]);
-    setShowLocationResults(false);
-  };
 
   return (
     <div className="min-h-screen bg-white pb-32">
@@ -497,13 +448,13 @@ const ProductDetails = () => {
                     </div>
                   )}
                   <div className="flex justify-center w-full">
-                  <button
-                    onClick={() => router.push(`${localePrefix}/user/orders/${lastOrder.isOrderSender ? 'sent' : 'received'}?orderid=${lastOrder.order.id}`)}
-                    className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 ml-auto"
-                  >
-                    Voir la commande
-                    <ArrowRight size={18} />
-                  </button>
+                    <button
+                      onClick={() => router.push(`${localePrefix}/user/orders/${lastOrder.isOrderSender ? 'sent' : 'received'}?orderid=${lastOrder.order.id}`)}
+                      className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 ml-auto"
+                    >
+                      Voir la commande
+                      <ArrowRight size={18} />
+                    </button>
                   </div>
                 </div>
               )}
@@ -672,11 +623,13 @@ const ProductDetails = () => {
       )}
 
       {/* Modal Reprise (extrait en composant) */}
-      <RepriseOrderModal
-        isOpen={isRepriseOpen}
-        onClose={() => setIsRepriseOpen(false)}
-        target={{ id: product.id, title: product.title, image: imageUrls[0], price: product.price, sellerId: product.sellerId }}
-      />
+      {currentUser?.id !== product.sellerId && (
+        <RepriseOrderModal
+          isOpen={isRepriseOpen}
+          onClose={() => setIsRepriseOpen(false)}
+          target={{ id: product.id, title: product.title, image: imageUrls[0], price: product.price, sellerId: product.sellerId }}
+        />
+      )}
     </div>
   );
 };

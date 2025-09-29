@@ -8,6 +8,7 @@ const { ConversationParticipants } = require('../models/ConversationParticipants
 const { Message } = require('../models/Message');
 const { MessageReads } = require('../models/MessageReads');
 const { MessageReactions } = require('../models/MessageReactions');
+const { getNegotiationSummary } = require('./repriseOrderController');
 
 // Import de la fonction de broadcast socket
 const { broadcastConversationsUpdate } = require('../sockets');
@@ -18,11 +19,6 @@ const ConversationService = require('../services/conversationService');
  */
 class ConversationController {
     
-    /**
-     * Récupérer la liste des conversations de l'utilisateur connecté
-     * @param {Object} req - Requête Express
-     * @param {Object} res - Réponse Express
-     */
     static async getConversations(req, res) {
         try {
             // Sécurité: s'assurer que l'utilisateur est authentifié
@@ -165,7 +161,7 @@ class ConversationController {
                         }
                     }
 
-                    conversationsList.push({
+                    const item = {
                         conversationId: conversation.id,
                         friendId: friend.id,
                         friendName: `${friend.firstName} ${friend.lastName}`,
@@ -184,7 +180,21 @@ class ConversationController {
                         unreadCount: unreadCount,
                         conversationType: conversation.type,
                         lastActivity: lastMessage?.created_at || conversation.updated_at
-                    });
+                    };
+
+                    // Si négociation: retourner les détails de la commande et les 2 produits (snapshots)
+                    if (conversation.type === 'negotiation') {
+                        try {
+                            const resolvedOrderId = conversation.order_id || null;
+                            if (resolvedOrderId) {
+                                item.negotiation = await getNegotiationSummary(resolvedOrderId);
+                            }
+                        } catch (negErr) {
+                            logger.warn(`Impossible de charger les détails de négociation pour conv ${conversation.id}: ${negErr.message}`);
+                        }
+                    }
+
+                    conversationsList.push(item);
 
                 } catch (conversationError) {
                     logger.error(`Erreur lors du traitement de la conversation ${conversation.id}:`, conversationError);
@@ -233,11 +243,6 @@ class ConversationController {
         }
     }
 
-    /**
-     * Créer ou récupérer une conversation avec un utilisateur
-     * @param {Object} req - Requête Express
-     * @param {Object} res - Réponse Express
-     */
     static async createOrGetConversation(req, res) {
         try {
             // Sécurité: s'assurer que l'utilisateur est authentifié
@@ -249,10 +254,11 @@ class ConversationController {
                     code: "UNAUTHORIZED"
                 });
             }
+
             const friendId = parseInt(req.params.friendId);
             const { type = 'chat' } = req.body;
             
-            if (isNaN(friendId)) {
+            if (isNaN(friendId) || friendId <= 0 || friendId === undefined || friendId === null) {
                 return res.status(400).json({
                     success: false,
                     error: 'ID d\'ami invalide',
@@ -292,31 +298,30 @@ class ConversationController {
                 });
             }
 
-            // Rechercher une conversation existante entre ces deux utilisateurs
-            // Utiliser une approche différente : chercher les conversations où les deux utilisateurs sont participants
-            const existingConversations = await Conversation.findAll({
-                include: [
-                    {
-                        model: ConversationParticipants,
-                        as: 'Participants',
-                        where: {
-                            user_id: { [Op.in]: [userId, friendId] },
-                            left_at: null
-                        },
-                        required: true
-                    }
-                ],
-                group: ['Conversation.id'],
-                having: Conversation.sequelize.literal(`COUNT(DISTINCT \`Participants\`.\`user_id\`) = 2`)
+            // Rechercher une conversation existante entre ces deux utilisateurs (approche robuste)
+            // Étape 1: trouver toutes les conversations actives du userId
+            const myConvRows = await ConversationParticipants.findAll({
+                where: { user_id: userId, left_at: null },
+                attributes: ['conversation_id'],
+                raw: true
             });
+            const myConvIds = myConvRows.map(r => r.conversation_id);
 
-            // Vérifier si une conversation existe avec exactement ces deux utilisateurs
             let existingConversation = null;
-            for (const conv of existingConversations) {
-                const participantIds = conv.Participants.map(p => p.user_id);
-                if (participantIds.includes(userId) && participantIds.includes(friendId)) {
-                    existingConversation = conv;
-                    break;
+            if (myConvIds.length > 0) {
+                // Étape 2: vérifier si friendId participe à une des mêmes conversations actives
+                const friendRow = await ConversationParticipants.findOne({
+                    where: {
+                        user_id: friendId,
+                        left_at: null,
+                        conversation_id: { [Op.in]: myConvIds }
+                    },
+                    raw: true
+                });
+
+                if (friendRow) {
+                    // Charger la conversation trouvée
+                    existingConversation = await Conversation.findByPk(friendRow.conversation_id);
                 }
             }
 
@@ -351,21 +356,26 @@ class ConversationController {
                 });
             }
 
-            // Ajouter les deux participants
+            // Ajouter les deux participants (éviter doublons si la création est réessayée)
             try {
-                await ConversationParticipants.bulkCreate([
-                    {
-                        conversation_id: conversation.id,
-                        user_id: userId,
-                        role: 'membre'
-                    },
-                    {
-                        conversation_id: conversation.id,
-                        user_id: friendId,
-                        role: 'membre'
-                    }
-                ]);
-                logger.info(`Participants ajoutés à la conversation ${conversation.id}`);
+                // Vérifier ceux qui manquent puis créer seulement les manquants
+                const existingParts = await ConversationParticipants.findAll({
+                    where: { conversation_id: conversation.id, user_id: { [Op.in]: [userId, friendId] } },
+                    attributes: ['user_id'],
+                    raw: true
+                });
+                const existingUserIds = new Set(existingParts.map(p => p.user_id));
+                const toCreate = [];
+                if (!existingUserIds.has(userId)) {
+                    toCreate.push({ conversation_id: conversation.id, user_id: userId, role: 'membre' });
+                }
+                if (!existingUserIds.has(friendId)) {
+                    toCreate.push({ conversation_id: conversation.id, user_id: friendId, role: 'membre' });
+                }
+                if (toCreate.length > 0) {
+                    await ConversationParticipants.bulkCreate(toCreate);
+                }
+                logger.info(`Participants ajoutés/confirmés pour la conversation ${conversation.id}`);
             } catch (participantError) {
                 logger.error('Erreur lors de l\'ajout des participants:', participantError);
                 // Essayer de supprimer la conversation créée en cas d'échec des participants
@@ -415,11 +425,6 @@ class ConversationController {
         }
     }
 
-    /**
-     * Marquer tous les messages d'une conversation comme lus
-     * @param {Object} req - Requête Express
-     * @param {Object} res - Réponse Express
-     */
     static async markConversationAsRead(req, res) {
         try {
             // Sécurité: s'assurer que l'utilisateur est authentifié
@@ -496,11 +501,6 @@ class ConversationController {
         }
     }
 
-    /**
-     * Récupérer les informations d'une conversation spécifique
-     * @param {Object} req - Requête Express
-     * @param {Object} res - Réponse Express
-     */
     static async getConversationInfo(req, res) {
         try {
             // Sécurité: s'assurer que l'utilisateur est authentifié
@@ -565,12 +565,26 @@ class ConversationController {
 
             const friend = otherParticipant.User;
 
+            // Si négociation, attacher les détails order + snapshots
+            let negotiation = null;
+            if (conversation.type === 'negotiation') {
+                try {
+                    const resolvedOrderId = conversation.order_id || null;
+                    if (resolvedOrderId) {
+                        negotiation = await getNegotiationSummary(resolvedOrderId);
+                    }
+                } catch (err) {
+                    logger.warn(`Impossible de charger negotiation pour conv ${conversation.id}: ${err.message}`);
+                }
+            }
+
             res.status(200).json({
                 success: true,
                 data: {
                     conversation: {
                         id: conversation.id,
                         type: conversation.type,
+                        orderId: conversation.order_id || null,
                         friend: {
                             id: friend.id,
                             name: `${friend.firstName} ${friend.lastName}`,
@@ -578,6 +592,7 @@ class ConversationController {
                             email: friend.email,
                             phone: friend.phone
                         },
+                        negotiation,
                         createdAt: conversation.created_at
                     }
                 },
@@ -594,11 +609,6 @@ class ConversationController {
         }
     }
 
-    /**
-     * Récupérer les messages d'une conversation
-     * @param {Object} req - Requête Express
-     * @param {Object} res - Réponse Express
-     */
     static async getConversationMessages(req, res) {
         try {
             // Sécurité: s'assurer que l'utilisateur est authentifié

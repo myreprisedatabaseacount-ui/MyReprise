@@ -1,6 +1,7 @@
 const express = require("express");
 const multer = require("multer");
-const { createOffer, getOffers, getOfferById, updateOffer, deleteOffer, getCategoriesToExchange } = require("../controllers/offerController.js");
+const { createOffer, getOffers, getOfferById, updateOffer, deleteOffer, getCategoriesToExchange, getMyOffers } = require("../controllers/offerController.js");
+const { authenticateToken } = require('../middleware/authEnhanced');
 
 const offerRoutes = express.Router();
 
@@ -63,6 +64,9 @@ offerRoutes.get("/", getOffers);
 
 // Route pour rechercher des offres
 offerRoutes.get("/search", getOffers);
+
+// Route pour récupérer les offres de l'utilisateur connecté
+offerRoutes.get("/my-offers", authenticateToken, getMyOffers);
 
 // Route pour récupérer les offres par vendeur
 offerRoutes.get("/seller/:sellerId", getOffers);

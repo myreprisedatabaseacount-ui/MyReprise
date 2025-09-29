@@ -323,14 +323,27 @@ router.get('/me',
 );
 
 // ========================================
+// ROUTES NOTIFICATIONS (exemples génériques)
+// ========================================
+
+// router.post('/notifications/test',
+//     authenticateToken,
+//     requireModerator,
+//     [
+//         body('userId').isInt({ min: 1 }),
+//         body('title').isString().isLength({ min: 1, max: 200 }),
+//         body('body').isString().isLength({ min: 1, max: 1000 }),
+//         body('data').optional().isObject()
+//     ],
+//     logAccess,
+//     userController.sendTestNotification
+// );
+
+// ========================================
 // ROUTES DE PROFIL UTILISATEUR
 // ========================================
 
-/**
- * @route   GET /api/users/profile
- * @desc    Récupérer le profil de l'utilisateur connecté
- * @access  Private
- */
+
 router.get('/profile',
     authenticateToken,
     logAccess,

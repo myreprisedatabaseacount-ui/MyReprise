@@ -22,6 +22,14 @@ export const RepriseOrderApi = createApi({
       providesTags: ['RepriseOrder'],
       keepUnusedDataFor: 60,
     }),
+    listSendedOrdersOnMyOffers: builder.query({
+      query: ({ page = 1, limit = 10 } = {}) => ({
+        url: `/api/reprise-orders/sended-orders-on-my-offers?page=${page}&limit=${limit}`,
+        method: 'GET',
+      }),
+      providesTags: ['RepriseOrder'],
+      keepUnusedDataFor: 60,
+    }),
     getOrderDetails: builder.query({
       query: (params = {}) => {
         const qs = new URLSearchParams();
@@ -50,6 +58,6 @@ export const RepriseOrderApi = createApi({
   }),
 });
 
-export const { useCreateRepriseOrderMutation, useListReceivedOrdersOnMyOffersQuery, useGetOrderDetailsQuery, useGetNegotiationInitByOrderIdQuery } = RepriseOrderApi;
+export const { useCreateRepriseOrderMutation, useListReceivedOrdersOnMyOffersQuery, useListSendedOrdersOnMyOffersQuery, useGetOrderDetailsQuery, useGetNegotiationInitByOrderIdQuery } = RepriseOrderApi;
 
 

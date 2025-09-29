@@ -4,10 +4,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Smile, Users, Search, Check, CheckCheck, Trash2, Edit3, Reply, Phone } from 'lucide-react';
 import { useCurrentUser } from '@/services/hooks/useCurrentUser';
 import { useSocket } from '@/services/hooks/useSocket';
-import { useCreateConversationMutation, useMarkConversationAsReadMutation, useGetConversationMessagesQuery } from '@/services/api/ConversationsApi';
+import { useMarkConversationAsReadMutation, useGetConversationMessagesQuery } from '@/services/api/ConversationsApi';
 import ContactsList from './ContactsList';
 import UserSearch from './UserSearch';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import OrderNegotiationCard from '@/components/orders/OrderNegotiationCard';
 
 interface Reaction {
   type: string;
@@ -55,6 +56,28 @@ interface Message {
   isRead?: boolean;
 }
 
+interface NegotiationProduct {
+  offerId: number;
+  title: string;
+  price: number;
+  productCondition: string;
+  userId: number;
+  images: string[];
+}
+
+interface NegotiationOrder {
+  id: number;
+  status: 'pending' | 'completed' | 'cancelled' | 'refunded';
+  balanceAmount: number;
+  balancePayerId: number | null;
+  createdAt: string;
+}
+
+interface NegotiationData {
+  order: NegotiationOrder;
+  products: NegotiationProduct[];
+}
+
 interface Contact {
   conversationId: number;
   friendId: number;
@@ -72,11 +95,14 @@ interface Contact {
   unreadCount: number;
   conversationType: 'chat' | 'negotiation';
   lastActivity: string;
+  negotiation?: NegotiationData;
 }
 
 interface ChatPanelProps {
   isOpen: boolean;
   onToggle: () => void;
+  selectedUserId?: number | null;
+  orderId?: number | null;
 }
 
 const REACTION_TYPES = [
@@ -89,10 +115,9 @@ const REACTION_TYPES = [
   { type: 'angry', emoji: '😡', label: 'En colère' },
 ];
 
-export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
+export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, orderId = null }: ChatPanelProps) {
   const { currentUser } = useCurrentUser();
   const { socket, isConnected, onlineUsers, joinConversation, leaveConversation, sendMessage: socketSendMessage, sendReaction, deleteMessage, editMessage, on, off, syncOnlineUsers, startTyping, stopTyping } = useSocket();
-  const [createConversation] = useCreateConversationMutation();
   const [markConversationAsRead] = useMarkConversationAsReadMutation();
 
   // État pour la gestion des contacts et conversations
@@ -106,14 +131,6 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
   );
   const [showContactsList, setShowContactsList] = useState(true);
   const [showUserSearch, setShowUserSearch] = useState(false);
-  const [negotiation, setNegotiation] = useState<NegotiationState>({
-    isOpen: false,
-    target: { id: 0, title: '', image: '', price: 0, sellerId: 0 },
-    mine: null,
-    difference: 0,
-    direction: 'egal',
-    step: 1,
-  });
 
   // État pour les messages (maintenant basé sur la conversation sélectionnée)
   const [messages, setMessages] = useState<Message[]>([]);
@@ -165,13 +182,13 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
     scrollToBottom();
   }, [messages]);
 
-  const closeNegotiation = () => setNegotiation(prev => ({ ...prev, isOpen: false }));
-  const updateNegotiationValue = (value: number) => setNegotiation(prev => ({ ...prev, difference: value }));
-  const continueNegotiation = async () => {
-    // Mock API
-    await new Promise(res => setTimeout(res, 400));
-    setNegotiation((prev: any) => ({ ...prev, step: Math.min(3, (prev.step || 1) + 1) }));
-  };
+  // Ouvrir (ou créer si besoin) une conversation avec userId lorsqu'il est fourni
+  useEffect(() => {
+    const ensureConversationWithUser = async () => {
+      console.log('ensureConversationWithUser', selectedUserId);
+    };
+    ensureConversationWithUser();
+  }, [selectedUserId]);
 
 
   // Cleanup du timeout de typing au démontage du composant
@@ -284,9 +301,6 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
   const isContactOnline = (contact: Contact) => {
     return onlineUsers.has(contact.friendId);
   };
-
-
-  console.log('haaaahoma f chat', onlineUsers);
 
   // Gestion des événements socket
   useEffect(() => {
@@ -783,21 +797,27 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
           <div className="flex items-center space-x-3">
             {selectedContact ? (
               <>
-                <div className="relative">
-                  {selectedContact.friendImage ? (
-                  <img
-                    src={selectedContact.friendImage}
-                    alt={selectedContact.friendName}
-                      className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
-                    />
-                  ) : (
-                    <Avatar className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm">
+                <div className="relative w-12 h-12">
+                  {/* Ami */}
+                  <Avatar className="absolute left-0 top-0 w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm">
+                    {selectedContact.friendImage ? (
+                      <img src={selectedContact.friendImage} alt={selectedContact.friendName} className="w-full h-full rounded-full object-cover" />
+                    ) : (
                       <AvatarFallback className="bg-blue-100 text-blue-600 font-semibold">
                         {selectedContact.friendName.split(' ').map(word => word.charAt(0)).join('').toUpperCase()}
                       </AvatarFallback>
-                    </Avatar>
-                  )}
-                  <div className={`absolute bottom-0 right-0 w-3 h-3 ${isContactOnline(selectedContact) ? 'bg-green-500' : 'bg-gray-500'} rounded-full border-2 border-white`}></div>
+                    )}
+                  </Avatar>
+                  {/* Produit ami si négociation */}
+                  {selectedContact.conversationType === 'negotiation' && (() => {
+                    const friendProduct = selectedContact.negotiation?.products?.find(p => p.userId === selectedContact.friendId) || null;
+                    return friendProduct ? (
+                      <Avatar className="absolute right-0 bottom-1 w-7 h-7 rounded-full object-cover border border-white shadow-sm">
+                        <img src={friendProduct.images?.[0] || ''} alt={friendProduct.title} className="w-full h-full rounded-full object-cover" />
+                      </Avatar>
+                    ) : null;
+                  })()}
+                  <div className={`absolute -bottom-1 -right-1 w-3 h-3 ${isContactOnline(selectedContact) ? 'bg-green-500' : 'bg-gray-500'} rounded-full border-2 border-white`}></div>
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900">{selectedContact.friendName}</h3>
@@ -856,10 +876,10 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
               </button>
             )}
             {selectedContact && (
-            <button
+              <button
 
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
-            >
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
+              >
                 <Phone size={18} className="text-gray-600" />
               </button>
             )}
@@ -872,6 +892,13 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
           </div>
         </div>
 
+
+        {/* Carte de négociation sous l'en-tête */}
+        {selectedContact?.conversationType === 'negotiation' && selectedContact?.negotiation?.order?.id && (
+          <div className="p-2 border-b border-gray-100">
+            <OrderNegotiationCard orderId={selectedContact.negotiation.order.id} />
+          </div>
+        )}
 
         {showUserSearch ? (
           /* Recherche d'utilisateurs */
@@ -890,7 +917,7 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
           /* Conversation */
           <>
             {/* Messages */}
-            <div className={`flex-1 overflow-y-auto p-4 pb-16 space-y-4 ${replyingToMessage ? 'h-[calc(100vh-230px)]' : 'h-[calc(100vh-150px)]'}`}>
+            <div className={`relative flex-1 overflow-y-auto p-4 pb-16 space-y-4 ${replyingToMessage ? 'h-[calc(100vh-230px)]' : 'h-[calc(100vh-150px)]'}`}>
               {messagesLoading ? (
                 <div className="flex justify-center items-center h-full">
                   <div className="text-gray-500">Chargement des messages...</div>
@@ -1180,6 +1207,11 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
                   </div>
                 ))
               )}
+              {(!messagesLoading && !messagesError && currentConversationId && messages.length === 0) && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <span className="text-gray-500 text-sm select-none">Commencez votre chat</span>
+                </div>
+              )}
               {/* Indicateur de typing */}
               {typingUsers.size > 0 && (
                 <div className="px-4 py-2">
@@ -1229,7 +1261,7 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
                 </div>
               )}
 
-              <div className="flex items-center justify-between space-x-2">
+              <div className="flex items-center justify-between space-x-2 pb-3">
                 <textarea
                   value={newMessage}
                   onChange={handleMessageChange}
