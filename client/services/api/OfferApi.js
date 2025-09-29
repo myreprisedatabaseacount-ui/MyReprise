@@ -344,6 +344,7 @@ export const {
   useCreateOfferMutation,
   useCreateOfferWithUrlsMutation,
   useGetOffersQuery,
+  useLazyGetOffersQuery,
   useGetOffersBySellerQuery,
   useGetOffersByCategoryQuery,
   useGetOffersGroupedByTopCategoriesQuery,

@@ -1,11 +1,12 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useGetOffersQuery } from '../../../services/api/OfferApi';
+import { useGetOffersQuery, useLazyGetOffersQuery } from '../../../services/api/OfferApi';
 import { useGetAllCategoriesQuery } from '../../../services/api/CategoryApi';
 import CategoryFiltersBar from '../../../components/common/CategoryFiltersBar';
 import { Search, Filter, Package, Loader2, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 
 interface OfferImage {
   id: number;
@@ -95,7 +96,7 @@ const ProductCard: React.FC<{ offer: Offer }> = ({ offer }) => {
 
   return (
     <Link href={`/product/${offer.id}`} className="block group">
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md hover:border-blue-300 transition-all duration-200 overflow-hidden">
+      <div className="bg-white rounded-lg transition-all duration-200 overflow-hidden">
         {/* Image */}
         <div className="aspect-square overflow-hidden">
           <img
@@ -104,37 +105,27 @@ const ProductCard: React.FC<{ offer: Offer }> = ({ offer }) => {
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
           />
         </div>
-        
+
         {/* Contenu */}
-        <div className="p-4">
+        <div className="p-3">
           {/* Titre */}
           <h3 className="text-lg font-semibold text-gray-900 line-clamp-2 mb-2 group-hover:text-blue-600 transition-colors">
             {offer.title}
           </h3>
-          
+
           {/* État du produit */}
-          <div className="mb-3">
-            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getProductConditionColor(offer.productCondition)}`}>
-              {getProductConditionText(offer.productCondition)}
-            </span>
+          <div className=" h-7 text-sm text-gray-500 rounded-md overflow-hidden">
+            {typeof offer.description === 'string' ? offer.description.slice(0, 28) + '...' : offer.description}
           </div>
-          
-          {/* Prix */}
-          <div className="text-xl font-bold text-blue-600 mb-3">
-            {offer.price.toLocaleString()} DH
-          </div>
-          
+
           {/* Call to action */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-blue-600">Demander reprise</span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-blue-600">
-                <path d="M12 2L13.09 8.26L20 9L13.09 9.74L12 16L10.91 9.74L4 9L10.91 8.26L12 2Z" fill="currentColor"/>
-                <path d="M19 15L20.09 21.26L27 22L20.09 22.74L19 29L17.91 22.74L11 22L17.91 21.26L19 15Z" fill="currentColor"/>
-              </svg>
+              <span className="text-sm font-semibold text-blue-600">Demander reprise</span>
+              <Image src="/icon/logo.png" alt="Demander reprise" width={20} height={20} />
             </div>
             {offer.address && (
-              <span className="text-xs text-gray-500">{offer.address.city}</span>
+              <span className="text-xs text-gray-500">{typeof offer.address.city === 'string' ? offer.address.city.slice(0, 5) + '...' : offer.address.city}</span>
             )}
           </div>
         </div>
@@ -181,7 +172,8 @@ const BoutiquePage: React.FC = () => {
   };
   // la clé inclut explicitement la catégorie et la recherche
   const { data: offersData, isLoading, error, refetch } = useGetOffersQuery(queryArgs);
-  
+  const [triggerGetOffers, { isFetching: isFetchingLazy }] = useLazyGetOffersQuery();
+
 
   // Récupérer les catégories
   const { data: categoriesData, isLoading: isLoadingCategories } = useGetAllCategoriesQuery({
@@ -204,7 +196,7 @@ const BoutiquePage: React.FC = () => {
         searchTerm: searchTerm.trim(),
         totalOffers: offersData.pagination?.totalCount || 'N/A'
       });
-      
+
       if (page === 1) {
         setAllOffers(offersData.data);
       } else {
@@ -219,7 +211,7 @@ const BoutiquePage: React.FC = () => {
     setAllOffers([]);
     setHasMore(true);
   }, [searchTerm, categoryFilter]);
-  
+
   // Fonction pour charger plus d'offres
   const loadMore = useCallback(() => {
     if (!isLoadingMore && hasMore && !isLoading) {
@@ -238,7 +230,7 @@ const BoutiquePage: React.FC = () => {
           loadMore();
         }
       },
-      { 
+      {
         threshold: 0.2, // Se déclenche quand 20% du sentinel est visible (soit 80% de la page)
         rootMargin: '100px' // Déclenche 100px avant d'atteindre le sentinel
       }
@@ -270,6 +262,31 @@ const BoutiquePage: React.FC = () => {
     setCategoryLimit(newLimit);
     setCategoryPage(1);
   };
+
+  // Clic sur une catégorie: envoie la requête directement et met à jour l'état
+  const handleCategoryFilterClick = useCallback(async (newCategory: string) => {
+    const params = {
+      page: 1,
+      limit: 10,
+      search: searchTerm ? searchTerm.trim() : undefined,
+      categoryId: newCategory !== 'all' ? Number(newCategory) : undefined,
+    };
+
+    setCategoryFilter(newCategory);
+    setPage(1);
+    setAllOffers([]);
+    setHasMore(true);
+
+    try {
+      const result = await triggerGetOffers(params).unwrap();
+      if (result?.data) {
+        setAllOffers(result.data);
+        setHasMore(result.data.length === 10);
+      }
+    } catch (e) {
+      console.error('Erreur lors du chargement des offres filtrées:', e);
+    }
+  }, [searchTerm, triggerGetOffers]);
 
   // Reset du loading quand les données arrivent
   useEffect(() => {
@@ -311,7 +328,7 @@ const BoutiquePage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -380,29 +397,27 @@ const BoutiquePage: React.FC = () => {
               totalCount={categoriesData?.totalCount || 0}
               isLoading={isLoadingCategories}
             />
-            
+
             {/* Liste des catégories */}
             <div className="mt-4">
               <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={() => setCategoryFilter('all')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    categoryFilter === 'all'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
+                  onClick={() => handleCategoryFilterClick('all')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${categoryFilter === 'all'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
                 >
                   Toutes les catégories
                 </button>
                 {categories.map((category) => (
                   <button
                     key={category.id}
-                    onClick={() => setCategoryFilter(category.id.toString())}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-                      categoryFilter === category.id.toString()
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
+                    onClick={() => handleCategoryFilterClick(category.id.toString())}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${categoryFilter === category.id.toString()
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
                   >
                     <img src={category.icon} alt={category.name} className="w-4 h-4" />
                     {category.nameFr}
@@ -415,7 +430,7 @@ const BoutiquePage: React.FC = () => {
 
         {/* Liste des offres */}
         {allOffers.length === 0 ? (
-          <div className="text-center py-12">
+          <div className="text-center py-12 min-h-screen">
             <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Aucune offre trouvée</h3>
             <p className="text-gray-600">
@@ -427,7 +442,7 @@ const BoutiquePage: React.FC = () => {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-9">
               {allOffers.map((offer) => (
                 <ProductCard key={offer.id} offer={offer} />
               ))}
