@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Plus, Edit, Trash2, Eye, Search, Filter, ChevronLeft, ChevronRight, MoreVertical, AlertCircle } from 'lucide-react';
+import { Package, Plus, Edit, Trash2, Eye, Search, Filter, ChevronLeft, ChevronRight, MoreVertical, AlertCircle, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { useGetOffersBySellerQuery, useUpdateOfferStatusMutation, useDeleteOfferMutation, OfferApi } from '../../../../../../services/api/OfferApi';
 import { useGetAllCategoriesQuery } from '../../../../../../services/api/CategoryApi';
 import { useProduct } from '../../../../../../services/hooks/useProduct';
 import { useCurrentUser } from '../../../../../../services/hooks/useCurrentUser';
 import { useDispatch } from 'react-redux';
 import { toast } from 'sonner';
+import CategoryFiltersBar from '../../../../../../components/common/CategoryFiltersBar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '../../../../../../components/ui/dropdown-menu';
 import OfferDetailsDialog from './OfferDetailsDialog';
+import EditOfferModal from './EditOfferModal';
 
 interface StoreOffersManagementProps {
   userId: string;
@@ -28,14 +30,30 @@ const StoreOffersManagement: React.FC<StoreOffersManagementProps> = ({ userId })
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [selectedOffer, setSelectedOffer] = useState<any>(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [offerToEdit, setOfferToEdit] = useState<any>(null);
   const itemsPerPage = 10;
+
+  // Category pagination states
+  const [categorySearchTerm, setCategorySearchTerm] = useState<string>('');
+  const [categoryPage, setCategoryPage] = useState(1);
+  const [categoryLimit, setCategoryLimit] = useState(10);
+
+  // Section visibility states
+  const [isCategoryFiltersExpanded, setIsCategoryFiltersExpanded] = useState(false);
+  const [isOfferSearchExpanded, setIsOfferSearchExpanded] = useState(false);
 
   // Mutations
   const [updateOfferStatus] = useUpdateOfferStatusMutation();
   const [deleteOffer] = useDeleteOfferMutation();
 
-  // Récupérer les catégories
-  const { data: categoriesData } = useGetAllCategoriesQuery({ language: 'fr' });
+  // Récupérer les catégories avec pagination
+  const { data: categoriesData, isLoading: isLoadingCategories } = useGetAllCategoriesQuery({
+    search: categorySearchTerm || undefined,
+    page: categoryPage,
+    limit: categoryLimit,
+    language: 'fr'
+  });
   const categories = categoriesData?.data || [];
 
   // Récupérer les offres du vendeur avec pagination et filtres
@@ -115,6 +133,36 @@ const StoreOffersManagement: React.FC<StoreOffersManagementProps> = ({ userId })
   const handleCloseDetails = () => {
     setIsDetailsDialogOpen(false);
     setSelectedOffer(null);
+  };
+
+  const handleEditOffer = (offer: any) => {
+    setOfferToEdit(offer);
+    setIsEditModalOpen(true);
+  };
+
+  const handleCloseEditModal = () => {
+    setIsEditModalOpen(false);
+    setOfferToEdit(null);
+  };
+
+  const handleEditSuccess = () => {
+    // Synchroniser le frontend : forcer un refetch des données
+    dispatch(OfferApi.util.invalidateTags([{ type: 'Offer', id: userId }]));
+  };
+
+  // Fonctions de gestion de la pagination des catégories
+  const handleCategorySearchChange = (searchTerm: string) => {
+    setCategorySearchTerm(searchTerm);
+    setCategoryPage(1); // Reset à la première page lors de la recherche
+  };
+
+  const handleCategoryPageChange = (page: number) => {
+    setCategoryPage(page);
+  };
+
+  const handleCategoryLimitChange = (limit: number) => {
+    setCategoryLimit(limit);
+    setCategoryPage(1); // Reset à la première page lors du changement de limite
   };
 
   // Fonction pour obtenir le texte du statut
@@ -197,53 +245,208 @@ const StoreOffersManagement: React.FC<StoreOffersManagementProps> = ({ userId })
         </button>
       </div>
 
-      {/* Filtres et recherche */}
-      <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-        <div className="flex flex-col sm:flex-row gap-4">
-          {/* Recherche */}
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                type="text"
-                placeholder="Rechercher une offre..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+      {/* Section 1: Filtres de catégories */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        {/* Header avec bouton de collapse */}
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">Filtrer par catégorie</h3>
+              <p className="text-sm text-gray-600">Sélectionnez une catégorie pour filtrer vos offres</p>
             </div>
-          </div>
-
-          {/* Filtre par statut */}
-          <div className="sm:w-48">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            <button
+              onClick={() => setIsCategoryFiltersExpanded(!isCategoryFiltersExpanded)}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
             >
-              <option value="all">Tous les statuts</option>
-              <option value="available">Disponible</option>
-              <option value="exchanged">Échangé</option>
-              <option value="archived">Archivé</option>
-            </select>
-          </div>
-
-          {/* Filtre par catégorie */}
-          <div className="sm:w-48">
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="all">Toutes les catégories</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.nameFr}
-                </option>
-              ))}
-            </select>
+              {isCategoryFiltersExpanded ? (
+                <>
+                  <ChevronUp className="w-4 h-4" />
+                  Masquer
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="w-4 h-4" />
+                  Afficher
+                </>
+              )}
+            </button>
           </div>
         </div>
+
+        {/* Contenu collapsible */}
+        {isCategoryFiltersExpanded && (
+          <div className="p-4">
+        
+            {/* Barre de filtres pour les catégories */}
+            <CategoryFiltersBar
+              searchTerm={categorySearchTerm}
+              currentPage={categoryPage}
+              totalPages={categoriesData?.totalPages || 0}
+              limit={categoryLimit}
+              onSearchChange={handleCategorySearchChange}
+              onPageChange={handleCategoryPageChange}
+              onLimitChange={handleCategoryLimitChange}
+              totalCount={categoriesData?.totalCount || 0}
+              isLoading={isLoadingCategories}
+            />
+
+            {/* Liste des catégories avec sélection */}
+            <div className="mt-4">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setCategoryFilter('all')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    categoryFilter === 'all'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Toutes les catégories
+                </button>
+                {categories.map((category) => (
+                  <button
+                    key={category.id}
+                    onClick={() => setCategoryFilter(category.id.toString())}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                      categoryFilter === category.id.toString()
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    <img src={category.icon} alt={category.name} className="w-4 h-4" />
+                    {category.nameFr}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Section 2: Recherche et filtres d'offres */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        {/* Header avec bouton de collapse */}
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">Rechercher et filtrer vos offres</h3>
+              <p className="text-sm text-gray-600">Trouvez rapidement l'offre que vous cherchez</p>
+            </div>
+            <button
+              onClick={() => setIsOfferSearchExpanded(!isOfferSearchExpanded)}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+            >
+              {isOfferSearchExpanded ? (
+                <>
+                  <ChevronUp className="w-4 h-4" />
+                  Masquer
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="w-4 h-4" />
+                  Afficher
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Contenu collapsible */}
+        {isOfferSearchExpanded && (
+          <div className="p-4">
+        
+            <div className="flex flex-col sm:flex-row gap-4">
+              {/* Recherche d'offres */}
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Rechercher une offre
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <input
+                    type="text"
+                    placeholder="Titre, description, prix..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              {/* Filtre par statut */}
+              <div className="sm:w-48">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Statut de l'offre
+                </label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="all">Tous les statuts</option>
+                  <option value="available">Disponible</option>
+                  <option value="exchanged">Échangé</option>
+                  <option value="archived">Archivé</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Indicateurs de filtres actifs */}
+            {(searchTerm || statusFilter !== 'all' || categoryFilter !== 'all') && (
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Filter className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-800">Filtres actifs :</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {searchTerm && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                      Recherche: "{searchTerm}"
+                      <button
+                        onClick={() => setSearchTerm('')}
+                        className="ml-1 hover:text-blue-600"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+                  {statusFilter !== 'all' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                      Statut: {getStatusText(statusFilter)}
+                      <button
+                        onClick={() => setStatusFilter('all')}
+                        className="ml-1 hover:text-blue-600"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+                  {categoryFilter !== 'all' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                      Catégorie: {categories.find(c => c.id.toString() === categoryFilter)?.nameFr || 'Inconnue'}
+                      <button
+                        onClick={() => setCategoryFilter('all')}
+                        className="ml-1 hover:text-blue-600"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => {
+                    setSearchTerm('');
+                    setStatusFilter('all');
+                    setCategoryFilter('all');
+                  }}
+                  className="mt-2 text-xs text-blue-600 hover:text-blue-800 underline"
+                >
+                  Effacer tous les filtres
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Liste des offres */}
@@ -319,12 +522,13 @@ const StoreOffersManagement: React.FC<StoreOffersManagementProps> = ({ userId })
                       >
                         <Eye className="w-4 h-4" />
                       </button>
-                      <button 
-                        className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                        title="Modifier (bientôt disponible)"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
+                            <button
+                              onClick={() => handleEditOffer(offer)}
+                              className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                              title="Modifier l'offre"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
                       
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -428,16 +632,24 @@ const StoreOffersManagement: React.FC<StoreOffersManagementProps> = ({ userId })
         )}
       </div>
 
-      {/* Dialog de détails de l'offre */}
-      <OfferDetailsDialog
-        isOpen={isDetailsDialogOpen}
-        onClose={handleCloseDetails}
-        offer={selectedOffer}
-        onStatusChange={handleStatusChange}
-        onDelete={handleDelete}
-      />
-    </div>
-  );
-};
+            {/* Dialog de détails de l'offre */}
+            <OfferDetailsDialog
+              isOpen={isDetailsDialogOpen}
+              onClose={handleCloseDetails}
+              offer={selectedOffer}
+              onStatusChange={handleStatusChange}
+              onDelete={handleDelete}
+            />
+
+            {/* Modal de modification d'offre */}
+            <EditOfferModal
+              isOpen={isEditModalOpen}
+              onClose={handleCloseEditModal}
+              offer={offerToEdit}
+              onSuccess={handleEditSuccess}
+            />
+          </div>
+        );
+      }
 
 export default StoreOffersManagement;

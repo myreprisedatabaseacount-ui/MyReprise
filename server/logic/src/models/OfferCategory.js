@@ -204,6 +204,15 @@ OfferCategory.relationExists = async function(offerId, categoryId) {
 };
 
 /**
+ * Supprimer toutes les catégories d'une offre
+ */
+OfferCategory.deleteByOfferId = async function(offerId) {
+  return await OfferCategory.destroy({
+    where: { offerId: offerId }
+  });
+};
+
+/**
  * Récupérer les statistiques des relations
  */
 OfferCategory.getRelationStats = async function() {

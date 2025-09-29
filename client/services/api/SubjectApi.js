@@ -69,6 +69,18 @@ export const subjectApi = createApi({
       },
     }),
 
+    // Récupérer tous les sujets (alias pour getSubjects)
+    getAllSubjects: builder.query({
+      query: ({ language = 'fr' } = {}) => ({
+        url: `/subjects?language=${language}`,
+        method: 'GET',
+      }),
+      providesTags: ['Subject'],
+      transformResponse: (response) => {
+        return response.data || response;
+      },
+    }),
+
     // Récupérer un sujet par ID
     getSubjectById: builder.query({
       query: (id) => ({
@@ -190,6 +202,7 @@ export const subjectApi = createApi({
 // Export des hooks générés automatiquement
 export const {
   useGetSubjectsQuery,
+  useGetAllSubjectsQuery,
   useGetSubjectByIdQuery,
   useCreateSubjectMutation,
   useUpdateSubjectMutation,

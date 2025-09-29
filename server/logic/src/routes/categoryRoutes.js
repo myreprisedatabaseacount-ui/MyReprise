@@ -1,6 +1,6 @@
 const express = require('express');
 const multer = require("multer");
-const { createCategory, getAllCategories, getCategoryById, updateCategory, getCategoriesByListingType } = require("../controllers/categoryController.js");
+const { createCategory, getAllCategories, getCategoryById, updateCategory, getCategoriesByListingType, getTopCategoriesByOffers } = require("../controllers/categoryController.js");
 // GET /api/categories/listing-type/:listingType - Récupérer les catégories par type de listing
 const categoryRoutes = express.Router();
 
@@ -70,6 +70,9 @@ const handleMulterError = (error, req, res, next) => {
   
   // Route pour récupérer les catégories par type de listing
   categoryRoutes.get("/listing-type/:listingType", getCategoriesByListingType);
+  
+  // Route pour récupérer les catégories populaires (avec le plus grand nombre d'offres)
+  categoryRoutes.get("/top-by-offers", getTopCategoriesByOffers);
   
   // Route pour récupérer une catégorie par ID
   categoryRoutes.get("/:id", getCategoryById);

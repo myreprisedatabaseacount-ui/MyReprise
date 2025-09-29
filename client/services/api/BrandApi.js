@@ -168,6 +168,15 @@ export const brandApi = createApi({
       providesTags: ['Brand'],
     }),
 
+    // Récupérer toutes les marques (alias pour getBrands)
+    getAllBrands: builder.query({
+      query: ({ language = 'fr' } = {}) => ({
+        url: `/api/brands?language=${language}`,
+        method: 'GET',
+      }),
+      providesTags: ['Brand'],
+    }),
+
     // Récupérer les marques actives
     getActiveBrands: builder.query({
       query: ({ language = 'fr' } = {}) => ({
@@ -200,6 +209,7 @@ export const brandApi = createApi({
 // Export des hooks générés automatiquement
 export const {
   useGetBrandsQuery,
+  useGetAllBrandsQuery,
   useGetBrandByIdQuery,
   useCreateBrandMutation,
   useUpdateBrandMutation,

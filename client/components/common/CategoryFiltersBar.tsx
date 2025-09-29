@@ -90,9 +90,7 @@ const CategoryFiltersBar: React.FC<CategoryFiltersBarProps> = ({
                   </option>
                 ))}
               </select>
-              <div className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none">
-                <Settings className="h-3 w-3 text-gray-400" />
-              </div>
+              
             </div>
           </div>
 
