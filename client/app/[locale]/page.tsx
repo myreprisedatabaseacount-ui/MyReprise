@@ -4,6 +4,7 @@ import NavBar from '../../components/Header/NavBar';
 import AuthProvider from '../../components/auth/AuthProvider';
 import ProductSlider from '@/components/home/productSlider/slider';
 import Hero from '@/components/home/Hero/hero';
+import CategorySlider from '@/components/home/CategorySlider';
 import ProductsGrid from '@/components/home/ProductsGrid/ProductsGrid';
 import ChatPanelWrapper from '@/components/ChatPanel/ChatPanelWrapper';
 
@@ -23,6 +24,7 @@ export default async function HomePage({
     <>
       <NavBar />
       <Hero />
+      <CategorySlider />
       <ProductSlider title={t('title')} />
       <AuthProvider />
       <ProductsGrid />
