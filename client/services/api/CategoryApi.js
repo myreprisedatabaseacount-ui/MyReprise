@@ -161,6 +161,15 @@ export const CategoryApi = createApi({
       }),
       providesTags: ['Category'],
     }),
+
+    // Query pour récupérer les top catégories avec le plus d'offres
+    getTopCategories: builder.query({
+      query: ({ limit = 5, language = 'fr' } = {}) => ({
+        url: '/api/categories/top-by-offers',
+        params: { limit, language }
+      }),
+      providesTags: ['Category'],
+    }),
   }),
 });
 
@@ -174,4 +183,5 @@ export const {
   useDeleteCategoryMutation,
   useGetCategoriesByListingTypeQuery,
   useGetAllCategoriesQuery,
+  useGetTopCategoriesQuery,
 } = CategoryApi;

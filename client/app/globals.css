@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Masquer la scrollbar pour les éléments avec la classe scrollbar-hide */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* Internet Explorer 10+ */
+  scrollbar-width: none;  /* Firefox */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Safari and Chrome */
+}
+
 :root {
   --card: 0 0% 100%;
   --card-foreground: 222.2 84% 4.9%;
