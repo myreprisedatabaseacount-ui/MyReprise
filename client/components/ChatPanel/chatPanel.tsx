@@ -4,7 +4,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Smile, Users, Search, Check, CheckCheck, Trash2, Edit3, Reply, Phone } from 'lucide-react';
 import { useCurrentUser } from '@/services/hooks/useCurrentUser';
 import { useSocket } from '@/services/hooks/useSocket';
-import { useMarkConversationAsReadMutation, useGetConversationMessagesQuery } from '@/services/api/ConversationsApi';
+import { useMarkConversationAsReadMutation, useGetConversationMessagesQuery, useGetConversationsQuery } from '@/services/api/ConversationsApi';
+import { useUpdateRepriseOrderDifferenceMutation, RepriseOrderApi } from '@/services/api/RepriseOrderApi';
+import { useDispatch } from 'react-redux';
 import ContactsList from './ContactsList';
 import UserSearch from './UserSearch';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -119,6 +121,9 @@ export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, ord
   const { currentUser } = useCurrentUser();
   const { socket, isConnected, onlineUsers, joinConversation, leaveConversation, sendMessage: socketSendMessage, sendReaction, deleteMessage, editMessage, on, off, syncOnlineUsers, startTyping, stopTyping } = useSocket();
   const [markConversationAsRead] = useMarkConversationAsReadMutation();
+  const { data: conversationsData } = useGetConversationsQuery({});
+  const [updateDifference] = useUpdateRepriseOrderDifferenceMutation();
+  const dispatch = useDispatch();
 
   // État pour la gestion des contacts et conversations
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -182,13 +187,22 @@ export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, ord
     scrollToBottom();
   }, [messages]);
 
-  // Ouvrir (ou créer si besoin) une conversation avec userId lorsqu'il est fourni
+  // Ouvrir automatiquement la conversation existante (sans création) quand selectedUserId et orderId sont fournis
   useEffect(() => {
-    const ensureConversationWithUser = async () => {
-      console.log('ensureConversationWithUser', selectedUserId);
-    };
-    ensureConversationWithUser();
-  }, [selectedUserId]);
+    if (!selectedUserId || !orderId) return;
+    const conversations = conversationsData?.conversations || [];
+    if (!conversations.length) return;
+
+    // Priorité: conversation de type negotiation correspondant à l'orderId et au friendId
+    const byOrderAndFriend = conversations.find((c: any) => c.conversationType === 'negotiation' && c?.negotiation?.order?.id === orderId && c.friendId === selectedUserId);
+    const byOrder = byOrderAndFriend || conversations.find((c: any) => c.conversationType === 'negotiation' && c?.negotiation?.order?.id === orderId);
+    const byFriend = byOrder || conversations.find((c: any) => c.friendId === selectedUserId);
+    const target = byFriend;
+    if (!target) return;
+
+    // Sélectionner via le flux standard
+    handleContactSelect(target);
+  }, [selectedUserId, orderId, conversationsData]);
 
 
   // Cleanup du timeout de typing au démontage du composant
@@ -277,6 +291,8 @@ export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, ord
 
       // Marquer les messages comme lus
       await markConversationAsRead(contact.conversationId);
+      // Refetch rapide pour éviter de rater un premier message envoyé juste avant le join
+      setTimeout(() => { try { refetchMessages(); } catch {} }, 200);
 
       // Marquer automatiquement tous les messages visibles comme lus après un délai
       setTimeout(() => {
@@ -322,6 +338,14 @@ export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, ord
           readBy: data.message.readBy || []
         };
         setMessages(prev => [...prev, newMsg]);
+      }
+
+      // Déclencher un rafraîchissement de la négociation si un message système annonce un nouveau prix
+      const text: string | undefined = data?.message?.text;
+      if (typeof text === 'string' && text.startsWith('- PROPOSITION DE NEGOTIATION:')) {
+        try {
+          dispatch(RepriseOrderApi.util.invalidateTags(['RepriseOrder'] as any));
+        } catch {}
       }
     };
 
@@ -498,6 +522,26 @@ export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, ord
     on('edit_error', handleEditError);
     on('user_typing', handleUserTyping);
 
+    // Étape 2 en temps réel après acceptation
+    const handleNegotiationAccepted = (data: any) => {
+      try {
+        // Invalider les données de négociation pour passer à l'étape 2 côté UI
+        dispatch(RepriseOrderApi.util.invalidateTags(['RepriseOrder'] as any));
+        // Message de notification locale
+        showNotification('Négociation acceptée. Passage au choix de livraison.', 'success');
+      } catch {}
+    };
+    on('negotiation_accepted', handleNegotiationAccepted);
+
+    // Rattrapage: mise à jour conversation => refetch messages si c'est la conversation active
+    const handleConversationsUpdateLight = (data: any) => {
+      const cid = data?.conversationId || data?.id;
+      if (cid && cid === currentConversationId) {
+        try { refetchMessages(); } catch {}
+      }
+    };
+    on('conversations:update', handleConversationsUpdateLight);
+
     return () => {
       off('new_message', handleNewMessage);
       off('message_read', handleMessageRead);
@@ -508,8 +552,10 @@ export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, ord
       off('message_edited', handleMessageEdited);
       off('edit_error', handleEditError);
       off('user_typing', handleUserTyping);
+      off('negotiation_accepted', handleNegotiationAccepted);
+      off('conversations:update', handleConversationsUpdateLight);
     };
-  }, [socket, isConnected, currentConversationId, currentUser, on, off]);
+  }, [socket, isConnected, currentConversationId, currentUser, on, off, refetchMessages]);
 
   const handleSendMessage = () => {
     if (newMessage.trim() && currentConversationId && isConnected) {
@@ -518,6 +564,9 @@ export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, ord
         stopTyping(currentConversationId);
         isTyping.current = false;
       }
+
+      // Assurer l'adhésion à la room actuelle
+      joinConversation(currentConversationId);
 
       // Envoyer le message via socket
       socketSendMessage({
@@ -791,7 +840,7 @@ export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, ord
         </div>
       )}
 
-      <div className={`fixed right-0 top-0 h-full bg-white shadow-2xl border-l border-gray-200 transition-all duration-300 ease-in-out z-40 w-80 sm:w-96 `} onClick={() => setShowReactionMenu(null)}>
+      <div className={`fixed right-0 top-0 h-full bg-white shadow-2xl border-l border-gray-200 transition-all duration-300 ease-in-out z-40 w-80 sm:w-96 flex flex-col min-h-0`} onClick={() => setShowReactionMenu(null)}>
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
           <div className="flex items-center space-x-3">
@@ -895,29 +944,51 @@ export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, ord
 
         {/* Carte de négociation sous l'en-tête */}
         {selectedContact?.conversationType === 'negotiation' && selectedContact?.negotiation?.order?.id && (
-          <div className="p-2 border-b border-gray-100">
-            <OrderNegotiationCard orderId={selectedContact.negotiation.order.id} />
+          <div className="border-b border-gray-100">
+            <OrderNegotiationCard
+              orderId={selectedContact.negotiation.order.id}
+              onConfirm={async (proposedValue: number) => {
+                try {
+                  if (!currentConversationId) {
+                    showNotification('Veuillez sélectionner une conversation', 'error');
+                    return;
+                  }
+                  const oid = selectedContact?.negotiation?.order?.id;
+                  if (!oid) return;
+                  await updateDifference({ orderId: oid, differenceAmount: proposedValue } as any).unwrap();
+                  showNotification('Différence mise à jour', 'success');
+                  const announcement = `- PROPOSITION DE NEGOTIATION: Nouveau prix proposé: ${proposedValue} DH`;
+                  socketSendMessage({ conversationId: currentConversationId, text: announcement });
+                  try { dispatch(RepriseOrderApi.util.invalidateTags(['RepriseOrder'] as any)); } catch {}
+                } catch (e: any) {
+                  const msg = e?.data?.error || e?.message || 'Erreur lors de la mise à jour';
+                  showNotification(msg, 'error');
+                }
+              }}
+            />
           </div>
         )}
 
         {showUserSearch ? (
           /* Recherche d'utilisateurs */
-          <div className="p-4 h-[calc(100vh-80px)] overflow-y-auto">
+          <div className="p-4 flex-1 overflow-y-auto">
             <UserSearch
               onConversationCreated={handleConversationCreated}
             />
           </div>
         ) : showContactsList ? (
           /* Liste des contacts */
-          <ContactsList
-            onContactSelect={handleContactSelect}
-            selectedContactId={selectedContact?.friendId}
-          />
+          <div className="flex-1 overflow-y-auto">
+            <ContactsList
+              onContactSelect={handleContactSelect}
+              selectedContactId={selectedContact?.friendId}
+            />
+          </div>
         ) : (
           /* Conversation */
-          <>
+          <div className="flex flex-col flex-1 min-h-0">
             {/* Messages */}
-            <div className={`relative flex-1 overflow-y-auto p-4 pb-16 space-y-4 ${replyingToMessage ? 'h-[calc(100vh-230px)]' : 'h-[calc(100vh-150px)]'}`}>
+            <div className={`relative flex-1 min-h-0 overflow-y-auto p-4 pb-16 space-y-4`}>
               {messagesLoading ? (
                 <div className="flex justify-center items-center h-full">
                   <div className="text-gray-500">Chargement des messages...</div>
@@ -1232,7 +1303,7 @@ export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, ord
             </div>
 
             {/* Input */}
-            <div className="p-4 border-t border-gray-200 bg-gray-50 ">
+            <div className="p-4 border-t border-gray-200 bg-gray-50 shrink-0 ">
               {/* Message de réponse */}
               {replyingToMessage && (
                 <div className="mb-3 p-3 bg-white border border-gray-200 rounded-lg shadow-sm">
@@ -1245,8 +1316,8 @@ export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, ord
                         </span>
                       </div>
                       <p className="text-sm text-gray-600 truncate">
-                        {replyingToMessage.text.length > 100
-                          ? `${replyingToMessage.text.substring(0, 100)}...`
+                        {replyingToMessage.text.length > 32
+                          ? `${replyingToMessage.text.substring(0, 32)}...`
                           : replyingToMessage.text
                         }
                       </p>
@@ -1261,7 +1332,7 @@ export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, ord
                 </div>
               )}
 
-              <div className="flex items-center justify-between space-x-2 pb-3">
+              <div className="flex items-center justify-between space-x-2 ">
                 <textarea
                   value={newMessage}
                   onChange={handleMessageChange}
@@ -1281,7 +1352,7 @@ export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, ord
                 </button>
               </div>
             </div>
-          </>
+          </div>
         )}
       </div>
     </>

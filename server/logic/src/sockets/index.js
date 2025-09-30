@@ -570,4 +570,19 @@ const broadcastConversationsUpdate = async (conversationId) => {
     }
 };
 
-module.exports = { initializeSockets, broadcastConversationsUpdate };
+/**
+ * Émettre un événement vers une conversation (room conversation_{id})
+ * @param {number} conversationId
+ * @param {string} event
+ * @param {any} payload
+ */
+const emitToConversation = (conversationId, event, payload) => {
+    try {
+        if (!globalIO) return;
+        globalIO.to(`conversation_${conversationId}`).emit(event, payload);
+    } catch (error) {
+        logger.error('Erreur emitToConversation:', error);
+    }
+};
+
+module.exports = { initializeSockets, broadcastConversationsUpdate, emitToConversation };

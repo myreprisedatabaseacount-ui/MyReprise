@@ -55,9 +55,33 @@ export const RepriseOrderApi = createApi({
       providesTags: ['RepriseOrder'],
       keepUnusedDataFor: 60,
     }),
+    accepAndNegotiateRepriseOrder: builder.mutation({
+      query: (payload) => ({
+        url: '/api/reprise-orders/start-negotiation',
+        method: 'POST',
+        body: payload,
+      }),
+      invalidatesTags: ['RepriseOrder'],
+    }),
+    updateRepriseOrderDifference: builder.mutation({
+      query: (payload) => ({
+        url: '/api/reprise-orders/update-difference',
+        method: 'POST',
+        body: payload,
+      }),
+      invalidatesTags: ['RepriseOrder'],
+    }),
+    acceptNegotiation: builder.mutation({
+      query: (payload) => ({
+        url: '/api/reprise-orders/accept-negotiation',
+        method: 'POST',
+        body: payload,
+      }),
+      invalidatesTags: ['RepriseOrder'],
+    }),
   }),
 });
 
-export const { useCreateRepriseOrderMutation, useListReceivedOrdersOnMyOffersQuery, useListSendedOrdersOnMyOffersQuery, useGetOrderDetailsQuery, useGetNegotiationInitByOrderIdQuery } = RepriseOrderApi;
+export const { useCreateRepriseOrderMutation, useListReceivedOrdersOnMyOffersQuery, useListSendedOrdersOnMyOffersQuery, useGetOrderDetailsQuery, useGetNegotiationInitByOrderIdQuery , useAccepAndNegotiateRepriseOrderMutation, useUpdateRepriseOrderDifferenceMutation, useAcceptNegotiationMutation } = RepriseOrderApi;
 
 

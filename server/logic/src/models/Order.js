@@ -19,6 +19,16 @@ const Order = sequelize.define('Order', {
             min: 0
         }
     },
+    balanceSenderId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        field: 'balance_sender_id',
+        references: {
+            model: 'users',
+            key: 'id'
+        },
+        comment: 'Utilisateur qui a initié l\'envoi de la commande'
+    },
     balancePayerId: {
         type: DataTypes.INTEGER,
         allowNull: true,
@@ -30,7 +40,7 @@ const Order = sequelize.define('Order', {
         comment: 'Utilisateur qui doit payer la différence (si balance_amount > 0)'
     },
     status: {
-        type: DataTypes.ENUM('pending', 'completed', 'cancelled', 'refunded'),
+        type: DataTypes.ENUM('pending', 'cancelled', 'negotiation', 'accepted'),
         allowNull: false,
         defaultValue: 'pending'
     },
@@ -80,9 +90,11 @@ Order.prototype.getPublicData = function() {
         id: this.id,
         balanceAmount: parseFloat(this.balanceAmount),
         balancePayerId: this.balancePayerId,
+        balanceSenderId: this.balanceSenderId,
         status: this.status,
         notes: this.notes,
-        createdAt: this.createdAt
+        createdAt: this.createdAt,
+        updatedAt: this.updatedAt
     };
 };
 

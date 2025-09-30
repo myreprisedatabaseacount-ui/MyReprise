@@ -19,6 +19,8 @@ interface OrderNegotiationStep1Props {
     value: string;
     onChange: (v: string) => void;
     onConfirm: (value: number) => void;
+    isSender?: boolean;
+    onAccept?: () => void;
 }
 
 export default function OrderNegotiationStep1({
@@ -29,6 +31,8 @@ export default function OrderNegotiationStep1({
     value,
     onChange,
     onConfirm,
+    isSender = false,
+    onAccept,
 }: OrderNegotiationStep1Props) {
     const explanation = useMemo(() => {
         const numeric = Math.max(0, Number(value) || 0);
@@ -86,21 +90,41 @@ export default function OrderNegotiationStep1({
                     className="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Valeur à ajouter"
                 />
-                <button
-                    onClick={handleConfirm}
-                    className={`${isDirty ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'} px-3 py-1.5 text-sm rounded-md text-white flex items-center gap-1`}
-                >
-                    {isDirty ? (
-                        <>
+                {/* Boutons conditionnels selon le rôle et la modification */}
+                {isSender ? (
+                    // L'expéditeur courant ne voit rien si pas de modification; sinon il peut proposer
+                    isDirty ? (
+                        <button
+                            onClick={handleConfirm}
+                            className={`bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-sm rounded-md text-white flex items-center gap-1`}
+                        >
                             <span>Proposer ce prix</span>
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 ml-1">
                                 <path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z" />
                             </svg>
-                        </>
+                        </button>
+                    ) : null
+                ) : (
+                    // Le destinataire peut accepter si pas de modification, sinon proposer
+                    isDirty ? (
+                        <button
+                            onClick={handleConfirm}
+                            className={`bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-sm rounded-md text-white flex items-center gap-1`}
+                        >
+                            <span>Proposer ce prix</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 ml-1">
+                                <path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z" />
+                            </svg>
+                        </button>
                     ) : (
-                        <span>Accepter</span>
-                    )}
-                </button>
+                        <button
+                            onClick={onAccept}
+                            className={`bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 text-sm rounded-md text-white`}
+                        >
+                            Accepter
+                        </button>
+                    )
+                )}
             </div>
             <div className={`text-xs ${direction === 'payer' ? 'text-amber-700' : direction === 'recevoir' ? 'text-emerald-700' : 'text-gray-600'}`}>{explanation}</div>
         </div>

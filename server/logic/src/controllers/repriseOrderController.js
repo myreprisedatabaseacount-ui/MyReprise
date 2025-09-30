@@ -7,7 +7,7 @@ const { UserSnapshot } = require('../models/UserSnapshot');
 const { ProductSnapshot } = require('../models/ProductSnapshot');
 const { Conversation } = require('../models/Conversation');
 const { ConversationParticipants } = require('../models/ConversationParticipants');
-const { broadcastConversationsUpdate } = require('../sockets');
+const { broadcastConversationsUpdate, emitToConversation } = require('../sockets');
 const sequelize = db.getSequelize();
 const { Op } = db.Sequelize;
 const OfferImage = sequelize.models.OfferImage;
@@ -78,7 +78,9 @@ async function getNegotiationSummary(orderId) {
       status: order.status,
       balanceAmount: Number(order.balanceAmount),
       balancePayerId: order.balancePayerId,
-      createdAt: order.createdAt
+      balanceSenderId: order.balanceSenderId,
+      createdAt: order.createdAt,
+      updatedAt: order.updatedAt
     },
     products
   };
@@ -160,6 +162,7 @@ const createRepriseOrder = async (req, res) => {
       const baseDiff = senderPrice - receiverPrice;
       const cheaperUserId = baseDiff > 0 ? receiverOffer.sellerId : baseDiff < 0 ? senderOffer.sellerId : null;
       const balancePayerId = cheaperUserId; // Celui qui a le produit le moins cher paie
+      const balanceSenderId = senderUser.id; // L'expéditeur de la commande
 
       // differenceAmount ne doit pas excéder la diff absolue si les prix diffèrent
       const absoluteDiff = Math.abs(baseDiff);
@@ -184,6 +187,7 @@ const createRepriseOrder = async (req, res) => {
       const newOrder = await Order.create({
         balanceAmount: diffAmountNum,
         balancePayerId: balancePayerId || null,
+        balanceSenderId: balanceSenderId || null,
         status: 'pending',
         notes: null
       }, { transaction: t });
@@ -258,7 +262,10 @@ const createRepriseOrder = async (req, res) => {
             id: newOrder.id,
             balanceAmount: Number(newOrder.balanceAmount),
             balancePayerId: newOrder.balancePayerId,
-            status: newOrder.status
+            balanceSenderId: newOrder.balanceSenderId,
+            status: newOrder.status,
+            createdAt: newOrder.createdAt,
+            updatedAt: newOrder.updatedAt
           },
           conversation: {
             id: conversation.id,
@@ -502,8 +509,10 @@ const listReceivedOrdersOnMyOffers = async (req, res) => {
         id: order.id,
         balanceAmount: Number(order.balanceAmount),
         balancePayerId: order.balancePayerId,
+        balanceSenderId: order.balanceSenderId,
         status: order.status,
-        createdAt: order.createdAt
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt
       };
 
       const existing = groups.get(row.offerId) || {
@@ -780,6 +789,16 @@ const getNegotiationInitByOrderId = async (req, res) => {
     // Choix du "target" identique aux pages reçues: si je suis propriétaire produit -> target = mon offre
     // sinon (je suis l'expéditeur) -> target = l'offre de l'autre.
     const senderSnap = us.find(s => s.isSender);
+    const senderUserId = senderSnap?.userId || null;
+    let senderDisplayName = null;
+    if (senderSnap) {
+      try {
+        const senderUser = await User.findByPk(senderSnap.userId, { attributes: ['firstName', 'lastName'] });
+        if (senderUser) {
+          senderDisplayName = [senderUser.firstName, senderUser.lastName].filter(Boolean).join(' ').trim() || null;
+        }
+      } catch {}
+    }
     const isOrderSender = senderSnap ? senderSnap.userId === currentUserId : false;
     const isProductOwner = !!myOffer;
 
@@ -798,7 +817,20 @@ const getNegotiationInitByOrderId = async (req, res) => {
         direction,
         isOrderSender,
         isProductOwner,
-        // Ajouter aussi les produits enrichis (userId, images)
+        senderUserId,
+        senderDisplayName,
+        // Identifiants utiles à l'UI pour la logique d'action
+        balanceSenderId: summary.order.balanceSenderId ?? null,
+        balancePayerId: summary.order.balancePayerId ?? null,
+        // Objet order minimal pour compatibilité
+        order: {
+          id: summary.order.id,
+          balanceAmount: Number(summary.order.balanceAmount) || 0,
+          balancePayerId: summary.order.balancePayerId ?? null,
+          balanceSenderId: summary.order.balanceSenderId ?? null,
+          status: summary.order.status,
+        },
+        // Produits enrichis (userId, images)
         products: summary.products
       }
     });
@@ -1030,8 +1062,10 @@ const listSendedOrdersOnMyOffers = async (req, res) => {
         id: order.id,
         balanceAmount: Number(order.balanceAmount),
         balancePayerId: order.balancePayerId,
+        balanceSenderId: order.balanceSenderId,
         status: order.status,
-        createdAt: order.createdAt
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt
       };
 
       const existing = groups.get(row.offerId) || {
@@ -1081,11 +1115,258 @@ const listSendedOrdersOnMyOffers = async (req, res) => {
   }
 };
 
+const accepAndNegotiateRepriseOrder = async (req, res) => {
+  try {
+    const user = req.user;
+    const currentUserId = user?.userId || user?.id;
+    if (!currentUserId) {
+      return res.status(401).json({ error: 'Authentification requise' });
+    }
+
+    const { orderId, orderStatus } = req.body || {};
+    const id = parseInt(orderId, 10);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: 'orderId invalide' });
+    }
+    if (orderStatus && orderStatus !== 'negotiation') {
+      return res.status(400).json({ error: "orderStatus doit être 'negotiation' si fourni" });
+    }
+
+    const order = await Order.findByPk(id);
+    if (!order) {
+      return res.status(404).json({ error: 'Order introuvable' });
+    }
+
+    // Seul le destinataire (non expéditeur) peut accepter la reprise
+    const recipientSnapshot = await UserSnapshot.findOne({ where: { orderId: id, userId: currentUserId, isSender: false } });
+    if (!recipientSnapshot) {
+      const senderSnapshot = await UserSnapshot.findOne({ where: { orderId: id, userId: currentUserId, isSender: true } });
+      return res.status(403).json({ error: senderSnapshot ? 'Seul le destinataire peut accepter cette reprise' : 'Accès refusé à cette commande' });
+    }
+
+    // Idempotence et contrôle d'état
+    if (order.status === 'negotiation') {
+      const payload = typeof order.getPublicData === 'function' ? order.getPublicData() : {
+        id: order.id,
+        balanceAmount: Number(order.balanceAmount),
+        balancePayerId: order.balancePayerId,
+        balanceSenderId: order.balanceSenderId,
+        status: order.status,
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt
+      };
+      return res.status(200).json({ success: true, message: 'Déjà en négociation', data: payload });
+    }
+    if (order.status !== 'pending') {
+      return res.status(409).json({ error: 'Statut de commande incompatible pour acceptation', currentStatus: order.status });
+    }
+
+    const t = await sequelize.transaction();
+    try {
+      // Mise à jour conditionnelle pour éviter les courses
+      const [affected] = await Order.update(
+        { status: 'negotiation' },
+        { where: { id, status: 'pending' }, transaction: t }
+      );
+      if (affected === 0) {
+        await t.rollback();
+        const fresh = await Order.findByPk(id);
+        return res.status(409).json({ error: 'La commande a déjà été modifiée', currentStatus: fresh?.status || null });
+      }
+      await t.commit();
+
+      const updated = await Order.findByPk(id);
+      const payload = typeof updated.getPublicData === 'function' ? updated.getPublicData() : {
+        id: updated.id,
+        balanceAmount: Number(updated.balanceAmount),
+        balancePayerId: updated.balancePayerId,
+        balanceSenderId: updated.balanceSenderId,
+        status: updated.status,
+        createdAt: updated.createdAt,
+        updatedAt: updated.updatedAt
+      };
+      return res.status(200).json({ success: true, message: 'Reprise acceptée', data: payload });
+    } catch (error) {
+      try { await t.rollback(); } catch { }
+      console.error('❌ acceptRepriseOrder tx error:', error);
+      return res.status(500).json({ error: 'Erreur interne', details: error.message || 'Erreur inconnue' });
+    }
+  } catch (error) {
+    console.error('❌ acceptRepriseOrder error:', error);
+    return res.status(500).json({ error: 'Erreur interne', details: error.message || 'Erreur inconnue' });
+  }
+};
+
+const UpdateRepriseOrderPrice = async (req, res) => {
+  try {
+    const user = req.user;
+    const currentUserId = user?.userId || user?.id;
+    if (!currentUserId) {
+      return res.status(401).json({ error: 'Authentification requise' });
+    }
+    const { orderId, differenceAmount } = req.body || {};
+    const id = parseInt(orderId, 10);
+    const diffAmountNum = Number(differenceAmount);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: 'orderId invalide' });
+    }
+    if (!Number.isFinite(diffAmountNum) || diffAmountNum < 0) {
+      return res.status(400).json({ error: 'differenceAmount doit être un nombre >= 0' });
+    }
+
+    const order = await Order.findByPk(id);
+    if (!order) {
+      return res.status(404).json({ error: 'Commande introuvable' });
+    }
+
+    // Accès: l'utilisateur doit être participant à la commande
+    const participant = await UserSnapshot.findOne({ where: { orderId: id, userId: currentUserId } });
+    if (!participant) {
+      return res.status(403).json({ error: 'Accès refusé à cette commande' });
+    }
+
+    // Autoriser la modification seulement en négociation et refuser si acceptée/terminée
+    if (order.status === 'accepted' || order.status === 'completed' || order.status === 'cancelled' || order.status === 'refunded') {
+      return res.status(409).json({ error: 'La négociation est déjà acceptée ou terminée. Modification interdite', currentStatus: order.status });
+    }
+    if (order.status !== 'negotiation') {
+      return res.status(409).json({ error: 'La commande doit être en négociation pour modifier la différence', currentStatus: order.status });
+    }
+
+    // Récupérer les offres liées via ProductSnapshot
+    const productSnaps = await ProductSnapshot.findAll({ where: { orderId: id }, attributes: ['offerId'], raw: true });
+    const offerIds = [...new Set(productSnaps.map(r => r.offerId))];
+    if (offerIds.length !== 2) {
+      return res.status(409).json({ error: 'Commande invalide: nombre de produits inattendu' });
+    }
+    const offers = await Offer.findAll({ where: { id: { [Op.in]: offerIds } }, attributes: ['id', 'price', 'sellerId'] });
+    if (!offers || offers.length !== 2) {
+      return res.status(409).json({ error: 'Offres associées introuvables' });
+    }
+
+    const t = await sequelize.transaction();
+    try {
+      // Déterminer le payeur de la différence
+      // Règle: si differenceAmount > 0, le propriétaire de l'offre la moins chère paie la différence
+      // Si égalité de prix et differenceAmount > 0, on attribue par défaut au currentUser
+      let computedPayerId = null;
+      if (diffAmountNum > 0) {
+        if (offers && offers.length === 2) {
+          const [o1, o2] = offers;
+          const p1 = Number(o1.price);
+          const p2 = Number(o2.price);
+          if (Number.isFinite(p1) && Number.isFinite(p2)) {
+            if (p1 < p2) computedPayerId = o1.sellerId;
+            else if (p2 < p1) computedPayerId = o2.sellerId;
+            else computedPayerId = currentUserId; // prix égaux -> celui qui propose paie par défaut
+          } else {
+            computedPayerId = currentUserId;
+          }
+        } else {
+          computedPayerId = currentUserId;
+        }
+      } else {
+        // 0 => échange à valeur égale
+        computedPayerId = null;
+      }
+
+      await order.update({ balanceAmount: diffAmountNum, balancePayerId: computedPayerId, balanceSenderId: currentUserId }, { transaction: t });
+      await t.commit();
+
+      const updated = await Order.findByPk(id);
+      const payload = typeof updated.getPublicData === 'function' ? updated.getPublicData() : {
+        id: updated.id,
+        balanceAmount: Number(updated.balanceAmount),
+        balancePayerId: updated.balancePayerId,
+        balanceSenderId: updated.balanceSenderId,
+        status: updated.status,
+        createdAt: updated.createdAt,
+        updatedAt: updated.updatedAt
+      };
+      return res.status(200).json({ success: true, message: 'Différence mise à jour', data: payload });
+    } catch (innerError) {
+      try { await t.rollback(); } catch { }
+      console.error('❌ UpdateRepriseOrderPrice tx error:', innerError);
+      return res.status(500).json({ error: 'Erreur interne', details: innerError.message || 'Erreur inconnue' });
+    }
+  } catch (error) {
+    console.error('❌ UpdateRepriseOrderPrice error:', error);
+    return res.status(500).json({ error: 'Erreur interne', details: error.message || 'Erreur inconnue' });
+  }
+}
+
+const acceptNegotiation = async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const user = req.user;
+    const currentUserId = user?.userId || user?.id;
+    if (!currentUserId) {
+      return res.status(401).json({ error: 'Authentification requise' });
+    }
+    const { orderId } = req.body || {};
+    const id = parseInt(orderId, 10);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: 'orderId invalide' });
+    }
+    const order = await Order.findByPk(id);
+    if (!order) {
+      return res.status(404).json({ error: 'Commande introuvable' });
+    }
+    // Vérifier l'état
+    if (order.status === 'accepted' || order.status === 'completed' || order.status === 'cancelled' || order.status === 'refunded') {
+      return res.status(409).json({ error: 'La commande est déjà acceptée ou terminée', currentStatus: order.status });
+    }
+    if (order.status !== 'negotiation') {
+      return res.status(409).json({ error: 'La commande doit être en négociation pour être acceptée', currentStatus: order.status });
+    }
+
+    // Vérifier la participation de l'utilisateur (peu importe isSender)
+    const participant = await UserSnapshot.findOne({ where: { orderId: id, userId: currentUserId } });
+    if (!participant) {
+      return res.status(403).json({ error: 'Accès refusé à cette commande' });
+    }
+
+    // Règle d'acceptation: seul l'utilisateur différent de balanceSenderId peut accepter
+    if (order.balanceSenderId && Number(order.balanceSenderId) === Number(currentUserId)) {
+      return res.status(403).json({ error: 'Seul l\'autre participant peut accepter cette reprise' });
+    }
+
+    await order.update({ status: 'accepted' }, { transaction: t });
+    await t.commit();
+
+    // Tenter de retrouver la conversation de négociation liée à cet order
+    try {
+      const conv = await Conversation.findOne({ where: { order_id: id }, attributes: ['id'] });
+      if (conv && conv.id) {
+        emitToConversation(conv.id, 'negotiation_accepted', {
+          orderId: id,
+          conversationId: conv.id,
+          acceptedBy: currentUserId,
+          balanceAmount: Number(order.balanceAmount) || 0,
+          balanceSenderId: order.balanceSenderId || null
+        });
+      }
+    } catch (e) {
+      console.error('⚠️ Émission negotiation_accepted échouée:', e);
+    }
+
+    return res.status(200).json({ success: true, message: 'Négociation acceptée' });
+  } catch (innerError) {
+    try { await t.rollback(); } catch { }
+    console.error('❌ acceptNegotiation tx error:', innerError);
+    return res.status(500).json({ error: 'Erreur interne', details: innerError.message || 'Erreur inconnue' });
+  }
+};
+
 module.exports = {
   createRepriseOrder,
   listReceivedOrdersOnMyOffers,
   getOrderDetails,
   getNegotiationInitByOrderId,
   listSendedOrdersOnMyOffers,
-  getNegotiationSummary
+  getNegotiationSummary,
+  accepAndNegotiateRepriseOrder,
+  UpdateRepriseOrderPrice,
+  acceptNegotiation
 };

@@ -310,6 +310,16 @@ async function initializeModels() {
     } catch (error) {
       console.error('❌ Erreur association Order <-> Delta:', error.message);
     }
+
+    // Associer Order.balanceSenderId -> User
+    try {
+      if (Order && User) {
+        Order.belongsTo(User, { foreignKey: 'balanceSenderId', as: 'BalanceSender' });
+        User.hasMany(Order, { foreignKey: 'balanceSenderId', as: 'BalanceSentOrders' });
+      }
+    } catch (error) {
+      console.error('❌ Erreur association Order.balanceSenderId <-> User:', error.message);
+    }
     
     try {
       if (Conversation && ConversationParticipants) {

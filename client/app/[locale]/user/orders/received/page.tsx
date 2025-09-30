@@ -1,12 +1,12 @@
 "use client";
 
-import { useListReceivedOrdersOnMyOffersQuery } from '@/services/api/RepriseOrderApi';
+import { useAccepAndNegotiateRepriseOrderMutation, useListReceivedOrdersOnMyOffersQuery } from '@/services/api/RepriseOrderApi';
 import { Truck, MessageSquareShare, ArrowRightLeft } from 'lucide-react';
 import Link from 'next/link';
-import OrderNegotiationCard from '@/components/orders/OrderNegotiationCard';
 import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import ChatPanel from '@/components/ChatPanel/chatPanel';
+import { toast } from 'sonner';
 
 function formatOrderDate(createdAt: string): string {
   const date = new Date(createdAt);
@@ -38,13 +38,13 @@ export default function ReceivedOrdersPage() {
   const [page, setPage] = useState(1);
   const limit = 10;
   const { data, isLoading, error } = useListReceivedOrdersOnMyOffersQuery({ page, limit });
+  const [accepAndNegotiateRepriseOrder , { isLoading: isAccepAndNegotiateRepriseOrderLoading }] = useAccepAndNegotiateRepriseOrderMutation();
   const params = useParams();
   const locale = (params as any)?.locale || '';
   const searchParams = useSearchParams();
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [animatingId, setAnimatingId] = useState<string | null>(null);
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
-  const [orderNegotiationCardOpen, setOrderNegotiationCardOpen] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
 
@@ -78,16 +78,25 @@ export default function ReceivedOrdersPage() {
 
   const handleOpenNegotiation = (orderId: number, userId: number) => {
     setChatPanelOpen(true);
-    setOrderNegotiationCardOpen(true);
     setSelectedOrderId(orderId);
     setSelectedUserId(userId);
   };
 
+  const handleAcceptAndNegotiate = async (orderId: number, userId: number) => {
+    try {
+      await accepAndNegotiateRepriseOrder({ orderId, orderStatus: 'negotiation' }).unwrap();
+      handleOpenNegotiation(orderId, userId);
+      toast.success('Reprise acceptée et négociée avec succès');
+    } catch (e) {
+      toast.error('Erreur accept-negociation:', e);
+      console.error('Erreur accept-negociation:', e);
+    }
+  };
+
   return (
     <>
-      {orderNegotiationCardOpen && <OrderNegotiationCard orderId={selectedOrderId} />}
       <div className="max-h-90 h-90 mt-[100px] relative overflow-y-hidden flex-1 bg-red-500" >
-        {chatPanelOpen && <ChatPanel isOpen={chatPanelOpen} onToggle={() => { setChatPanelOpen(!chatPanelOpen), setOrderNegotiationCardOpen(false), setSelectedOrderId(null) }} selectedUserId={selectedUserId} orderId={selectedOrderId} />}
+        {chatPanelOpen && <ChatPanel isOpen={chatPanelOpen} onToggle={() => { setChatPanelOpen(!chatPanelOpen), setSelectedOrderId(null) }} selectedUserId={selectedUserId} orderId={selectedOrderId} />}
       </div>
       <div className="space-y-4 ">
         <h1 className="text-xl font-semibold">Commandes reçues</h1>
@@ -168,12 +177,12 @@ export default function ReceivedOrdersPage() {
                           )}
                           {/* Bannière livraison mobile (sous le profil) */}
                           <div className="sm:hidden mt-1">
-                            <PromoBanner createdAt={o.order.createdAt} />
+                            <PromoBanner createdAt={o.order.createdAt} updatedAt={o.order.updatedAt} status={o.order.status} />
                           </div>
                         </div>
                         <div className="flex flex-col items-center gap-2">
                           <div className="hidden sm:flex items-center gap-3 ">
-                            <PromoBanner createdAt={o.order.createdAt} />
+                            <PromoBanner createdAt={o.order.createdAt} updatedAt={o.order.updatedAt} status={o.order.status} />
                           </div>
                           <span className="text-xs text-right text-gray-500 w-full">{formatOrderDate(o.order.createdAt)}</span>
                         </div>
@@ -256,6 +265,7 @@ export default function ReceivedOrdersPage() {
                           </div>
                         ) : null;
                       })()}
+                      
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-2 gap-2">
                         <div className="text-sm text-gray-700">
                           {(() => {
@@ -272,10 +282,11 @@ export default function ReceivedOrdersPage() {
                         <div className="flex flex-row items-stretch gap-2 w-full sm:w-auto max-w-sm sm:max-w-none">
                           <button className="inline-flex items-center justify-center rounded-md border px-3 py-2 text-md font-medium text-gray-700 hover:bg-gray-50 flex-1 sm:flex-none">Refuser</button>
                           <button
-                            onClick={() => handleOpenNegotiation(o.order.id, o.sender.userId)}
-                            className="inline-flex items-center justify-center gap-3 rounded-md bg-emerald-600 px-4 py-2 text-md font-medium text-white hover:bg-emerald-700 flex-1 sm:flex-none"
+                            onClick={() => (o.order.status === 'pending' ? handleAcceptAndNegotiate(o.order.id, o.sender.userId) : handleOpenNegotiation(o.order.id, o.sender.userId))}
+                            disabled={o.order.status === 'pending' && isAccepAndNegotiateRepriseOrderLoading}
+                            className="inline-flex items-center justify-center gap-3 rounded-md bg-emerald-600 px-4 py-2 text-md font-medium text-white hover:bg-emerald-700 disabled:opacity-60 flex-1 sm:flex-none"
                           >
-                            <span>Accepter et négocier</span>
+                            <span>{o.order.status === 'pending' ? 'Accepter et négocier' : 'Négocier'}</span>
                             <MessageSquareShare className="w-5 h-5" />
                           </button>
                         </div>
@@ -316,26 +327,29 @@ export default function ReceivedOrdersPage() {
 }
 
 // Bannière promotionnelle inspirée du design fourni, sans dépendances externes (icônes SVG inline)
-function PromoBanner({ createdAt }: { createdAt: string }) {
+function PromoBanner({ createdAt, updatedAt, status }: { createdAt: string; updatedAt?: string; status?: string }) {
   const [remaining, setRemaining] = useState<number>(() => {
-    const start = new Date(createdAt).getTime();
+    const startBase = (updatedAt && updatedAt !== createdAt && status && status !== 'cancelled') ? updatedAt : createdAt;
+    const start = new Date(startBase).getTime();
     const end = start + 24 * 60 * 60 * 1000;
     return Math.max(0, end - Date.now());
   });
   useEffect(() => {
     const id = setInterval(() => {
-      const start = new Date(createdAt).getTime();
+      const startBase = (updatedAt && updatedAt !== createdAt && status && status !== 'cancelled') ? updatedAt : createdAt;
+      const start = new Date(startBase).getTime();
       const end = start + 24 * 60 * 60 * 1000;
       setRemaining(Math.max(0, end - Date.now()));
     }, 1000);
     return () => clearInterval(id);
-  }, [createdAt]);
+  }, [createdAt, updatedAt, status]);
 
   const total = Math.floor(remaining / 1000);
   const h = String(Math.floor(total / 3600)).padStart(2, '0');
   const m = String(Math.floor((total % 3600) / 60)).padStart(2, '0');
   const s = String(total % 60).padStart(2, '0');
   const isExpired = total <= 0;
+  const showFifteen = !isExpired && (updatedAt && updatedAt !== createdAt) && (status && status !== 'cancelled');
 
 
   return (
@@ -344,8 +358,8 @@ function PromoBanner({ createdAt }: { createdAt: string }) {
       <span className="hidden sm:inline">Cathedis</span>
       <span className="opacity-80 hidden sm:inline">•</span>
       <Truck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
-      <span className="text-white font-semibold text-[11px] sm:text-sm">{isExpired ? '-5% livraison' : '-15% livraison'}</span>
-      {!isExpired && (
+      <span className="text-white font-semibold text-[11px] sm:text-sm">{showFifteen ? '-15% livraison' : '-5% livraison'}</span>
+      {showFifteen && (
         <>
           <span className="opacity-80">•</span>
           <span className="font-mono flex items-center gap-2">
