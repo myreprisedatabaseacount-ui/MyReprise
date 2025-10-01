@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image';
 import Link from 'next/link';
 
 // Interface pour les produits mockés (fallback)
@@ -128,7 +129,7 @@ const ProductCard: React.FC<{ product?: Product; offer?: Offer }> = ({ product, 
         
         return (
             <Link className='my-3 block' href={`/product/${offer.id}`}>
-                <div className="flex items-center gap-4 p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all duration-200">
+                <div className="flex items-center gap-4 p-3 duration-200">
                     <div className="w-24 h-24 rounded-lg overflow-hidden flex-shrink-0">
                         <img
                             src={imageUrl}
@@ -138,7 +139,7 @@ const ProductCard: React.FC<{ product?: Product; offer?: Offer }> = ({ product, 
                     </div>
                     <div className="flex-1 min-w-0">
                         {/* 1. Titre de l'offre */}
-                        <h3 className="text-lg font-medium text-gray-900 truncate mb-2">
+                        <h3 className="text-lg font-medium text-gray-900 truncate mb-1">
                             {offer.title}
                         </h3>
                         
@@ -152,14 +153,8 @@ const ProductCard: React.FC<{ product?: Product; offer?: Offer }> = ({ product, 
                         {/* 3. Call to action : Demander reprise */}
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-blue-600">Demander reprise</span>
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-blue-600">
-                                    <path d="M12 2L13.09 8.26L20 9L13.09 9.74L12 16L10.91 9.74L4 9L10.91 8.26L12 2Z" fill="currentColor"/>
-                                    <path d="M19 15L20.09 21.26L27 22L20.09 22.74L19 29L17.91 22.74L11 22L17.91 21.26L19 15Z" fill="currentColor"/>
-                                </svg>
-                            </div>
-                            <div className="text-sm font-semibold text-gray-900">
-                                {offer.price.toLocaleString()} DH
+                                <span className="text-md font-semibold text-blue-600">Demander reprise</span>
+                                <Image src="/icon/logo.png" alt="Demander reprise pt-1" width={24} height={24} />
                             </div>
                         </div>
                     </div>

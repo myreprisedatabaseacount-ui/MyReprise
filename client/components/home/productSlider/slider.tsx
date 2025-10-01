@@ -137,7 +137,6 @@ const ProductSlider: React.FC<ProductSliderProps> = ({
                 className="w-full h-full object-cover opacity-80"
               />
             ) : null}
-            <div className="absolute inset-0 bg-black bg-opacity-30"></div>
             <div className="relative z-10 w-full h-full flex items-center justify-center text-white">
               <div className="text-center">
                 <div className="w-16 h-16 bg-white bg-opacity-20 rounded-full flex items-center justify-center mx-auto mb-4">
