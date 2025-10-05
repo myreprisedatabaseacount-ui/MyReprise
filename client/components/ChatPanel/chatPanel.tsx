@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Send, Smile, Users, Search, Check, CheckCheck, Trash2, Edit3, Reply, Phone } from 'lucide-react';
+import { MessageCircle, X, Send, Smile, Users, Search, Check, CheckCheck, Trash2, Edit3, Reply, Phone, ArrowLeft, Camera, Plus, PlusCircle, Package, Truck } from 'lucide-react';
 import { useCurrentUser } from '@/services/hooks/useCurrentUser';
 import { useSocket } from '@/services/hooks/useSocket';
 import { useMarkConversationAsReadMutation, useGetConversationMessagesQuery, useGetConversationsQuery } from '@/services/api/ConversationsApi';
@@ -119,7 +119,7 @@ const REACTION_TYPES = [
 
 export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, orderId = null }: ChatPanelProps) {
   const { currentUser } = useCurrentUser();
-  const { socket, isConnected, onlineUsers, joinConversation, leaveConversation, sendMessage: socketSendMessage, sendReaction, deleteMessage, editMessage, on, off, syncOnlineUsers, startTyping, stopTyping } = useSocket();
+  const { socket, isConnected, onlineUsers, joinConversation, sendMessage: socketSendMessage, sendReaction, deleteMessage, editMessage, on, off, startTyping, stopTyping } = useSocket();
   const [markConversationAsRead] = useMarkConversationAsReadMutation();
   const { data: conversationsData } = useGetConversationsQuery({});
   const [updateDifference] = useUpdateRepriseOrderDifferenceMutation();
@@ -150,12 +150,14 @@ export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, ord
   const [typingUsers, setTypingUsers] = useState<Map<number, { userId: number; userName: string; isTyping: boolean; timestamp: number }>>(new Map());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const reactionMenuRef = useRef<HTMLDivElement>(null);
+  const actionsMenuRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const readMessages = useRef<Set<number>>(new Set());
   const pendingReactions = useRef<Set<string>>(new Set()); // Pour éviter les réactions en double
   const pendingDeletions = useRef<Set<number>>(new Set()); // Pour éviter les suppressions en double
   const typingTimeout = useRef<NodeJS.Timeout | null>(null); // Timeout pour arrêter le typing
   const isTyping = useRef<boolean>(false); // État local pour éviter les envois multiples
+  const [showQuickActions, setShowQuickActions] = useState<boolean>(false);
 
   // Mettre à jour les messages quand les données changent
   useEffect(() => {
@@ -186,6 +188,20 @@ export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, ord
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Fermer le menu d'actions si clic à l'extérieur
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (!actionsMenuRef.current) return;
+      if (!actionsMenuRef.current.contains(e.target as Node)) {
+        setShowQuickActions(false);
+      }
+    };
+    if (showQuickActions) {
+      document.addEventListener('mousedown', handler);
+    }
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showQuickActions]);
 
   // Ouvrir automatiquement la conversation existante (sans création) quand selectedUserId et orderId sont fournis
   useEffect(() => {
@@ -292,7 +308,7 @@ export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, ord
       // Marquer les messages comme lus
       await markConversationAsRead(contact.conversationId);
       // Refetch rapide pour éviter de rater un premier message envoyé juste avant le join
-      setTimeout(() => { try { refetchMessages(); } catch {} }, 200);
+      setTimeout(() => { try { refetchMessages(); } catch { } }, 200);
 
       // Marquer automatiquement tous les messages visibles comme lus après un délai
       setTimeout(() => {
@@ -345,7 +361,7 @@ export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, ord
       if (typeof text === 'string' && text.startsWith('- PROPOSITION DE NEGOTIATION:')) {
         try {
           dispatch(RepriseOrderApi.util.invalidateTags(['RepriseOrder'] as any));
-        } catch {}
+        } catch { }
       }
     };
 
@@ -529,7 +545,7 @@ export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, ord
         dispatch(RepriseOrderApi.util.invalidateTags(['RepriseOrder'] as any));
         // Message de notification locale
         showNotification('Négociation acceptée. Passage au choix de livraison.', 'success');
-      } catch {}
+      } catch { }
     };
     on('negotiation_accepted', handleNegotiationAccepted);
 
@@ -537,7 +553,7 @@ export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, ord
     const handleConversationsUpdateLight = (data: any) => {
       const cid = data?.conversationId || data?.id;
       if (cid && cid === currentConversationId) {
-        try { refetchMessages(); } catch {}
+        try { refetchMessages(); } catch { }
       }
     };
     on('conversations:update', handleConversationsUpdateLight);
@@ -846,6 +862,21 @@ export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, ord
           <div className="flex items-center space-x-3">
             {selectedContact ? (
               <>
+                {selectedContact && (
+                  <button
+                    onClick={() => {
+                      setShowContactsList(true);
+                      setShowUserSearch(false);
+                      setSelectedContact(null);
+                      setCurrentConversationId(null);
+                      setMessages([]);
+                    }}
+                    className="pl-1 hover:bg-gray-100 rounded-full transition-colors duration-200"
+                    title="Retour à la liste des conversations"
+                  >
+                    <ArrowLeft size={18} className="text-gray-600" />
+                  </button>
+                )}
                 <div className="relative w-12 h-12">
                   {/* Ami */}
                   <Avatar className="absolute left-0 top-0 w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm">
@@ -885,21 +916,6 @@ export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, ord
           </div>
 
           <div className="flex items-center space-x-2">
-            {selectedContact && (
-              <button
-                onClick={() => {
-                  setShowContactsList(true);
-                  setShowUserSearch(false);
-                  setSelectedContact(null);
-                  setCurrentConversationId(null);
-                  setMessages([]);
-                }}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
-                title="Retour à la liste des conversations"
-              >
-                <Users size={18} className="text-gray-600" />
-              </button>
-            )}
             {!selectedContact && !showUserSearch && (
               <button
                 onClick={() => {
@@ -925,12 +941,19 @@ export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, ord
               </button>
             )}
             {selectedContact && (
-              <button
+              <>
+                <button
 
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
-              >
-                <Phone size={18} className="text-gray-600" />
-              </button>
+                  className="p-1 hover:bg-gray-100 rounded-full transition-colors duration-200"
+                >
+                  <Phone size={18} className="text-gray-600" />
+                </button>
+                <button
+                  className="p-1 hover:bg-gray-100 rounded-full transition-colors duration-200"
+                >
+                  <Camera size={19} className="text-gray-600" />
+                </button>
+              </>
             )}
             <button
               onClick={onToggle}
@@ -959,7 +982,7 @@ export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, ord
                   showNotification('Différence mise à jour', 'success');
                   const announcement = `- PROPOSITION DE NEGOTIATION: Nouveau prix proposé: ${proposedValue} DH`;
                   socketSendMessage({ conversationId: currentConversationId, text: announcement });
-                  try { dispatch(RepriseOrderApi.util.invalidateTags(['RepriseOrder'] as any)); } catch {}
+                  try { dispatch(RepriseOrderApi.util.invalidateTags(['RepriseOrder'] as any)); } catch { }
                 } catch (e: any) {
                   const msg = e?.data?.error || e?.message || 'Erreur lors de la mise à jour';
                   showNotification(msg, 'error');
@@ -1332,7 +1355,59 @@ export default function ChatPanel({ isOpen, onToggle, selectedUserId = null, ord
                 </div>
               )}
 
-              <div className="flex items-center justify-between space-x-2 ">
+              <div className="relative flex items-center justify-between space-x-2 ">
+                {/* Bouton + et menu d'actions */}
+                <div className="relative" ref={actionsMenuRef}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowQuickActions((v) => !v);
+                    }}
+                    className="bg-blue-50 rounded-full p-2 border border-gray-200 hover:bg-blue-100 transition"
+                    title="Plus d'actions"
+                  >
+                    <Plus size={19} className="text-gray-600" />
+                  </button>
+
+                  {showQuickActions && (
+                    <div
+                      className="absolute bottom-12 left-0 bg-white border border-gray-200 rounded-xl shadow-2xl p-3 flex items-center gap-3 animate-fade-in z-20"
+                    >
+                      {/* Ajouter (texte/pièce jointe générique) */}
+                      <button
+                        className="w-11 h-11 rounded-full bg-blue-50 hover:bg-blue-100 border border-blue-200 flex items-center justify-center transition"
+                        title="Ajouter"
+                        onClick={() => {
+                          setShowQuickActions(false);
+                          // future: ouvrir un sélecteur de fichiers
+                        }}
+                      >
+                        <PlusCircle size={18} className="text-blue-600" />
+                      </button>
+
+                      {/* Produits */}
+                      <button
+                        className="w-11 h-11 rounded-full bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 flex items-center justify-center transition"
+                        title="Produits"
+                        onClick={() => {
+                          setShowQuickActions(false);
+                          // future: ouvrir un sélecteur de produits
+                        }}
+                      >
+                        <Package size={18} className="text-emerald-600" />
+                      </button>
+
+                      {/* Livraison (désactivé) */}
+                      <button
+                        className="w-11 h-11 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center opacity-60 cursor-not-allowed"
+                        title="Livraison (bientôt)"
+                        disabled
+                      >
+                        <Truck size={18} className="text-gray-500" />
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <textarea
                   value={newMessage}
                   onChange={handleMessageChange}

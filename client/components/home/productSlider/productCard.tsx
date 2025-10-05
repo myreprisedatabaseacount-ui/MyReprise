@@ -144,7 +144,7 @@ const ProductCard: React.FC<{ product?: Product; offer?: Offer }> = ({ product, 
                         </h3>
                         
                         {/* 2. État du produit */}
-                        <div className="mb-2">
+                        <div className="mb-1">
                             <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getProductConditionColor(offer.productCondition)}`}>
                                 {getProductConditionText(offer.productCondition)}
                             </span>

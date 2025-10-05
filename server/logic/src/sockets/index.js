@@ -42,10 +42,6 @@ const initializeSockets = (io) => {
         // Informer TOUS les utilisateurs connectés de la nouvelle liste (y compris le nouvel utilisateur)
         io.emit('online_users', Object.fromEntries(onlineUsers));
 
-        console.log('online_users', Object.fromEntries(onlineUsers));
-
-        logger.info(`🔌 Utilisateur connecté: ${userEmail} (ID: ${userId})`);
-
         // Stocker l'ID utilisateur dans le socket pour faciliter l'accès
         socket.userId = userId;
 

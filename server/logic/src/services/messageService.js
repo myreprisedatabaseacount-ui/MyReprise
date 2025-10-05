@@ -10,16 +10,6 @@ const logger = require('../utils/logger');
  */
 class MessageService {
     
-    /**
-     * Envoyer un message dans une conversation
-     * @param {number} conversationId - ID de la conversation
-     * @param {number} senderId - ID de l'expéditeur
-     * @param {string} text - Contenu du message
-     * @param {string} audioUrl - URL de l'audio (optionnel)
-     * @param {number} replyToMessageId - ID du message de réponse (optionnel)
-     * @param {number} offerId - ID de l'offre liée (optionnel)
-     * @returns {Object} Message créé
-     */
     static async sendMessage(conversationId, senderId, text = null, audioUrl = null, replyToMessageId = null, offerId = null) {
         try {
             // Vérifier que la conversation existe

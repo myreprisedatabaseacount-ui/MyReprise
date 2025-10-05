@@ -266,13 +266,7 @@ export const useSocket = () => {
     }
   };
 
-  const sendMessage = (data: {
-    conversationId: number;
-    text?: string;
-    audioUrl?: string;
-    replyToMessageId?: number;
-    offerId?: number;
-  }) => {
+  const sendMessage = (data: {conversationId: number; text?: string; audioUrl?: string; replyToMessageId?: number; offerId?: number;}) => {
     if (socket && isConnected) {
       socket.emit('send_message', data);
     }

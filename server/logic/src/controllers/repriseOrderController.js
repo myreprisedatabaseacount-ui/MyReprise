@@ -1230,7 +1230,7 @@ const UpdateRepriseOrderPrice = async (req, res) => {
     if (order.status === 'accepted' || order.status === 'completed' || order.status === 'cancelled' || order.status === 'refunded') {
       return res.status(409).json({ error: 'La négociation est déjà acceptée ou terminée. Modification interdite', currentStatus: order.status });
     }
-    if (order.status !== 'negotiation') {
+    if (order.status !== 'negotiation' && order.status !== 'pending') {
       return res.status(409).json({ error: 'La commande doit être en négociation pour modifier la différence', currentStatus: order.status });
     }
 
@@ -1317,7 +1317,7 @@ const acceptNegotiation = async (req, res) => {
     if (order.status === 'accepted' || order.status === 'completed' || order.status === 'cancelled' || order.status === 'refunded') {
       return res.status(409).json({ error: 'La commande est déjà acceptée ou terminée', currentStatus: order.status });
     }
-    if (order.status !== 'negotiation') {
+    if (order.status !== 'negotiation' && order.status !== 'pending') {
       return res.status(409).json({ error: 'La commande doit être en négociation pour être acceptée', currentStatus: order.status });
     }
 
